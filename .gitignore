@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# Build artifacts
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.pins
+Package.resolved
+
+# Carthage / CocoaPods (not used, but ignore preemptively)
+Carthage/Build/
+Pods/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Local planning notes (kept out of repo)
+docs/plans/
+
+# Claude Code local-only settings (project .claude/settings.json may be committed)
+.claude/settings.local.json

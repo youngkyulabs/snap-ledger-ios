@@ -1,0 +1,778 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 100;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		7E1100AB2FB99A9A004B6FB0 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7E1100AC2FB99A9A004B6FB0 /* AppIntents.framework */; };
+		7E1100AE2FB99A9A004B6FB0 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7E1100AC2FB99A9A004B6FB0 /* AppIntents.framework */; };
+		DDC069772FB980E2004B6FB0 /* SnapLedgerShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DDC0696D2FB980E2004B6FB0 /* SnapLedgerShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		DDC067BD2FB9676E004B6FB0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DDC067A52FB9676D004B6FB0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DDC067AC2FB9676D004B6FB0;
+			remoteInfo = SnapLedger;
+		};
+		DDC067C72FB9676E004B6FB0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DDC067A52FB9676D004B6FB0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DDC067AC2FB9676D004B6FB0;
+			remoteInfo = SnapLedger;
+		};
+		DDC069752FB980E2004B6FB0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DDC067A52FB9676D004B6FB0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DDC0696C2FB980E2004B6FB0;
+			remoteInfo = SnapLedgerShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		DDC069782FB980E2004B6FB0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				DDC069772FB980E2004B6FB0 /* SnapLedgerShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		7E1100AC2FB99A9A004B6FB0 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
+		DDBCF3392FBCAD4C0016FDE9 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		DDBCF3442FBCAD4C0016FDE9 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		DDC067AD2FB9676D004B6FB0 /* SnapLedger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapLedger.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DDC067BC2FB9676E004B6FB0 /* SnapLedgerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapLedgerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DDC067C62FB9676E004B6FB0 /* SnapLedgerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapLedgerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DDC0696D2FB980E2004B6FB0 /* SnapLedgerShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapLedgerShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		DDA000012FB9999900000001 /* Exceptions for "SnapLedger" folder in "SnapLedger" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DDC067AC2FB9676D004B6FB0 /* SnapLedger */;
+		};
+		DDC0697B2FB980E2004B6FB0 /* Exceptions for "SnapLedgerShareExtension" folder in "SnapLedgerShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DDC0696C2FB980E2004B6FB0 /* SnapLedgerShareExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		DDC067AF2FB9676D004B6FB0 /* SnapLedger */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DDA000012FB9999900000001 /* Exceptions for "SnapLedger" folder in "SnapLedger" target */,
+			);
+			path = SnapLedger;
+			sourceTree = "<group>";
+		};
+		DDC067BF2FB9676E004B6FB0 /* SnapLedgerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SnapLedgerTests;
+			sourceTree = "<group>";
+		};
+		DDC067C92FB9676E004B6FB0 /* SnapLedgerUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SnapLedgerUITests;
+			sourceTree = "<group>";
+		};
+		DDC0696E2FB980E2004B6FB0 /* SnapLedgerShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DDC0697B2FB980E2004B6FB0 /* Exceptions for "SnapLedgerShareExtension" folder in "SnapLedgerShareExtension" target */,
+			);
+			path = SnapLedgerShareExtension;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DDC067AA2FB9676D004B6FB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				7E1100AB2FB99A9A004B6FB0 /* AppIntents.framework in Frameworks */,
+			);
+		};
+		DDC067B92FB9676E004B6FB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		DDC067C32FB9676E004B6FB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		DDC0696A2FB980E2004B6FB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				7E1100AE2FB99A9A004B6FB0 /* AppIntents.framework in Frameworks */,
+			);
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		7E1100AD2FB99A9A004B6FB0 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7E1100AC2FB99A9A004B6FB0 /* AppIntents.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		DDC067A42FB9676D004B6FB0 = {
+			isa = PBXGroup;
+			children = (
+				DDBCF3392FBCAD4C0016FDE9 /* CLAUDE.md */,
+				DDBCF3442FBCAD4C0016FDE9 /* README.md */,
+				DDC067AF2FB9676D004B6FB0 /* SnapLedger */,
+				DDC067BF2FB9676E004B6FB0 /* SnapLedgerTests */,
+				DDC067C92FB9676E004B6FB0 /* SnapLedgerUITests */,
+				DDC0696E2FB980E2004B6FB0 /* SnapLedgerShareExtension */,
+				DDC067AE2FB9676D004B6FB0 /* Products */,
+				7E1100AD2FB99A9A004B6FB0 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		DDC067AE2FB9676D004B6FB0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DDC067AD2FB9676D004B6FB0 /* SnapLedger.app */,
+				DDC067BC2FB9676E004B6FB0 /* SnapLedgerTests.xctest */,
+				DDC067C62FB9676E004B6FB0 /* SnapLedgerUITests.xctest */,
+				DDC0696D2FB980E2004B6FB0 /* SnapLedgerShareExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DDC067AC2FB9676D004B6FB0 /* SnapLedger */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DDC067D02FB9676E004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedger" */;
+			buildPhases = (
+				DDC0699A2FB99A9A004B6FB0 /* SwiftLint */,
+				DDC067A92FB9676D004B6FB0 /* Sources */,
+				DDC067AA2FB9676D004B6FB0 /* Frameworks */,
+				DDC067AB2FB9676D004B6FB0 /* Resources */,
+				DDC069782FB980E2004B6FB0 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DDC069762FB980E2004B6FB0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DDC067AF2FB9676D004B6FB0 /* SnapLedger */,
+			);
+			name = SnapLedger;
+			productName = SnapLedger;
+			productReference = DDC067AD2FB9676D004B6FB0 /* SnapLedger.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DDC067BB2FB9676E004B6FB0 /* SnapLedgerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DDC067D32FB9676E004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedgerTests" */;
+			buildPhases = (
+				DDC067B82FB9676E004B6FB0 /* Sources */,
+				DDC067B92FB9676E004B6FB0 /* Frameworks */,
+				DDC067BA2FB9676E004B6FB0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DDC067BE2FB9676E004B6FB0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DDC067BF2FB9676E004B6FB0 /* SnapLedgerTests */,
+			);
+			name = SnapLedgerTests;
+			productName = SnapLedgerTests;
+			productReference = DDC067BC2FB9676E004B6FB0 /* SnapLedgerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		DDC067C52FB9676E004B6FB0 /* SnapLedgerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DDC067D62FB9676E004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedgerUITests" */;
+			buildPhases = (
+				DDC067C22FB9676E004B6FB0 /* Sources */,
+				DDC067C32FB9676E004B6FB0 /* Frameworks */,
+				DDC067C42FB9676E004B6FB0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DDC067C82FB9676E004B6FB0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DDC067C92FB9676E004B6FB0 /* SnapLedgerUITests */,
+			);
+			name = SnapLedgerUITests;
+			productName = SnapLedgerUITests;
+			productReference = DDC067C62FB9676E004B6FB0 /* SnapLedgerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		DDC0696C2FB980E2004B6FB0 /* SnapLedgerShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DDC0697C2FB980E2004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedgerShareExtension" */;
+			buildPhases = (
+				DDC069692FB980E2004B6FB0 /* Sources */,
+				DDC0696A2FB980E2004B6FB0 /* Frameworks */,
+				DDC0696B2FB980E2004B6FB0 /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				DDC0696E2FB980E2004B6FB0 /* SnapLedgerShareExtension */,
+			);
+			name = SnapLedgerShareExtension;
+			productName = SnapLedgerShareExtension;
+			productReference = DDC0696D2FB980E2004B6FB0 /* SnapLedgerShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DDC067A52FB9676D004B6FB0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					DDC067AC2FB9676D004B6FB0 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					DDC067BB2FB9676E004B6FB0 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = DDC067AC2FB9676D004B6FB0;
+					};
+					DDC067C52FB9676E004B6FB0 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = DDC067AC2FB9676D004B6FB0;
+					};
+					DDC0696C2FB980E2004B6FB0 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			buildConfigurationList = DDC067A82FB9676D004B6FB0 /* Build configuration list for PBXProject "SnapLedger" */;
+			developmentRegion = ko;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ko,
+				Base,
+			);
+			mainGroup = DDC067A42FB9676D004B6FB0;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 100;
+			productRefGroup = DDC067AE2FB9676D004B6FB0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DDC067AC2FB9676D004B6FB0 /* SnapLedger */,
+				DDC067BB2FB9676E004B6FB0 /* SnapLedgerTests */,
+				DDC067C52FB9676E004B6FB0 /* SnapLedgerUITests */,
+				DDC0696C2FB980E2004B6FB0 /* SnapLedgerShareExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		DDC067AB2FB9676D004B6FB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		DDC067BA2FB9676E004B6FB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		DDC067C42FB9676E004B6FB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		DDC0696B2FB980E2004B6FB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		DDC0699A2FB99A9A004B6FB0 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			inputPaths = (
+				"$(SRCROOT)/.swiftlint.yml",
+				"$(SRCROOT)/SnapLedger",
+				"$(SRCROOT)/SnapLedgerShareExtension",
+				"$(SRCROOT)/SnapLedgerTests",
+				"$(SRCROOT)/SnapLedgerUITests",
+			);
+			name = SwiftLint;
+			shellPath = /bin/sh;
+			shellScript = (
+				"# SwiftLint - fails the build on any violation (strict).",
+				"# Defensive: if swiftlint is missing, warn and continue.",
+				"",
+				"export PATH=\"$PATH:/opt/homebrew/bin:/usr/local/bin\"",
+				"",
+				"if ! command -v swiftlint >/dev/null 2>&1; then",
+				"    echo \"warning: SwiftLint not installed - skipping lint. Install with: brew install swiftlint\"",
+				"    exit 0",
+				"fi",
+				"",
+				"swiftlint --strict --config \"${SRCROOT}/.swiftlint.yml\" --reporter xcode",
+				"",
+			);
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DDC067A92FB9676D004B6FB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		DDC067B82FB9676E004B6FB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		DDC067C22FB9676E004B6FB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		DDC069692FB980E2004B6FB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DDC067BE2FB9676E004B6FB0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DDC067AC2FB9676D004B6FB0 /* SnapLedger */;
+			targetProxy = DDC067BD2FB9676E004B6FB0 /* PBXContainerItemProxy */;
+		};
+		DDC067C82FB9676E004B6FB0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DDC067AC2FB9676D004B6FB0 /* SnapLedger */;
+			targetProxy = DDC067C72FB9676E004B6FB0 /* PBXContainerItemProxy */;
+		};
+		DDC069762FB980E2004B6FB0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DDC0696C2FB980E2004B6FB0 /* SnapLedgerShareExtension */;
+			targetProxy = DDC069752FB980E2004B6FB0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		DDC067CE2FB9676E004B6FB0 /* Debug configuration for PBXProject "SnapLedger" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		DDC067CF2FB9676E004B6FB0 /* Release configuration for PBXProject "SnapLedger" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		DDC067D12FB9676E004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedger" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SnapLedger/SnapLedger.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapLedger/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "찰칵가계부";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DDC067D22FB9676E004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedger" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SnapLedger/SnapLedger.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapLedger/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "찰칵가계부";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		DDC067D42FB9676E004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedgerTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnapLedger.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SnapLedger";
+			};
+			name = Debug;
+		};
+		DDC067D52FB9676E004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedgerTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnapLedger.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SnapLedger";
+			};
+			name = Release;
+		};
+		DDC067D72FB9676E004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedgerUITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SnapLedger;
+			};
+			name = Debug;
+		};
+		DDC067D82FB9676E004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedgerUITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SnapLedger;
+			};
+			name = Release;
+		};
+		DDC069792FB980E2004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedgerShareExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SnapLedgerShareExtension/SnapLedgerShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapLedgerShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "찰칵가계부";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger.SnapLedgerShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DDC0697A2FB980E2004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedgerShareExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SnapLedgerShareExtension/SnapLedgerShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AYKM26HVPD;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SnapLedgerShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "찰칵가계부";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.youngkyu.snapledger.SnapLedgerShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DDC067A82FB9676D004B6FB0 /* Build configuration list for PBXProject "SnapLedger" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DDC067CE2FB9676E004B6FB0 /* Debug configuration for PBXProject "SnapLedger" */,
+				DDC067CF2FB9676E004B6FB0 /* Release configuration for PBXProject "SnapLedger" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		DDC067D02FB9676E004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedger" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DDC067D12FB9676E004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedger" */,
+				DDC067D22FB9676E004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedger" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		DDC067D32FB9676E004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedgerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DDC067D42FB9676E004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedgerTests" */,
+				DDC067D52FB9676E004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedgerTests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		DDC067D62FB9676E004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedgerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DDC067D72FB9676E004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedgerUITests" */,
+				DDC067D82FB9676E004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedgerUITests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		DDC0697C2FB980E2004B6FB0 /* Build configuration list for PBXNativeTarget "SnapLedgerShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DDC069792FB980E2004B6FB0 /* Debug configuration for PBXNativeTarget "SnapLedgerShareExtension" */,
+				DDC0697A2FB980E2004B6FB0 /* Release configuration for PBXNativeTarget "SnapLedgerShareExtension" */,
+			);
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DDC067A52FB9676D004B6FB0 /* Project object */;
+}

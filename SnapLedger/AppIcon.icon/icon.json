@@ -1,0 +1,29 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.99608,0.94510,0.92549,1.00000"
+  },
+  "fill-specializations" : [
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "srgb:0.11765,0.07843,0.06275,1.00000"
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "Won.png",
+          "fill" : {
+            "solid" : "srgb:0.92157,0.40784,0.32157,1.00000"
+          },
+          "glass" : true
+        }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}
