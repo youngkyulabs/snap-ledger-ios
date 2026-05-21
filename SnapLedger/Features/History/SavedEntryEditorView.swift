@@ -34,7 +34,7 @@ struct SavedEntryEditorView: View {
                     HStack {
                         Text("금액")
                         Spacer()
-                        TextField("0", value: $amount, format: .number)
+                        TextField("0", value: amountBinding, format: .number)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                         Text("원").foregroundStyle(.secondary)
@@ -95,14 +95,33 @@ struct SavedEntryEditorView: View {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
 
+    private var amountBinding: Binding<Int?> {
+        Binding(
+            get: { amount == 0 ? nil : amount },
+            set: { amount = $0 ?? 0 }
+        )
+    }
+
     private var presetChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(presets, id: \.self) { preset in
-                    presetChip(for: preset)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(presets, id: \.self) { preset in
+                        presetChip(for: preset)
+                            .id("p:\(preset)")
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .onAppear {
+                if !category.isEmpty {
+                    proxy.scrollTo("p:\(category)", anchor: .center)
                 }
             }
-            .padding(.vertical, 4)
+            .onChange(of: category) { _, new in
+                guard !new.isEmpty else { return }
+                withAnimation { proxy.scrollTo("p:\(new)", anchor: .center) }
+            }
         }
     }
 

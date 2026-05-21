@@ -22,7 +22,7 @@ struct EntryEditorView: View {
                     HStack {
                         Text("금액")
                         Spacer()
-                        TextField("0", value: $entry.amount, format: .number)
+                        TextField("0", value: amountBinding, format: .number)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                         Text("원").foregroundStyle(.secondary)
@@ -77,6 +77,13 @@ struct EntryEditorView: View {
         Binding(
             get: { entry.category ?? "" },
             set: { entry.category = $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    private var amountBinding: Binding<Int?> {
+        Binding(
+            get: { entry.amount == 0 ? nil : entry.amount },
+            set: { entry.amount = $0 ?? 0 }
         )
     }
 
