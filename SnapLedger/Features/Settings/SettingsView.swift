@@ -184,11 +184,7 @@ struct SettingsView: View {
 
     private func handlePickedFolder(_ url: URL) {
         do {
-            let didStart = url.startAccessingSecurityScopedResource()
-            defer { if didStart { url.stopAccessingSecurityScopedResource() } }
-            let bookmark = try BookmarkStore.makeBookmark(for: url)
-            settings.csvFolderBookmark = bookmark
-            try modelContext.save()
+            try FolderBookmarkHelper.apply(url: url, to: settings, context: modelContext)
             folderError = nil
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
