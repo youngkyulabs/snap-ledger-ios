@@ -9,6 +9,7 @@ final class AppSettings {
     var reminderMinute: Int
     var categoryPresets: [String]
     var customExtractionGuide: String = ""
+    var hasCompletedOnboarding: Bool = false
 
     init(
         csvFolderBookmark: Data? = nil,
@@ -16,7 +17,8 @@ final class AppSettings {
         reminderHour: Int = 21,
         reminderMinute: Int = 0,
         categoryPresets: [String] = AppSettings.defaultPresets,
-        customExtractionGuide: String = ""
+        customExtractionGuide: String = "",
+        hasCompletedOnboarding: Bool = false
     ) {
         self.csvFolderBookmark = csvFolderBookmark
         self.reminderEnabled = reminderEnabled
@@ -24,6 +26,7 @@ final class AppSettings {
         self.reminderMinute = reminderMinute
         self.categoryPresets = categoryPresets
         self.customExtractionGuide = customExtractionGuide
+        self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 
     @MainActor
