@@ -136,7 +136,9 @@ struct OnboardingSetupPage: View {
                     if newValue {
                         Task { await requestPermission() }
                     } else {
-                        notificationToggle = false
+                        withAnimation(.smooth(duration: 0.3)) {
+                            notificationToggle = false
+                        }
                     }
                 }
             ))
@@ -162,11 +164,15 @@ struct OnboardingSetupPage: View {
         switch OnboardingPermissionAction.decide(status: status) {
         case .requestAuthorization:
             let granted = await scheduler.requestPermissionIfNeeded()
-            notificationToggle = granted
+            withAnimation(.smooth(duration: 0.3)) {
+                notificationToggle = granted
+            }
         case .openSystemSettings:
             showingDeniedAlert = true
         case .keepOn:
-            notificationToggle = true
+            withAnimation(.smooth(duration: 0.3)) {
+                notificationToggle = true
+            }
         }
     }
 
@@ -205,7 +211,11 @@ private struct OnboardingSetupSheetsAndAlerts: ViewModifier {
             }
             .alert("알림 권한이 꺼져 있어요", isPresented: $showingDeniedAlert) {
                 Button("설정 열기") { onOpenSettings() }
-                Button("취소", role: .cancel) { notificationToggle = false }
+                Button("취소", role: .cancel) {
+                    withAnimation(.smooth(duration: 0.3)) {
+                        notificationToggle = false
+                    }
+                }
             } message: {
                 Text("알림을 받으려면 설정 → SnapLedger → 알림에서 켜주세요.")
             }
