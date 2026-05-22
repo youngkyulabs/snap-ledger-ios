@@ -34,7 +34,6 @@ struct ContentView: View {
             }
         }
         .task {
-            _ = await NotificationScheduler().requestPermissionIfNeeded()
             await drainPending()
         }
         .onChange(of: pendingReviewCount, initial: true) { _, newCount in
