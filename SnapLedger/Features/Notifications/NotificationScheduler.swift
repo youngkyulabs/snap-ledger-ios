@@ -23,6 +23,10 @@ struct NotificationScheduler {
         }
     }
 
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await center.notificationSettings().authorizationStatus
+    }
+
     func clear() {
         center.removePendingNotificationRequests(withIdentifiers: [ReminderContent.identifier])
     }
