@@ -33,13 +33,11 @@ struct OnboardingSetupPage: View {
                     .appearStep(2, current: step)
                 notificationCard
                     .appearStep(3, current: step)
-                if notificationToggle {
-                    reminderTimeCard
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
+                reminderTimeCard
+                    .opacity(notificationToggle ? 1 : 0)
+                    .animation(.smooth(duration: 0.3), value: notificationToggle)
             }
             .padding(.horizontal)
-            .animation(.smooth(duration: 0.3), value: notificationToggle)
 
             Spacer()
         }
