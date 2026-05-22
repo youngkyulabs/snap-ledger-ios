@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct OnboardingValuePage: View {
+    let onNext: () -> Void
+
     @State private var isAIAvailable = false
 
     var body: some View {
@@ -25,7 +27,17 @@ struct OnboardingValuePage: View {
 
             availabilityBadge
             Spacer()
-            Spacer()
+
+            Button(action: onNext) {
+                Text("다음")
+                    .frame(maxWidth: .infinity)
+                    .font(.headline)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal)
+            .padding(.bottom, 16)
         }
         .padding(.horizontal)
         .onAppear {
@@ -49,5 +61,5 @@ struct OnboardingValuePage: View {
 }
 
 #Preview {
-    OnboardingValuePage()
+    OnboardingValuePage { }
 }

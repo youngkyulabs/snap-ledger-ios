@@ -9,12 +9,15 @@ struct OnboardingView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            OnboardingValuePage()
+            OnboardingValuePage(onNext: goToSetup)
                 .tag(0)
             OnboardingSetupPage(settings: settings, onComplete: onComplete)
                 .tag(1)
         }
-        .tabViewStyle(.page)
-        .indexViewStyle(.page(backgroundDisplayMode: .always))
+        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+
+    private func goToSetup() {
+        withAnimation(.smooth) { selection = 1 }
     }
 }
