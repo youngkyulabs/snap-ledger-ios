@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query private var allParsedEntries: [ParsedEntry]
+    @Query private var allSettings: [AppSettings]
 
     private var pendingReviewCount: Int {
         allParsedEntries.filter { $0.status == .pending }.count
@@ -27,6 +28,11 @@ struct ContentView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: pendingReviewCount)
+        .fullScreenCover(isPresented: shouldShowOnboardingBinding) {
+            if let settings = currentSettingsIfExists() {
+                OnboardingView(settings: settings) {}
+            }
+        }
         .task {
             _ = await NotificationScheduler().requestPermissionIfNeeded()
             await drainPending()
@@ -50,6 +56,30 @@ struct ContentView: View {
     @MainActor
     private func drainPending() async {
         await PendingProcessor.make(in: modelContext).drain(in: modelContext)
+    }
+
+    private var shouldShowOnboardingBinding: Binding<Bool> {
+        Binding(
+            get: {
+                let settings = allSettings.first ?? ensureSettings()
+                return !settings.hasCompletedOnboarding
+            },
+            set: { _ in }
+        )
+    }
+
+    @MainActor
+    private func ensureSettings() -> AppSettings {
+        if let existing = allSettings.first { return existing }
+        let new = AppSettings()
+        modelContext.insert(new)
+        try? modelContext.save()
+        return new
+    }
+
+    @MainActor
+    private func currentSettingsIfExists() -> AppSettings? {
+        allSettings.first ?? ensureSettings()
     }
 
     @MainActor
