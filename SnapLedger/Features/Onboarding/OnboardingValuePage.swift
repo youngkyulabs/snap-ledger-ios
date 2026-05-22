@@ -4,6 +4,7 @@ struct OnboardingValuePage: View {
     let onNext: () -> Void
 
     @State private var isAIAvailable = false
+    @State private var step = 0
 
     var body: some View {
         VStack(spacing: 24) {
@@ -12,6 +13,7 @@ struct OnboardingValuePage: View {
                 .font(.system(size: 80))
                 .foregroundStyle(.tint)
                 .symbolRenderingMode(.hierarchical)
+                .appearStep(1, current: step)
 
             VStack(spacing: 12) {
                 Text("결제 알림을 자동으로 가계부에")
@@ -24,8 +26,10 @@ struct OnboardingValuePage: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
+            .appearStep(2, current: step)
 
             availabilityBadge
+                .appearStep(3, current: step)
             Spacer()
 
             Button(action: onNext) {
@@ -38,10 +42,15 @@ struct OnboardingValuePage: View {
             .controlSize(.large)
             .padding(.horizontal)
             .padding(.bottom, 16)
+            .appearStep(4, current: step)
         }
         .padding(.horizontal)
         .onAppear {
             isAIAvailable = FoundationModelsExtractionService.isAvailable
+        }
+        .task {
+            guard step == 0 else { return }
+            await OnboardingAppearStep.run { step = $0 }
         }
     }
 

@@ -6,12 +6,14 @@ import UserNotifications
 struct OnboardingSetupPage: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var settings: AppSettings
+    let isVisible: Bool
     let onComplete: () -> Void
 
     @State private var showingPicker = false
     @State private var folderError: String?
     @State private var notificationToggle = false
     @State private var showingDeniedAlert = false
+    @State private var step = 0
 
     private var folderName: String? {
         guard let data = settings.csvFolderBookmark else { return nil }
@@ -25,10 +27,13 @@ struct OnboardingSetupPage: View {
             Text("시작 전 준비")
                 .font(.title.bold())
                 .padding(.top, 32)
+                .appearStep(1, current: step)
 
             VStack(spacing: 16) {
                 folderCard
+                    .appearStep(2, current: step)
                 notificationCard
+                    .appearStep(3, current: step)
                 if notificationToggle {
                     reminderTimeCard
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -40,6 +45,7 @@ struct OnboardingSetupPage: View {
             Spacer()
 
             ctaSection
+                .appearStep(4, current: step)
         }
         .modifier(OnboardingSetupSheetsAndAlerts(
             showingPicker: $showingPicker,
@@ -49,6 +55,10 @@ struct OnboardingSetupPage: View {
             onPickFolder: handlePickedFolder,
             onOpenSettings: openSystemSettings
         ))
+        .onChange(of: isVisible, initial: true) { _, newValue in
+            guard newValue, step == 0 else { return }
+            Task { await OnboardingAppearStep.run { step = $0 } }
+        }
     }
 
     private var ctaSection: some View {

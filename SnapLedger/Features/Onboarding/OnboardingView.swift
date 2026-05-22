@@ -11,7 +11,7 @@ struct OnboardingView: View {
         TabView(selection: $selection) {
             OnboardingValuePage(onNext: goToSetup)
                 .tag(0)
-            OnboardingSetupPage(settings: settings, onComplete: onComplete)
+            OnboardingSetupPage(settings: settings, isVisible: selection == 1, onComplete: onComplete)
                 .tag(1)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
