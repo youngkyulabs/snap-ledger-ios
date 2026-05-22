@@ -68,7 +68,7 @@ struct OnboardingSetupPage: View {
                     Text("CSV 저장 폴더").font(.headline).foregroundStyle(.primary)
                     Text(folderName ?? "선택 안 됨")
                         .font(.subheadline)
-                        .foregroundStyle(folderName == nil ? .secondary : .primary)
+                        .foregroundStyle(folderName == nil ? Color.accentColor : Color.primary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(.secondary)
