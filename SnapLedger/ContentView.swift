@@ -28,9 +28,10 @@ struct ContentView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: pendingReviewCount)
-        .fullScreenCover(isPresented: shouldShowOnboardingBinding) {
+        .sheet(isPresented: shouldShowOnboardingBinding) {
             if let settings = currentSettingsIfExists() {
                 OnboardingView(settings: settings) {}
+                    .interactiveDismissDisabled()
             }
         }
         .task {
