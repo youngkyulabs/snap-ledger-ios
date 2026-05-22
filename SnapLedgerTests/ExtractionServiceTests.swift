@@ -168,6 +168,26 @@ struct ExtractionServiceTests {
         #expect(prompt.contains("가짜 데이터"))
     }
 
+    @Test func instructionsUsePlaceholderTokensNotRealBrands() {
+        // 모델이 예시를 베껴 출력하던 케이스를 막기 위해, 예시 블록은
+        // 명백한 가짜 토큰('예시상호N', '예시품목N')만 사용해야 한다.
+        // 실제 상호명("스타벅스", "쿠팡", "Apple") 또는 실제 품목명("아메리카노",
+        // "카페라떼")이 prompt에 들어가면 환각 위험이 다시 생긴다.
+        let prompt = FoundationModelsExtractionService.instructions(
+            today: .now, customGuide: "", categories: defaultCategories
+        )
+        #expect(prompt.contains("예시상호1"))
+        #expect(prompt.contains("예시상호2"))
+        #expect(prompt.contains("예시품목1"))
+        #expect(!prompt.contains("스타벅스"))
+        #expect(!prompt.contains("아메리카노"))
+        #expect(!prompt.contains("카페라떼"))
+        #expect(!prompt.contains("쿠팡"))
+        // "Apple" 단어는 짧고 일반적이라 다른 룰에 들어갈 수 있으니
+        // 예시 머천트로는 안 쓴다는 의미로 정확한 매치만 확인.
+        #expect(!prompt.contains("merchant=\"Apple\""))
+    }
+
     @Test func instructionsForbidNonZeroAmountWhenPriceVisible() {
         // 푸시 알림에서 amount=0으로 떨어지던 문제 방지
         let prompt = FoundationModelsExtractionService.instructions(
