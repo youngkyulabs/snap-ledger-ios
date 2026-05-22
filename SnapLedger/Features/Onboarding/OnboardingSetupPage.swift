@@ -7,6 +7,7 @@ struct OnboardingSetupPage: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var settings: AppSettings
     let isVisible: Bool
+    let onComplete: () -> Void
 
     @State private var showingPicker = false
     @State private var folderError: String?
@@ -40,6 +41,9 @@ struct OnboardingSetupPage: View {
             .padding(.horizontal)
 
             Spacer()
+
+            ctaSection
+                .appearStep(4, current: step)
         }
         .modifier(OnboardingSetupSheetsAndAlerts(
             showingPicker: $showingPicker,
@@ -51,8 +55,33 @@ struct OnboardingSetupPage: View {
         ))
         .onChange(of: isVisible, initial: true) { _, newValue in
             guard newValue, step == 0 else { return }
-            Task { await OnboardingAppearStep.run(stages: 3) { step = $0 } }
+            Task { await OnboardingAppearStep.run { step = $0 } }
         }
+    }
+
+    private var ctaSection: some View {
+        VStack(spacing: 8) {
+            Text("폴더를 먼저 선택해주세요.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .opacity(canProceed ? 0 : 1)
+                .animation(.smooth(duration: 0.25), value: canProceed)
+            Button {
+                settings.hasCompletedOnboarding = true
+                try? modelContext.save()
+                onComplete()
+            } label: {
+                Text("시작하기")
+                    .frame(maxWidth: .infinity)
+                    .font(.headline)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!canProceed)
+            .padding(.horizontal)
+        }
+        .padding(.bottom, 16)
     }
 
     private var folderCard: some View {
