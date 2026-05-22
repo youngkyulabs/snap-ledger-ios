@@ -29,8 +29,13 @@ struct OnboardingSetupPage: View {
             VStack(spacing: 16) {
                 folderCard
                 notificationCard
+                if notificationToggle {
+                    reminderTimeCard
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
             .padding(.horizontal)
+            .animation(.smooth(duration: 0.3), value: notificationToggle)
 
             Spacer()
 
@@ -92,6 +97,38 @@ struct OnboardingSetupPage: View {
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
+    }
+
+    private var reminderTimeCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "clock.fill")
+                .font(.title2)
+                .foregroundStyle(.tint)
+            DatePicker(
+                "알림 시각",
+                selection: reminderTimeBinding,
+                displayedComponents: .hourAndMinute
+            )
+        }
+        .padding()
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var reminderTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var components = DateComponents()
+                components.hour = settings.reminderHour
+                components.minute = settings.reminderMinute
+                return Calendar.current.date(from: components) ?? .now
+            },
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                settings.reminderHour = components.hour ?? settings.reminderHour
+                settings.reminderMinute = components.minute ?? settings.reminderMinute
+                try? modelContext.save()
+            }
+        )
     }
 
     private var notificationCard: some View {
