@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct OnboardingValuePage: View {
-    let onNext: () -> Void
-
     @State private var isAIAvailable = false
     @State private var step = 0
 
@@ -31,18 +29,7 @@ struct OnboardingValuePage: View {
             availabilityBadge
                 .appearStep(3, current: step)
             Spacer()
-
-            Button(action: onNext) {
-                Text("다음")
-                    .frame(maxWidth: .infinity)
-                    .font(.headline)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal)
-            .padding(.bottom, 16)
-            .appearStep(4, current: step)
+            Spacer()
         }
         .padding(.horizontal)
         .onAppear {
@@ -50,7 +37,7 @@ struct OnboardingValuePage: View {
         }
         .task {
             guard step == 0 else { return }
-            await OnboardingAppearStep.run { step = $0 }
+            await OnboardingAppearStep.run(stages: 3) { step = $0 }
         }
     }
 
@@ -70,5 +57,5 @@ struct OnboardingValuePage: View {
 }
 
 #Preview {
-    OnboardingValuePage { }
+    OnboardingValuePage()
 }
