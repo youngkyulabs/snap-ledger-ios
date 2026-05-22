@@ -65,7 +65,7 @@ struct OnboardingSetupPage: View {
                 Image(systemName: "folder.fill")
                     .font(.title2)
                     .foregroundStyle(.tint)
-                    .symbolEffect(.pulse, options: .repeating, isActive: !canProceed)
+                    .symbolEffect(.wiggle, options: .repeating, isActive: !canProceed)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("CSV 저장 폴더").font(.headline).foregroundStyle(.primary)
                     Text(folderName ?? "선택 안 됨")
@@ -77,10 +77,10 @@ struct OnboardingSetupPage: View {
             }
             .padding()
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .overlay {
+            .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(.tint, lineWidth: canProceed ? 0 : 2)
-            }
+                    .fill(canProceed ? Color.clear : Color.accentColor.opacity(0.15))
+            )
             .animation(.smooth(duration: 0.3), value: canProceed)
         }
         .buttonStyle(.plain)
