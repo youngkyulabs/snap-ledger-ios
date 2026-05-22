@@ -94,20 +94,21 @@ struct FoundationModelsExtractionService: ExtractionService {
         example2Category: String
     ) -> String {
         """
-        === 아래 예시는 형식 설명용 가짜 데이터. 응답에 예시 데이터를 복사하지 말고 반드시 입력에서만 추출하세요. ===
+        === 아래 예시는 형식 설명용 가짜 데이터. merchant/items.name은 placeholder('예시상호N', '예시품목N')입니다.
+        응답에 예시 데이터를 복사하지 말고 입력에서만 추출하세요. 입력에 동일 placeholder가 없으면 '예시상호'·'예시품목'으로 시작하는 값은 출력 금지. ===
 
         예시 1 (알림 리스트, 여러 행 → N개):
-        입력: "현대카드  3,300원 일시불, 5/17  Apple  누적523,748원  /  25,020원 일시불, 5/17  쿠팡"
+        입력: "현대카드  1,111원 일시불, 5/17  예시상호1  누적999,999원  /  2,222원 일시불, 5/17  예시상호2"
         출력: transactions=[
-          {date="2026-05-17", amount=3300, merchant="Apple", category="\(example1Category)", items=[]},
-          {date="2026-05-17", amount=25020, merchant="쿠팡", category="\(example1Category)", items=[]}
+          {date="2026-05-17", amount=1111, merchant="예시상호1", category="\(example1Category)", items=[]},
+          {date="2026-05-17", amount=2222, merchant="예시상호2", category="\(example1Category)", items=[]}
         ]
 
         예시 2 (영수증 한 장 → transaction 1개, 품목은 items로):
-        입력: "스타벅스  2026-05-17  아메리카노 4,500  카페라떼 5,500  합계 10,000  부가세 909"
+        입력: "예시상호3  2026-05-17  예시품목1 3,333  예시품목2 4,444  합계 7,777  부가세 707"
         출력: transactions=[
-          {date="2026-05-17", amount=10000, merchant="스타벅스", category="\(example2Category)",
-            items=[{name="아메리카노", amount=4500}, {name="카페라떼", amount=5500}]}
+          {date="2026-05-17", amount=7777, merchant="예시상호3", category="\(example2Category)",
+            items=[{name="예시품목1", amount=3333}, {name="예시품목2", amount=4444}]}
         ]
 
         불확실하면 빈 문자열 또는 0.
@@ -146,6 +147,22 @@ struct FoundationModelsExtractionService: ExtractionService {
         cardIssuerPrefixes.contains { name.hasPrefix($0) }
     }
 
+    /// instructions의 예시 블록에서 쓰는 placeholder 토큰. 모델이 이걸 그대로 베껴
+    /// 출력하면 환각이므로 normalize에서 transaction을 통째로 drop한다.
+    /// 토큰 접두사가 "예시상호"/"예시품목"으로 시작하는 모든 변형을 잡는다.
+    static let exampleMerchantPrefix = "예시상호"
+    static let exampleItemPrefix = "예시품목"
+
+    static func looksLikeExampleLeak(_ trans: PaymentTransaction) -> Bool {
+        let merchant = trans.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
+        if merchant.hasPrefix(exampleMerchantPrefix) { return true }
+        for item in trans.items {
+            let name = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if name.hasPrefix(exampleItemPrefix) { return true }
+        }
+        return false
+    }
+
     /// Lookup keys are upper-cased; Korean keys are unaffected by `uppercased()`.
     static let paymentProviderNormalization: [String: String] = [
         "NAVER FINANCIAL": "네이버페이",
@@ -161,7 +178,8 @@ struct FoundationModelsExtractionService: ExtractionService {
     ]
 
     static func normalize(_ extraction: PaymentExtraction) -> PaymentExtraction {
-        let cleaned = extraction.transactions.map { trans -> PaymentTransaction in
+        let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
+            if looksLikeExampleLeak(trans) { return nil }
             var t = trans
             let raw = t.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
             if isCardIssuerName(raw) {
