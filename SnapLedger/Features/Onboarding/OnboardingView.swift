@@ -28,12 +28,11 @@ struct OnboardingView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 8) {
-            if !isOnFirstPage && !canProceed {
-                Text("폴더를 먼저 선택해주세요.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .transition(.opacity)
-            }
+            Text("폴더를 먼저 선택해주세요.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .opacity(showFolderHint ? 1 : 0)
+                .animation(.smooth(duration: 0.25), value: showFolderHint)
             Button(action: primaryAction) {
                 Text(isOnFirstPage ? "다음" : "시작하기")
                     .frame(maxWidth: .infinity)
@@ -46,8 +45,10 @@ struct OnboardingView: View {
             .padding(.horizontal)
         }
         .padding(.bottom, 16)
-        .animation(.smooth(duration: 0.25), value: selection)
-        .animation(.smooth(duration: 0.25), value: canProceed)
+    }
+
+    private var showFolderHint: Bool {
+        !isOnFirstPage && !canProceed
     }
 
     private func primaryAction() {
