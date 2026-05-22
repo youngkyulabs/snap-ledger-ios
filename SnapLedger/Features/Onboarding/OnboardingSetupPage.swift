@@ -65,7 +65,6 @@ struct OnboardingSetupPage: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .opacity(canProceed ? 0 : 1)
-                .animation(.smooth(duration: 0.25), value: canProceed)
             Button {
                 settings.hasCompletedOnboarding = true
                 try? modelContext.save()
@@ -82,6 +81,7 @@ struct OnboardingSetupPage: View {
             .padding(.horizontal)
         }
         .padding(.bottom, 16)
+        .animation(.smooth(duration: 0.25), value: canProceed)
     }
 
     private var folderCard: some View {
@@ -244,7 +244,13 @@ private struct OnboardingSetupSheetsAndAlerts: ViewModifier {
                     }
                 }
             } message: {
-                Text("알림을 받으려면 설정 → SnapLedger → 알림에서 켜주세요.")
+                Text("알림을 받으려면 설정 → \(Self.appDisplayName) → 알림에서 켜주세요.")
             }
     }
+
+    private static let appDisplayName: String = {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? "SnapLedger"
+    }()
 }
