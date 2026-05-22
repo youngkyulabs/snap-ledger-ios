@@ -18,18 +18,23 @@ extension View {
 }
 
 enum OnboardingAppearStep {
-    static let totalStages = 4
+    static let defaultStages = 4
+    static let initialDelay: Duration = .milliseconds(300)
     static let stepInterval: Duration = .milliseconds(100)
     static let stepAnimation: Animation = .smooth(duration: 0.4)
 
-    static func run(setStep: @escaping @MainActor (Int) -> Void) async {
-        for stage in 1...totalStages {
-            try? await Task.sleep(for: stepInterval)
+    static func run(
+        stages: Int = defaultStages,
+        setStep: @escaping @MainActor (Int) -> Void
+    ) async {
+        try? await Task.sleep(for: initialDelay)
+        for stage in 1...stages {
             await MainActor.run {
                 withAnimation(stepAnimation) {
                     setStep(stage)
                 }
             }
+            try? await Task.sleep(for: stepInterval)
         }
     }
 }
