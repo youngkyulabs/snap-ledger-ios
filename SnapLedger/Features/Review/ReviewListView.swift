@@ -28,7 +28,6 @@ struct ReviewListView: View {
     @State private var isDropTargeted = false
     @State private var pendingToDelete: ParsedEntry?
     @State private var swipeError: String?
-    @State private var confirmClearFailed = false
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -200,15 +199,6 @@ struct ReviewListView: View {
         } message: { message in
             Text(message)
         }
-        .alert(
-            "자동 처리되지 않은 이미지를 정리할까요?",
-            isPresented: $confirmClearFailed
-        ) {
-            Button("정리", role: .destructive) { clearFailedPending() }
-            Button("취소", role: .cancel) { }
-        } message: {
-            Text("이미지 \(failedPending.count)건이 삭제돼요.")
-        }
     }
 
     @ViewBuilder
@@ -318,7 +308,9 @@ struct ReviewListView: View {
             }
             Spacer(minLength: 8)
             Button("정리") {
-                confirmClearFailed = true
+                withAnimation(.smooth(duration: 0.25)) {
+                    clearFailedPending()
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
