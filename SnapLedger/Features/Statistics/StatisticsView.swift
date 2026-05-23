@@ -143,10 +143,11 @@ private struct CategoryDonutChart: View {
     let slices: [StatisticsAggregation.CategorySlice]
     let total: Int
 
-    // SectorMark.annotation은 슬라이스 중심의 angular position에 묶여 있어
-    // 슬라이스가 보간될 때 라벨도 회전하는 어색함이 어떤 방식으로도 깔끔히
-    // 해결되지 않아 도넛 위 % 표시는 제외했다. 카테고리별 % 는 하단
-    // CategoryBreakdownRow 에서 확인할 수 있다.
+    // SectorMark.annotation 은 슬라이스 중심의 angular position 에 묶여 있어
+    // 평소에 % 라벨을 띄워두면 월 전환 보간 시 라벨도 같이 회전한다.
+    // 대신 사용자가 도넛을 길게 누르고 있는 동안에만 % 를 fade-in 한다.
+    @State private var isShowingLabels = false
+
     var body: some View {
         Chart(slices) { slice in
             SectorMark(
@@ -156,6 +157,14 @@ private struct CategoryDonutChart: View {
             )
             .cornerRadius(4)
             .foregroundStyle(by: .value("카테고리", slice.category))
+            .annotation(position: .overlay) {
+                if slice.share >= 0.05 {
+                    Text(slice.share.formatted(.percent.precision(.fractionLength(0...0))))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .opacity(isShowingLabels ? 1 : 0)
+                }
+            }
         }
         .chartLegend(position: .bottom, alignment: .center, spacing: 8)
         .chartBackground { _ in
@@ -168,6 +177,15 @@ private struct CategoryDonutChart: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .contentShape(.rect)
+        .onLongPressGesture(minimumDuration: 0.05, maximumDistance: .infinity) {
+            // 누름 확정 액션은 사용 안 함 — onPressingChanged 로 finger down/up 만 추적
+        } onPressingChanged: { pressing in
+            withAnimation(.smooth(duration: pressing ? 0.12 : 0.2)) {
+                isShowingLabels = pressing
+            }
+        }
+        .accessibilityHint("길게 누르면 카테고리별 퍼센트가 보여요.")
     }
 }
 
