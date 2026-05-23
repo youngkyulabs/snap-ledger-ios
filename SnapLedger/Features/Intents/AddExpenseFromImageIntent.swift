@@ -9,7 +9,7 @@ private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "intent
 struct AddExpenseFromImageIntent: AppIntent {
     static let title: LocalizedStringResource = "이미지에서 지출 추가"
     static let description = IntentDescription(
-        "결제 알림 스크린샷이나 영수증 사진에서 지출 항목을 추출해 찰칵가계부 검토 목록에 추가합니다."
+        "결제 알림 스크린샷이나 영수증 사진에서 지출 항목을 자동 추출해서 찰칵가계부 검토 목록에 추가해요."
     )
 
     @Parameter(title: "이미지", supportedContentTypes: [.image])

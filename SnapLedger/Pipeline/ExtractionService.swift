@@ -15,12 +15,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         self.categories = categories
     }
 
-    static var isAvailable: Bool {
-        switch SystemLanguageModel.default.availability {
-        case .available: return true
-        case .unavailable: return false
-        }
-    }
+    static var isAvailable: Bool { AppleIntelligenceStatus.current.isAvailable }
 
     var isAvailable: Bool { Self.isAvailable }
 

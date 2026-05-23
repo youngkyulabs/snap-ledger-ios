@@ -3,7 +3,7 @@ import SwiftUI
 struct OnboardingValuePage: View {
     let onNext: () -> Void
 
-    @State private var isAIAvailable = false
+    @State private var aiStatus: AppleIntelligenceStatus = .available
     @State private var step = 0
 
     var body: some View {
@@ -20,7 +20,7 @@ struct OnboardingValuePage: View {
                     .font(.title.bold())
                     .multilineTextAlignment(.center)
 
-                Text("스크린샷이나 영수증을 공유 시트로 보내면 Apple Intelligence가 자동으로 분류해요.")
+                Text("스크린샷이나 영수증을 공유 시트로 보내면 Apple Intelligence가 자동 추출해서 채워 넣어요.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -46,7 +46,7 @@ struct OnboardingValuePage: View {
         }
         .padding(.horizontal)
         .onAppear {
-            isAIAvailable = FoundationModelsExtractionService.isAvailable
+            aiStatus = AppleIntelligenceStatus.current
         }
         .task {
             guard step == 0 else { return }
@@ -56,16 +56,22 @@ struct OnboardingValuePage: View {
 
     private var availabilityBadge: some View {
         HStack(spacing: 8) {
-            Image(systemName: isAIAvailable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(isAIAvailable ? .green : .orange)
-            Text(isAIAvailable
-                 ? "Apple Intelligence 사용 가능"
-                 : "설정 → Apple Intelligence에서 활성화 필요")
+            Image(systemName: aiStatus.iconSystemName)
+                .foregroundStyle(badgeColor)
+            Text(aiStatus.badgeLabel)
                 .font(.subheadline)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.thinMaterial, in: Capsule())
+    }
+
+    private var badgeColor: Color {
+        switch aiStatus.severity {
+        case .success: return .green
+        case .warning: return .orange
+        case .info: return .blue
+        }
     }
 }
 

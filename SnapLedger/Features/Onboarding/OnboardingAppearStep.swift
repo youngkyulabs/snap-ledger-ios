@@ -18,7 +18,7 @@ extension View {
 }
 
 enum OnboardingAppearStep {
-    static let defaultStages = 4
+    nonisolated static let defaultStages = 4
     static let initialDelay: Duration = .milliseconds(300)
     static let stepInterval: Duration = .milliseconds(100)
     static let stepAnimation: Animation = .smooth(duration: 0.4)
