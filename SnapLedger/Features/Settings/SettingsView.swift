@@ -200,7 +200,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Apple Intelligence")
+            Text("자동 추출")
         } footer: {
             Text(status.detailMessage)
         }

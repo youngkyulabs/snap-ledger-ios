@@ -34,13 +34,13 @@ enum AppleIntelligenceStatus: Equatable {
     var shortLabel: String {
         switch self {
         case .available:
-            return "Apple Intelligence 사용 가능"
+            return "Apple Intelligence가 켜져 있어요"
         case .appleIntelligenceOff:
             return "Apple Intelligence가 꺼져 있어요"
         case .deviceNotEligible:
             return "이 기기에서는 지원되지 않아요"
         case .modelNotReady:
-            return "Apple Intelligence 준비 중"
+            return "Apple Intelligence가 준비 중이에요"
         }
     }
 
@@ -48,11 +48,11 @@ enum AppleIntelligenceStatus: Equatable {
     var detailMessage: String {
         switch self {
         case .available:
-            return "결제 알림 스크린샷이나 영수증 사진을 공유하면 Apple Intelligence가 금액·가맹점·날짜를 자동으로 읽어 검토 목록에 채워 넣어요. 사진은 기기 안에서만 처리되고 외부로 전송되지 않아요."
+            return "결제 알림 스크린샷이나 영수증 사진을 공유하면 Apple Intelligence가 금액·가맹점·날짜를 자동 추출해서 검토 목록에 채워 넣어요. 사진은 기기 안에서만 처리되고 외부로 전송되지 않아요."
         case .appleIntelligenceOff:
-            return "설정 앱 → Apple Intelligence 및 Siri에서 Apple Intelligence를 켜주세요. iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 지원돼요."
+            return "설정 앱 → Apple Intelligence 및 Siri에서 켜주세요. iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 쓸 수 있어요."
         case .deviceNotEligible:
-            return "Apple Intelligence는 iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 동작해요. 지원되지 않는 기기에서는 검토 탭의 + 버튼으로 직접 입력만 가능해요."
+            return "자동 추출은 iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 동작해요. 그 외 기기에서는 검토 탭의 + 버튼으로 직접 입력해서 추가하세요."
         case .modelNotReady:
             return "Apple Intelligence가 백그라운드에서 준비 중이에요. 충전 중이거나 Wi-Fi에 연결된 상태로 잠시 기다리면 자동으로 켜져요."
         }
@@ -62,13 +62,13 @@ enum AppleIntelligenceStatus: Equatable {
     var badgeLabel: String {
         switch self {
         case .available:
-            return "Apple Intelligence 사용 가능"
+            return "Apple Intelligence가 켜져 있어요"
         case .appleIntelligenceOff:
             return "설정 → Apple Intelligence 및 Siri에서 켜주세요"
         case .deviceNotEligible:
             return "이 기기에서는 지원되지 않아요"
         case .modelNotReady:
-            return "Apple Intelligence 준비 중"
+            return "Apple Intelligence가 준비 중이에요"
         }
     }
 
@@ -78,11 +78,11 @@ enum AppleIntelligenceStatus: Equatable {
         case .available:
             return ""
         case .appleIntelligenceOff:
-            return "설정 → Apple Intelligence 및 Siri에서 Apple Intelligence를 켜면 공유받은 사진이 자동으로 처리돼요. 그 전까지는 + 버튼의 ‘수동 입력’으로 직접 추가하세요."
+            return "설정 → Apple Intelligence 및 Siri에서 켜면 공유받은 사진을 자동 추출해요. 그 전까지는 + 버튼의 ‘수동 입력’으로 직접 추가하세요."
         case .deviceNotEligible:
-            return "이 기기에서는 자동 인식이 지원되지 않아 공유받은 사진이 자동으로 처리되지 않아요. + 버튼의 ‘수동 입력’으로 직접 추가하세요."
+            return "이 기기에서는 자동 추출이 지원되지 않아요. 공유받은 사진은 + 버튼의 ‘수동 입력’으로 직접 추가하세요."
         case .modelNotReady:
-            return "Apple Intelligence가 준비 중이에요. 잠시 후 자동으로 처리되고, 그 전까지는 + 버튼의 ‘수동 입력’으로 직접 추가할 수 있어요."
+            return "Apple Intelligence가 준비 중이에요. 잠시 후 사진이 자동 추출돼요. 그 전까지는 + 버튼의 ‘수동 입력’으로 직접 추가할 수 있어요."
         }
     }
 

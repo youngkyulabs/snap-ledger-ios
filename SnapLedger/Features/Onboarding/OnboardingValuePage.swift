@@ -20,7 +20,7 @@ struct OnboardingValuePage: View {
                     .font(.title.bold())
                     .multilineTextAlignment(.center)
 
-                Text("스크린샷이나 영수증을 공유 시트로 보내면 Apple Intelligence가 자동으로 분류해요.")
+                Text("스크린샷이나 영수증을 공유 시트로 보내면 Apple Intelligence가 자동 추출해서 채워 넣어요.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

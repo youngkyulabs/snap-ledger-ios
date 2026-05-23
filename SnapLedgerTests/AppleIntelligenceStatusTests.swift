@@ -79,4 +79,32 @@ struct AppleIntelligenceStatusTests {
             #expect(status.reviewTabMessage.contains("수동 입력") || status.reviewTabMessage.contains("직접 추가"))
         }
     }
+
+    /// "자동 추출"이 canonical term. "자동 인식 / 자동으로 분류"같은 옛 표현이 새어 들어오면 잡는다.
+    @Test func unifiedTerminology() {
+        let allMessages: [String] = AppleIntelligenceStatus.allCases.flatMap {
+            [$0.shortLabel, $0.detailMessage, $0.badgeLabel, $0.reviewTabMessage]
+        }
+        for message in allMessages {
+            #expect(!message.contains("자동 인식"), "deprecated term '자동 인식' in: \(message)")
+            #expect(!message.contains("자동으로 분류"), "deprecated term '자동으로 분류' in: \(message)")
+            #expect(!message.contains("자동으로 읽어"), "deprecated term '자동으로 읽어' in: \(message)")
+        }
+    }
+
+    @Test func friendlyToneEndings() {
+        let messagesThatShouldBeFullSentences: [String] = AppleIntelligenceStatus.allCases.flatMap {
+            [$0.detailMessage, $0.reviewTabMessage]
+        }.filter { !$0.isEmpty }
+        for message in messagesThatShouldBeFullSentences {
+            #expect(!message.contains("합니다"), "formal '-합니다' should be '-해요': \(message)")
+            #expect(!message.contains("됩니다"), "formal '-됩니다' should be '-돼요': \(message)")
+        }
+    }
+}
+
+extension AppleIntelligenceStatus: CaseIterable {
+    public static var allCases: [AppleIntelligenceStatus] {
+        [.available, .appleIntelligenceOff, .deviceNotEligible, .modelNotReady]
+    }
 }
