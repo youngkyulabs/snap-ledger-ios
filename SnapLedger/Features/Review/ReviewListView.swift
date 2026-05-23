@@ -41,8 +41,12 @@ struct ReviewListView: View {
         allPending.filter { $0.state == .failed }
     }
 
+    private var aiStatus: AppleIntelligenceStatus {
+        AppleIntelligenceStatus.current
+    }
+
     private var isFMAvailable: Bool {
-        FoundationModelsExtractionService.isAvailable
+        aiStatus.isAvailable
     }
 
     var body: some View {
@@ -211,28 +215,36 @@ struct ReviewListView: View {
             }
         } else {
             ContentUnavailableView {
-                Label("자동 추출 사용 불가", systemImage: "exclamationmark.triangle.fill")
+                Label(aiStatus.shortLabel, systemImage: aiStatus.iconSystemName)
             } description: {
-                Text("Apple Intelligence가 꺼져 있거나 미지원 기기예요. 공유받은 사진·스크린샷은 자동으로 처리되지 않아요. + 버튼의 ‘수동 입력’으로 직접 추가하세요.")
+                Text(aiStatus.reviewTabMessage)
             }
         }
     }
 
     private var fmUnavailableBanner: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: aiStatus.iconSystemName)
                 .font(.title3)
-                .foregroundStyle(.orange)
+                .foregroundStyle(bannerIconColor)
             VStack(alignment: .leading, spacing: 4) {
-                Text("자동 추출이 꺼져 있어요")
+                Text(aiStatus.shortLabel)
                     .font(.subheadline.weight(.semibold))
-                Text("Apple Intelligence가 꺼져 있거나 미지원 기기라 사진에서 자동으로 추출되지 않아요. + 버튼의 ‘수동 입력’으로 직접 추가하세요.")
+                Text(aiStatus.reviewTabMessage)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+    }
+
+    private var bannerIconColor: Color {
+        switch aiStatus.severity {
+        case .success: return .green
+        case .warning: return .orange
+        case .info: return .blue
+        }
     }
 
     private var addSourceMenu: some View {

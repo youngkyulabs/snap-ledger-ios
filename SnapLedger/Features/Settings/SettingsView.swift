@@ -184,15 +184,33 @@ struct SettingsView: View {
     }
 
     private var fmAvailabilitySection: some View {
-        Section("Foundation Models") {
-            HStack {
-                Image(systemName: FoundationModelsExtractionService.isAvailable
-                      ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(FoundationModelsExtractionService.isAvailable ? .green : .orange)
-                Text(FoundationModelsExtractionService.isAvailable
-                     ? "사용 가능"
-                     : "사용 불가 — Apple Intelligence 활성화 필요")
+        let status = AppleIntelligenceStatus.current
+        return Section {
+            HStack(spacing: 10) {
+                Image(systemName: status.iconSystemName)
+                    .foregroundStyle(color(for: status.severity))
+                Text(status.shortLabel)
             }
+            if status.offersSystemSettingsLink {
+                Button {
+                    openSystemSettingsURL()
+                } label: {
+                    Label("설정 앱 열기", systemImage: "arrow.up.right.square")
+                        .foregroundStyle(.primary)
+                }
+            }
+        } header: {
+            Text("Apple Intelligence")
+        } footer: {
+            Text(status.detailMessage)
+        }
+    }
+
+    private func color(for severity: AppleIntelligenceStatus.Severity) -> Color {
+        switch severity {
+        case .success: return .green
+        case .warning: return .orange
+        case .info: return .blue
         }
     }
 
