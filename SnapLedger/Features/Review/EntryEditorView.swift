@@ -63,8 +63,11 @@ struct EntryEditorView: View {
                 }
 
                 Section {
-                    Button("이 항목 삭제", role: .destructive) {
+                    Button(role: .destructive) {
                         confirmDelete = true
+                    } label: {
+                        Label("이 항목 삭제", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -93,13 +96,14 @@ struct EntryEditorView: View {
             } message: { message in
                 Text(message)
             }
-            .confirmationDialog(
+            .alert(
                 "이 항목을 삭제할까요?",
-                isPresented: $confirmDelete,
-                titleVisibility: .visible
+                isPresented: $confirmDelete
             ) {
                 Button("삭제", role: .destructive, action: performDelete)
                 Button("취소", role: .cancel) { }
+            } message: {
+                Text("검토 목록에서 사라져요.")
             }
         }
     }

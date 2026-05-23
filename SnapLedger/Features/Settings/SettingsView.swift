@@ -94,14 +94,12 @@ struct SettingsView: View {
                     Text(currentFolderName() ?? "선택 안 됨")
                         .foregroundStyle(currentFolderName() == nil ? .secondary : .primary)
                 } label: {
-                    Label("폴더", systemImage: "folder.fill")
+                    Label("저장 폴더", systemImage: "folder.fill")
                         .foregroundStyle(.primary)
                 }
             }
-        } header: {
-            Text("저장 폴더")
         } footer: {
-            Text("월별 CSV 파일이 이 폴더에 저장돼요. iCloud Drive 폴더를 고르면 다른 기기에서도 같은 가계부를 볼 수 있어요.")
+            Text("월별 CSV 파일이 이 폴더에 저장돼요.")
         }
     }
 
@@ -116,7 +114,9 @@ struct SettingsView: View {
                 )
             }
         } footer: {
-            Text("매일 이 시각에 검토할 항목 알림을 보내요.")
+            if settings.reminderEnabled {
+                Text("매일 이 시각에 검토할 항목 알림을 보내요.")
+            }
         }
     }
 

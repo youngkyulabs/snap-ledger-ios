@@ -70,7 +70,7 @@ struct MonthDetailContent: View {
         .contentMargins(.bottom, 24, for: .scrollContent)
         .toolbar {
             if showsPastMonthsLink {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         PastMonthsView()
                     } label: {
@@ -79,7 +79,7 @@ struct MonthDetailContent: View {
                     }
                 }
             }
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
                     CSVFileView(csvFilename: month.csvFilename, monthTitle: month.title)
                 } label: {

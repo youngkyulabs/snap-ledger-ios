@@ -106,15 +106,12 @@ enum StatisticsAggregation {
             monthsByKey[key] = stats
         }
 
-        var slots: [(idComps: DateComponents, lookupKey: Int, date: Date)] = []
+        var slots: [(lookupKey: Int, date: Date)] = []
         for offset in stride(from: limit - 1, through: 0, by: -1) {
             guard let d = calendar.date(byAdding: .month, value: -offset, to: refMonthStart) else { continue }
             let comps = calendar.dateComponents([.year, .month], from: d)
-            var idComps = DateComponents()
-            idComps.year = comps.year
-            idComps.month = comps.month
             let lookupKey = (comps.year ?? 0) * 100 + (comps.month ?? 0)
-            slots.append((idComps, lookupKey, d))
+            slots.append((lookupKey, d))
         }
 
         var previous: Int?
@@ -127,8 +124,11 @@ enum StatisticsAggregation {
                 return Double(total - prev) / Double(prev)
             }()
             previous = total
+            var idComps = DateComponents()
+            idComps.year = slot.lookupKey / 100
+            idComps.month = slot.lookupKey % 100
             return TrendPoint(
-                id: slot.idComps,
+                id: idComps,
                 shortTitle: matched?.shortTitle ?? shortFormatter.string(from: slot.date),
                 total: total,
                 deltaFromPrevious: delta,
