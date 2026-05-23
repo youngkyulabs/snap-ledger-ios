@@ -67,7 +67,6 @@ struct ReviewListView: View {
                                     }
                                     .buttonStyle(.plain)
                                 }
-                                .onDelete(perform: deleteEntries)
                             }
                         }
                     }
@@ -230,16 +229,6 @@ struct ReviewListView: View {
                 .contentTransition(.numericText())
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private func deleteEntries(at offsets: IndexSet) {
-        withAnimation(.smooth(duration: 0.3)) {
-            for index in offsets {
-                let entry = pendingEntries[index]
-                entry.status = .dismissed
-            }
-            try? modelContext.save()
-        }
     }
 
     private func openManualEntry() {
