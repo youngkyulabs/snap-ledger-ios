@@ -143,6 +143,12 @@ private struct CategoryDonutChart: View {
     let slices: [StatisticsAggregation.CategorySlice]
     let total: Int
 
+    // SectorMark.annotation은 슬라이스 중심의 angular position에 anchored되어
+    // 슬라이스가 보간될 때 라벨도 같이 회전한다. 보간 중 라벨을 fade-out 시켰다가
+    // 슬라이스가 정착한 뒤 fade-in 해 회전이 눈에 띄지 않도록 한다.
+    @State private var labelsVisible = true
+    @State private var labelRevealTask: Task<Void, Never>?
+
     var body: some View {
         Chart(slices) { slice in
             SectorMark(
@@ -157,7 +163,7 @@ private struct CategoryDonutChart: View {
                     Text(slice.share.formatted(.percent.precision(.fractionLength(0...0))))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.white)
-                        .contentTransition(.numericText())
+                        .opacity(labelsVisible ? 1 : 0)
                 }
             }
         }
@@ -166,9 +172,23 @@ private struct CategoryDonutChart: View {
             VStack(spacing: 2) {
                 Text("\(total.formatted(.number))원")
                     .font(.headline.monospacedDigit())
+                    .contentTransition(.numericText())
                 Text("총 지출")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+        .onChange(of: slices) { _, _ in
+            labelRevealTask?.cancel()
+            withAnimation(.easeOut(duration: 0.1)) {
+                labelsVisible = false
+            }
+            labelRevealTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeIn(duration: 0.25)) {
+                    labelsVisible = true
+                }
             }
         }
     }

@@ -70,12 +70,12 @@ struct ReviewListView: View {
                                     .buttonStyle(.plain)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
-                                            pendingToDelete = entry
+                                            requestDelete(entry: entry)
                                         } label: {
                                             Label("삭제", systemImage: "trash")
                                         }
                                         Button {
-                                            handleSwipeSave(entry: entry)
+                                            requestSwipeSave(entry: entry)
                                         } label: {
                                             Label("저장", systemImage: "checkmark")
                                         }
@@ -275,6 +275,25 @@ struct ReviewListView: View {
                 .contentTransition(.numericText())
         }
         .accessibilityElement(children: .combine)
+    }
+
+    // swipe row가 닫히는 자연스러운 애니메이션을 잠시 보여준 뒤 alert를 띄운다.
+    // 즉시 alert를 띄우면 modal이 swipe close 트랜지션을 가려서 화면이 갑자기
+    // 튀는 것처럼 보인다.
+    private static let swipeActionDelay: Duration = .milliseconds(280)
+
+    private func requestDelete(entry: ParsedEntry) {
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.swipeActionDelay)
+            pendingToDelete = entry
+        }
+    }
+
+    private func requestSwipeSave(entry: ParsedEntry) {
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.swipeActionDelay)
+            handleSwipeSave(entry: entry)
+        }
     }
 
     private func handleSwipeSave(entry: ParsedEntry) {
