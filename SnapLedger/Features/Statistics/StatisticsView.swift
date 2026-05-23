@@ -169,12 +169,7 @@ private struct CategoryDonutChart: View {
         // 카테고리별 색상을 고정 매핑한다. foregroundStyle(by:)의 자동 매핑은
         // 슬라이스 순서가 바뀌면 같은 카테고리도 색이 달라져, 월 전환 보간 시
         // 색이 흐르는 어색함의 원인이 된다.
-        // domain 을 slices 순서(금액 내림차순)로 명시하면 하단 legend 도
-        // 같은 순서로 나열된다.
-        .chartForegroundStyleScale(
-            domain: slices.map(\.category),
-            range: slices.map { color(for: $0.category) }
-        )
+        .chartForegroundStyleScale(mapping: color(for:))
         .chartLegend(position: .bottom, alignment: .center, spacing: 8)
         .chartBackground { _ in
             VStack(spacing: 2) {
