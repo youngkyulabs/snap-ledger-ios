@@ -28,48 +28,72 @@ SwiftLint는 `brew install swiftlint`로 사전 설치. 미설치 시 빌드 페
 
 ## 모듈 레이아웃
 
-```
-SnapLedger/                   # 메인 앱 타겟 (synchronized root group)
-  AppGroup.swift             # group.com.youngkyu.snapledger 컨테이너 / inbox URL
-  SnapLedgerApp.swift        # @main, ModelContainer (groupContainer 설정), BGTask register
-  ContentView.swift          # TabView 셸 (검토/기록/통계/설정) + scenePhase 옵저버
-  Info.plist                 # 부분 plist: BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes
-                             #            + ITSAppUsesNonExemptEncryption
-  SnapLedger.entitlements    # App Group
-  AppIcon.icon / Assets.xcassets
-  Models/                    # SwiftData @Model: PendingImage, ParsedEntry, SavedEntry,
-                             #                  MerchantCategory, AppSettings
-  Pipeline/                  # 비즈니스 로직 (모두 unit-testable)
-    OCRService.swift         # protocol + VisionKitOCRService (한·영 accurate)
-    ExtractionService.swift  # protocol + FoundationModelsExtractionService (dynamic prompt, 다중 거래)
-    PaymentExtraction.swift  # @Generable PaymentExtraction(transactions:[Transaction]) — N개 거래
-    PendingProcessor.swift   # @MainActor 파이프라인: reconcile inbox → OCR → heuristic guard → extract → ParsedEntry
-    CandidateHeuristics.swift# OCR 텍스트의 결제 신호 점수화 (풍경 사진 등에서 LLM 환각 차단)
-    CategoryLearner.swift    # 가맹점 → 카테고리 학습/조회
-    SaveCoordinator.swift    # 검토 확정 → CSV append + SavedEntry 생성 + 학습
-    ImageImporter.swift      # + 메뉴에서 사진/클립보드/파일/드롭으로 들어온 이미지를 inbox에 정규화
-  Storage/
-    CSVWriter.swift          # NSFileCoordinator 기반 월별 CSV (BOM + 헤더 + escape)
-    CSVParser.swift          # 기록 탭 월별 CSV 뷰어용 파서
-    ClipboardExporter.swift  # 검토/기록 항목을 TSV(+HTML) 페이로드로 (Numbers paste용)
-    BookmarkStore.swift      # security-scoped bookmark 생성/해소
-  Features/
-    Review/                  # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row)
-    History/                 # HistoryView (@Query SavedEntry, 일별 섹션), SavedEntryEditorView,
-                             # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping (pure)
-    Statistics/              # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure)
-    Settings/                # SettingsView (폴더 / reminder / 카테고리 / 추출 가이드 / FM 상태),
-                             # AdvancedSettingsView, FolderPicker, FeedbackMail (pure), MailComposeSheet
-    Notifications/           # ReminderContent (pure), NotificationScheduler
-    Background/              # BackgroundRefresh (BGAppRefreshTask)
-    Intents/                 # AddExpenseFromImageIntent + SnapLedgerShortcuts (Spotlight/Siri)
+폴더 이름이 곧 역할이다. 어디에 뭐를 둘지 헷갈리면 이 표만 보면 된다.
 
-SnapLedgerShareExtension/    # Share Extension 타겟 (synchronized root group, 별도)
-  ShareViewController.swift  # silent UIVC, NSItemProvider 이미지를 App Group inbox에 복사
-  Info.plist                 # 명시적 plist: NSExtensionPrincipalClass, image-only activation
+| 폴더 | 무엇이 들어가나 | 무엇이 들어가면 안 되나 |
+|---|---|---|
+| `App/` | 앱 진입점·셸·App Group 상수 | 비즈니스 로직, 도메인 모델 |
+| `Models/` | SwiftData `@Model` 5종 | 비-SwiftData DTO (그건 `Services/`) |
+| `Services/` | 비즈니스 로직 (OCR·추출·저장 오케스트레이션·도메인 헬퍼) | UI, 파일·시스템 IO |
+| `Storage/` | 파일/클립보드/북마크 IO | 비즈니스 결정 (어떤 데이터를 저장할지는 `Services/`) |
+| `Features/` | UI 탭 화면 + 온보딩 (SwiftUI) | 시스템 통합(BGTask/Intent/Notification) → `System/` |
+| `System/` | 시스템 통합 지점 (BGTask·AppIntent·UNUserNotification) | SwiftUI 화면 |
+
+```
+SnapLedger/                          # 메인 앱 타겟 (synchronized root group)
+  App/                               # 앱 진입점
+    SnapLedgerApp.swift              # @main, ModelContainer (groupContainer), BGTask register
+    ContentView.swift                # TabView 셸 (검토/기록/통계/설정) + scenePhase 옵저버 + 온보딩 게이트
+    AppGroup.swift                   # group.com.youngkyu.snapledger 컨테이너 / inbox URL
+  Info.plist                         # 부분 plist: BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes
+                                     #            + ITSAppUsesNonExemptEncryption
+  SnapLedger.entitlements            # App Group
+  AppIcon.icon / Assets.xcassets
+
+  Models/                            # SwiftData @Model
+    AppSettings.swift, ParsedEntry.swift, SavedEntry.swift, PendingImage.swift, MerchantCategory.swift
+
+  Services/                          # 비즈니스 로직 (전부 unit-testable)
+    OCRService.swift                 # protocol + VisionKitOCRService (한·영 accurate)
+    CandidateHeuristics.swift        # OCR 텍스트의 결제 신호 점수화 (풍경 사진 환각 차단)
+    ExtractionService.swift          # protocol + FoundationModelsExtractionService (dynamic prompt, 다중 거래)
+    PaymentExtraction.swift          # @Generable PaymentExtraction(transactions:[Transaction])
+    AppleIntelligenceStatus.swift    # FM 가용성 → 사용자 친화 문구 (설정·온보딩·검토 탭 공통 진입점)
+    PendingProcessor.swift           # @MainActor 파이프라인: reconcile inbox → OCR → heuristic → extract → ParsedEntry
+    SaveCoordinator.swift            # 검토 확정 → CSV append + SavedEntry 생성 + 학습
+    CategoryLearner.swift            # 가맹점 → 카테고리 학습/조회
+    ImageImporter.swift              # + 메뉴에서 사진/클립보드/파일/드롭 → inbox 정규화
+
+  Storage/                           # 파일·클립보드·북마크 IO
+    CSVWriter.swift                  # NSFileCoordinator 기반 월별 CSV (BOM + 헤더 + escape)
+    CSVParser.swift                  # 기록 탭 월별 CSV 뷰어용 파서
+    BookmarkStore.swift              # security-scoped bookmark 생성/해소
+    FolderBookmarkHelper.swift       # BookmarkStore 래퍼 — URL → AppSettings.csvFolderBookmark 적용
+    ClipboardExporter.swift          # 검토/기록 항목을 TSV(+HTML) 페이로드로 (Numbers paste용)
+
+  Features/                          # UI 화면
+    Review/                          # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row)
+    History/                         # HistoryView (@Query SavedEntry, 일별 섹션), SavedEntryEditorView,
+                                     # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping (pure)
+    Statistics/                      # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure)
+    Settings/                        # SettingsView (폴더 / reminder / 카테고리 / 추출 가이드 / FM 상태),
+                                     # AdvancedSettingsView, FolderPicker, FeedbackMail (pure), MailComposeSheet
+    Onboarding/                      # OnboardingView + ValuePage/SetupPage + AppearStep/PermissionAction (pure)
+
+  System/                            # 시스템 통합 (화면 아님)
+    Background/BackgroundRefresh.swift          # BGAppRefreshTask
+    Intents/AddExpenseFromImageIntent.swift     # AppIntent (Spotlight/Siri)
+    Intents/SnapLedgerShortcuts.swift           # AppShortcutsProvider
+    Notifications/NotificationScheduler.swift   # UNUserNotification wrapper
+    Notifications/ReminderContent.swift         # pure: 시간/카운트 → 본문
+
+SnapLedgerShareExtension/            # Share Extension 타겟 (synchronized root group, 별도)
+  ShareViewController.swift          # silent UIVC, NSItemProvider 이미지를 App Group inbox에 복사
+  Info.plist                         # 명시적 plist: NSExtensionPrincipalClass, image-only activation
   SnapLedgerShareExtension.entitlements   # App Group
 
-SnapLedgerTests/             # Swift Testing 테스트들 (각 모듈별 *Tests.swift)
+SnapLedgerTests/                     # Swift Testing — 소스 구조를 미러링
+  Models/    Services/    Storage/    Features/    System/
 ```
 
 ## 핵심 아키텍처 결정
