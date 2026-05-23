@@ -9,6 +9,7 @@ struct EntryEditorView: View {
     @Query private var settingsList: [AppSettings]
 
     @State private var saveError: String?
+    @State private var confirmDelete = false
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,15 @@ struct EntryEditorView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+
+                Section {
+                    Button(role: .destructive) {
+                        confirmDelete = true
+                    } label: {
+                        Label("이 항목 삭제", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
             }
             .animation(.smooth(duration: 0.25), value: entry.confidence < 0.8)
             .contentMargins(.bottom, 24, for: .scrollContent)
@@ -69,6 +79,15 @@ struct EntryEditorView: View {
                 Button("확인", role: .cancel) { saveError = nil }
             } message: { message in
                 Text(message)
+            }
+            .alert(
+                "이 항목을 삭제할까요?",
+                isPresented: $confirmDelete
+            ) {
+                Button("삭제", role: .destructive, action: performDelete)
+                Button("취소", role: .cancel) { }
+            } message: {
+                Text("검토 목록에서 사라져요.")
             }
         }
     }
@@ -210,5 +229,13 @@ struct EntryEditorView: View {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }
+    }
+
+    private func performDelete() {
+        if !insertOnSave {
+            entry.status = .dismissed
+            try? modelContext.save()
+        }
+        dismiss()
     }
 }

@@ -77,7 +77,14 @@ struct PendingProcessor {
         try? context.save()
 
         let imageURL = inboxURL.appendingPathComponent(pending.filename)
-        defer { try? FileManager.default.removeItem(at: imageURL) }
+        // 실패한 이미지는 사용자가 나중에 확인할 수 있도록 보관한다.
+        // success 일 때만 inbox 파일을 삭제.
+        var keepImageFile = false
+        defer {
+            if !keepImageFile {
+                try? FileManager.default.removeItem(at: imageURL)
+            }
+        }
 
         do {
             let ocrText = try await ocrService.recognize(imageURL: imageURL)
@@ -91,6 +98,16 @@ struct PendingProcessor {
                 extraction = PaymentExtraction(transactions: [])
             }
             let enriched = CandidateHeuristics.enrich(extraction, ocrText: ocrText)
+            if enriched.isEmpty {
+                // 결제 신호 없음 / LLM 빈 결과 — ParsedEntry 는 만들지 않고
+                // PendingImage 자체를 failed 로 표시해 검토 탭의 통합 배너에
+                // 카운트로만 노출한다.
+                pending.state = .failed
+                pending.failureMessage = Self.noPaymentSignalReason
+                keepImageFile = true
+                try context.save()
+                return
+            }
             let entries = makeEntries(
                 from: enriched, sourceFilename: pending.filename, in: context
             )
@@ -102,27 +119,19 @@ struct PendingProcessor {
         } catch {
             pending.state = .failed
             pending.failureMessage = String(describing: error)
+            keepImageFile = true
             try? context.save()
         }
     }
+
+    static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요."
 
     func makeEntries(
         from enriched: [EnrichedTransaction],
         sourceFilename: String,
         in context: ModelContext
     ) -> [ParsedEntry] {
-        guard !enriched.isEmpty else {
-            return [
-                ParsedEntry(
-                    date: .now,
-                    amount: 0,
-                    merchant: "",
-                    category: nil,
-                    sourceImagePath: sourceFilename
-                ),
-            ]
-        }
-        return enriched.flatMap { et in
+        enriched.flatMap { et in
             entries(for: et, sourceFilename: sourceFilename, in: context)
         }
     }

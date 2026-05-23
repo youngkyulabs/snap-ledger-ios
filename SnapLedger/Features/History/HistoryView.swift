@@ -66,20 +66,20 @@ struct MonthDetailContent: View {
                         .textCase(nil)
                 }
             }
-
-            if showsPastMonthsLink {
-                Section {
-                    NavigationLink {
-                        PastMonthsView()
-                    } label: {
-                        Label("이전 기록", systemImage: "calendar")
-                    }
-                }
-            }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            if showsPastMonthsLink {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        PastMonthsView()
+                    } label: {
+                        Image(systemName: "calendar")
+                            .accessibilityLabel("이전 기록")
+                    }
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
                     CSVFileView(csvFilename: month.csvFilename, monthTitle: month.title)
                 } label: {

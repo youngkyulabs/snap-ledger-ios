@@ -134,7 +134,7 @@ final class ShareViewController: UIViewController {
 
         var displayDuration: TimeInterval {
             switch self {
-            case .success: return 1.4
+            case .success: return 1.2
             case .failure: return 1.6
             }
         }

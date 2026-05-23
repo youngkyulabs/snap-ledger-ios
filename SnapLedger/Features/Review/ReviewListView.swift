@@ -26,6 +26,8 @@ struct ReviewListView: View {
     @State private var isFileImporterPresented = false
     @State private var importError: String?
     @State private var isDropTargeted = false
+    @State private var pendingToDelete: ParsedEntry?
+    @State private var swipeError: String?
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -33,6 +35,10 @@ struct ReviewListView: View {
 
     private var processingPending: [PendingImage] {
         allPending.filter { $0.state == .queued || $0.state == .processing }
+    }
+
+    private var failedPending: [PendingImage] {
+        allPending.filter { $0.state == .failed }
     }
 
     private var isFMAvailable: Bool {
@@ -43,7 +49,7 @@ struct ReviewListView: View {
         NavigationStack {
             ZStack {
                 Color.clear
-                if pendingEntries.isEmpty && processingPending.isEmpty {
+                if pendingEntries.isEmpty && processingPending.isEmpty && failedPending.isEmpty {
                     emptyState
                 } else {
                     List {
@@ -57,6 +63,11 @@ struct ReviewListView: View {
                                 processingRow
                             }
                         }
+                        if !failedPending.isEmpty {
+                            Section {
+                                failedPendingRow
+                            }
+                        }
                         if !pendingEntries.isEmpty {
                             Section {
                                 ForEach(pendingEntries) { entry in
@@ -66,8 +77,25 @@ struct ReviewListView: View {
                                         EntryRow(entry: entry)
                                     }
                                     .buttonStyle(.plain)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        // role: .destructive를 쓰면 SwiftUI가 자동으로
+                                        // ForEach row를 제거하려 하는데 @Query가 entry를
+                                        // 그대로 들고 있어 깜빡이며 다시 등장한다. tint로
+                                        // 색만 빨강으로 주고 role은 지정하지 않는다.
+                                        Button {
+                                            pendingToDelete = entry
+                                        } label: {
+                                            Label("삭제", systemImage: "trash")
+                                        }
+                                        .tint(.red)
+                                        Button {
+                                            handleSwipeSave(entry: entry)
+                                        } label: {
+                                            Label("저장", systemImage: "checkmark")
+                                        }
+                                        .tint(.green)
+                                    }
                                 }
-                                .onDelete(perform: deleteEntries)
                             }
                         }
                     }
@@ -76,8 +104,9 @@ struct ReviewListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(.rect)
-            .animation(.smooth(duration: 0.3), value: pendingEntries.isEmpty && processingPending.isEmpty)
+            .animation(.smooth(duration: 0.3), value: pendingEntries.isEmpty && processingPending.isEmpty && failedPending.isEmpty)
             .animation(.smooth(duration: 0.25), value: processingPending.count)
+            .animation(.smooth(duration: 0.25), value: failedPending.count)
             .navigationTitle("검토 (\(pendingEntries.count))")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -136,6 +165,37 @@ struct ReviewListView: View {
             presenting: importError
         ) { _ in
             Button("확인", role: .cancel) { importError = nil }
+        } message: { message in
+            Text(message)
+        }
+        .alert(
+            "이 항목을 삭제할까요?",
+            isPresented: Binding(
+                get: { pendingToDelete != nil },
+                set: { if !$0 { pendingToDelete = nil } }
+            ),
+            presenting: pendingToDelete
+        ) { entry in
+            Button("삭제", role: .destructive) {
+                entry.status = .dismissed
+                try? modelContext.save()
+                pendingToDelete = nil
+            }
+            Button("취소", role: .cancel) {
+                pendingToDelete = nil
+            }
+        } message: { _ in
+            Text("검토 목록에서 사라져요.")
+        }
+        .alert(
+            "저장하지 못했어요",
+            isPresented: Binding(
+                get: { swipeError != nil },
+                set: { if !$0 { swipeError = nil } }
+            ),
+            presenting: swipeError
+        ) { _ in
+            Button("확인", role: .cancel) { swipeError = nil }
         } message: { message in
             Text(message)
         }
@@ -232,13 +292,52 @@ struct ReviewListView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func deleteEntries(at offsets: IndexSet) {
-        withAnimation(.smooth(duration: 0.3)) {
-            for index in offsets {
-                let entry = pendingEntries[index]
-                entry.status = .dismissed
+    private var failedPendingRow: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("자동 처리되지 않은 이미지 \(failedPending.count)건")
+                    .font(.subheadline.weight(.semibold))
+                    .contentTransition(.numericText())
+                Text("결제 정보를 찾지 못한 이미지예요. 영수증·결제 알림 스크린샷이 맞는지 확인해 주세요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            try? modelContext.save()
+            Spacer(minLength: 8)
+            Button("정리") {
+                withAnimation(.smooth(duration: 0.25)) {
+                    clearFailedPending()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func clearFailedPending() {
+        for pending in failedPending {
+            let url = AppGroup.inboxURL.appendingPathComponent(pending.filename)
+            try? FileManager.default.removeItem(at: url)
+            modelContext.delete(pending)
+        }
+        try? modelContext.save()
+    }
+
+    private func handleSwipeSave(entry: ParsedEntry) {
+        if entry.merchant.isEmpty || entry.amount <= 0 {
+            swipeError = "이 항목은 비어 있어요. 항목을 눌러 값을 채운 뒤 저장하세요."
+            return
+        }
+        do {
+            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: modelContext)
+        } catch {
+            swipeError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
         }
     }
 
@@ -250,8 +349,10 @@ struct ReviewListView: View {
             confidence: 1.0
         )
     }
+}
 
-    private func pasteFromClipboard() {
+extension ReviewListView {
+    fileprivate func pasteFromClipboard() {
         let board = UIPasteboard.general
         let images: [UIImage] = board.images ?? board.image.map { [$0] } ?? []
         guard !images.isEmpty else {
@@ -275,7 +376,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func ingestPhotoPickerItems(_ items: [PhotosPickerItem]) async {
+    fileprivate func ingestPhotoPickerItems(_ items: [PhotosPickerItem]) async {
         var inserted = 0
         for item in items {
             do {
@@ -294,7 +395,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func ingestFileURLs(_ urls: [URL]) async {
+    fileprivate func ingestFileURLs(_ urls: [URL]) async {
         var inserted = 0
         for url in urls where ingestOneFile(url) {
             inserted += 1
@@ -304,7 +405,7 @@ struct ReviewListView: View {
         }
     }
 
-    private func ingestOneFile(_ url: URL) -> Bool {
+    fileprivate func ingestOneFile(_ url: URL) -> Bool {
         let didStart = url.startAccessingSecurityScopedResource()
         defer { if didStart { url.stopAccessingSecurityScopedResource() } }
         do {
@@ -320,7 +421,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func ingestDroppedImages(_ images: [DroppedImage]) async {
+    fileprivate func ingestDroppedImages(_ images: [DroppedImage]) async {
         var inserted = 0
         for image in images {
             do {
@@ -337,7 +438,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func drain() async {
+    fileprivate func drain() async {
         await PendingProcessor.make(in: modelContext).drain(in: modelContext)
     }
 }

@@ -10,8 +10,15 @@ struct SettingsView: View {
     @State private var folderError: String?
     @State private var showingMailComposer = false
     @State private var feedbackFallbackShown = false
+    @State private var notificationPermissionDeniedAlert = false
 
     private static let feedbackEmail = "youngkyulabs@gmail.com"
+
+    private static let appDisplayName: String = {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? "SnapLedger"
+    }()
 
     private var settings: AppSettings {
         if let existing = settingsList.first {
@@ -55,6 +62,12 @@ struct SettingsView: View {
             .alert("메일 앱 열기 실패", isPresented: $feedbackFallbackShown) {
                 Button("확인", role: .cancel) { }
             }
+            .alert("알림 권한이 꺼져 있어요", isPresented: $notificationPermissionDeniedAlert) {
+                Button("설정 열기") { openSystemSettingsURL() }
+                Button("취소", role: .cancel) { }
+            } message: {
+                Text("알림을 받으려면 설정 → \(Self.appDisplayName) → 알림에서 켜주세요.")
+            }
         }
         .sheet(isPresented: $showingPicker) {
             FolderPicker(onPick: handlePickedFolder)
@@ -73,7 +86,7 @@ struct SettingsView: View {
     }
 
     private var csvFolderSection: some View {
-        Section("CSV 저장 폴더") {
+        Section {
             Button {
                 showingPicker = true
             } label: {
@@ -81,16 +94,18 @@ struct SettingsView: View {
                     Text(currentFolderName() ?? "선택 안 됨")
                         .foregroundStyle(currentFolderName() == nil ? .secondary : .primary)
                 } label: {
-                    Label("폴더", systemImage: "folder.fill")
+                    Label("저장 폴더", systemImage: "folder.fill")
                         .foregroundStyle(.primary)
                 }
             }
+        } footer: {
+            Text("월별 CSV 파일이 이 폴더에 저장돼요.")
         }
     }
 
     private var reminderSection: some View {
         Section {
-            Toggle("야간 알림", isOn: reminderEnabledBinding)
+            Toggle("검토 알림", isOn: reminderEnabledBinding)
             if settings.reminderEnabled {
                 DatePicker(
                     "알림 시각",
@@ -99,7 +114,9 @@ struct SettingsView: View {
                 )
             }
         } footer: {
-            Text("매일 이 시각에 검토할 항목 알림을 보내요.")
+            if settings.reminderEnabled {
+                Text("매일 이 시각에 검토할 항목 알림을 보내요.")
+            }
         }
     }
 
@@ -111,8 +128,42 @@ struct SettingsView: View {
                     settings.reminderEnabled = newValue
                 }
                 try? modelContext.save()
+                if newValue {
+                    Task { await ensureNotificationPermission() }
+                }
             }
         )
+    }
+
+    @MainActor
+    private func ensureNotificationPermission() async {
+        let scheduler = NotificationScheduler()
+        let status = await scheduler.authorizationStatus()
+        switch OnboardingPermissionAction.decide(status: status) {
+        case .requestAuthorization:
+            let granted = await scheduler.requestPermissionIfNeeded()
+            if !granted {
+                rollbackReminder()
+            }
+        case .openSystemSettings:
+            rollbackReminder()
+        case .keepOn:
+            break
+        }
+    }
+
+    private func rollbackReminder() {
+        withAnimation(.smooth(duration: 0.3)) {
+            settings.reminderEnabled = false
+        }
+        try? modelContext.save()
+        notificationPermissionDeniedAlert = true
+    }
+
+    private func openSystemSettingsURL() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
     }
 
     private var reminderTimeBinding: Binding<Date> {

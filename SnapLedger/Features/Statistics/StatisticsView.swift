@@ -4,11 +4,16 @@ import Charts
 
 struct StatisticsView: View {
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
+    @Query private var settingsList: [AppSettings]
 
     @State private var selectedMonthID: DateComponents?
 
     private var months: [StatisticsAggregation.MonthlyStats] {
         StatisticsAggregation.aggregate(entries: entries)
+    }
+
+    private var categoryPresets: [String] {
+        settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
 
     private var selectedMonth: StatisticsAggregation.MonthlyStats? {
@@ -52,7 +57,7 @@ struct StatisticsView: View {
                 breakdownSection(month: month)
             }
 
-            if trendPoints.count >= 2 {
+            if !trendPoints.isEmpty {
                 trendSection
             }
         }
@@ -103,7 +108,7 @@ struct StatisticsView: View {
                 Text("이번 달 기록이 없어요.")
                     .foregroundStyle(.secondary)
             } else {
-                CategoryDonutChart(slices: month.slices, total: month.total)
+                CategoryDonutChart(slices: month.slices, total: month.total, presets: categoryPresets)
                     .frame(height: 240)
                     .padding(.vertical, 8)
             }
@@ -133,7 +138,7 @@ struct StatisticsView: View {
                 TrendRow(point: point)
             }
         } header: {
-            Text("전월 대비 추세")
+            Text("월별 추세")
                 .textCase(nil)
         }
     }
@@ -142,6 +147,7 @@ struct StatisticsView: View {
 private struct CategoryDonutChart: View {
     let slices: [StatisticsAggregation.CategorySlice]
     let total: Int
+    let presets: [String]
 
     var body: some View {
         Chart(slices) { slice in
@@ -152,18 +158,47 @@ private struct CategoryDonutChart: View {
             )
             .cornerRadius(4)
             .foregroundStyle(by: .value("카테고리", slice.category))
+            .annotation(position: .overlay) {
+                if slice.share >= 0.05 {
+                    Text(slice.share.formatted(.percent.precision(.fractionLength(0...0))))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+            }
         }
+        // 카테고리별 색상을 고정 매핑한다. foregroundStyle(by:)의 자동 매핑은
+        // 슬라이스 순서가 바뀌면 같은 카테고리도 색이 달라져, 월 전환 보간 시
+        // 색이 흐르는 어색함의 원인이 된다.
+        .chartForegroundStyleScale(mapping: color(for:))
         .chartLegend(position: .bottom, alignment: .center, spacing: 8)
         .chartBackground { _ in
             VStack(spacing: 2) {
                 Text("\(total.formatted(.number))원")
                     .font(.headline.monospacedDigit())
+                    .contentTransition(.numericText())
                 Text("총 지출")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
     }
+
+    private func color(for category: String) -> Color {
+        if category == StatisticsAggregation.uncategorizedLabel {
+            return Color(.systemGray3)
+        }
+        // 사용자가 편집/재배치할 수 있는 presets 의 인덱스를 기준으로 색을 정한다.
+        // 같은 카테고리는 항상 같은 색이면서, 등록 순서가 다르면 색도 spread 된다.
+        // 등록 안 된 카테고리(학습된 가맹점 카테고리 등)는 문자열 해시로 fallback.
+        let index: Int = presets.firstIndex(of: category) ?? (presets.count + abs(category.hashValue) % Self.palette.count)
+        return Self.palette[index % Self.palette.count]
+    }
+
+    // 시인성 좋게 잘 구분되는 12색 팔레트.
+    private static let palette: [Color] = [
+        .orange, .blue, .pink, .green, .purple, .teal,
+        .red, .indigo, .brown, .cyan, .mint, .yellow,
+    ]
 }
 
 private struct CategoryBreakdownRow: View {
