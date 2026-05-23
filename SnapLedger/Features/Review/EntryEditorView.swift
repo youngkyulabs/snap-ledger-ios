@@ -9,10 +9,27 @@ struct EntryEditorView: View {
     @Query private var settingsList: [AppSettings]
 
     @State private var saveError: String?
+    @State private var confirmDelete = false
 
     var body: some View {
         NavigationStack {
             Form {
+                if let reason = entry.failureReason, !reason.isEmpty {
+                    Section {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("자동 입력 실패")
+                                    .font(.subheadline.weight(.semibold))
+                                Text(reason)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
                 Section("내용") {
                     DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
                     TextField("설명", text: $entry.merchant)
@@ -44,6 +61,12 @@ struct EntryEditorView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+
+                Section {
+                    Button("이 항목 삭제", role: .destructive) {
+                        confirmDelete = true
+                    }
+                }
             }
             .animation(.smooth(duration: 0.25), value: entry.confidence < 0.8)
             .contentMargins(.bottom, 24, for: .scrollContent)
@@ -69,6 +92,14 @@ struct EntryEditorView: View {
                 Button("확인", role: .cancel) { saveError = nil }
             } message: { message in
                 Text(message)
+            }
+            .confirmationDialog(
+                "이 항목을 삭제할까요?",
+                isPresented: $confirmDelete,
+                titleVisibility: .visible
+            ) {
+                Button("삭제", role: .destructive, action: performDelete)
+                Button("취소", role: .cancel) { }
             }
         }
     }
@@ -210,5 +241,13 @@ struct EntryEditorView: View {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }
+    }
+
+    private func performDelete() {
+        if !insertOnSave {
+            entry.status = .dismissed
+            try? modelContext.save()
+        }
+        dismiss()
     }
 }

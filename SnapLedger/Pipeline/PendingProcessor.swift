@@ -106,6 +106,8 @@ struct PendingProcessor {
         }
     }
 
+    static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요. 영수증·결제 알림 스크린샷이 맞는지 확인해 주세요."
+
     func makeEntries(
         from enriched: [EnrichedTransaction],
         sourceFilename: String,
@@ -118,7 +120,8 @@ struct PendingProcessor {
                     amount: 0,
                     merchant: "",
                     category: nil,
-                    sourceImagePath: sourceFilename
+                    sourceImagePath: sourceFilename,
+                    failureReason: Self.noPaymentSignalReason
                 ),
             ]
         }

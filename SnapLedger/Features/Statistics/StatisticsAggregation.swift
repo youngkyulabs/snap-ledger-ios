@@ -80,25 +80,57 @@ enum StatisticsAggregation {
         }
     }
 
-    static func trend(months: [MonthlyStats], limit: Int = 6) -> [TrendPoint] {
-        let ascending = months.sorted { lhs, rhs in
-            let l = (lhs.id.year ?? 0) * 100 + (lhs.id.month ?? 0)
-            let r = (rhs.id.year ?? 0) * 100 + (rhs.id.month ?? 0)
-            return l < r
+    static func trend(
+        months: [MonthlyStats],
+        limit: Int = 6,
+        referenceDate: Date = .now,
+        calendar: Calendar = .current,
+        locale: Locale = Locale(identifier: "ko_KR")
+    ) -> [TrendPoint] {
+        guard limit > 0 else { return [] }
+
+        let shortFormatter = DateFormatter()
+        shortFormatter.calendar = calendar
+        shortFormatter.locale = locale
+        shortFormatter.timeZone = calendar.timeZone
+        shortFormatter.dateFormat = "M월"
+
+        let refComps = calendar.dateComponents([.year, .month], from: referenceDate)
+        guard let refMonthStart = calendar.date(from: refComps) else { return [] }
+
+        // Int key (year*100 + month) avoids DateComponents hash mismatches caused by
+        // implicit timezone/calendar metadata returned by Calendar.dateComponents.
+        var monthsByKey: [Int: MonthlyStats] = [:]
+        for stats in months {
+            let key = (stats.id.year ?? 0) * 100 + (stats.id.month ?? 0)
+            monthsByKey[key] = stats
         }
-        let window = Array(ascending.suffix(limit))
+
+        var slots: [(idComps: DateComponents, lookupKey: Int, date: Date)] = []
+        for offset in stride(from: limit - 1, through: 0, by: -1) {
+            guard let d = calendar.date(byAdding: .month, value: -offset, to: refMonthStart) else { continue }
+            let comps = calendar.dateComponents([.year, .month], from: d)
+            var idComps = DateComponents()
+            idComps.year = comps.year
+            idComps.month = comps.month
+            let lookupKey = (comps.year ?? 0) * 100 + (comps.month ?? 0)
+            slots.append((idComps, lookupKey, d))
+        }
+
         var previous: Int?
-        return window.map { month in
-            let delta: Int? = previous.map { month.total - $0 }
+        return slots.map { slot in
+            let matched = monthsByKey[slot.lookupKey]
+            let total = matched?.total ?? 0
+            let delta: Int? = previous.map { total - $0 }
             let ratio: Double? = {
                 guard let prev = previous, prev > 0 else { return nil }
-                return Double(month.total - prev) / Double(prev)
+                return Double(total - prev) / Double(prev)
             }()
-            previous = month.total
+            previous = total
             return TrendPoint(
-                id: month.id,
-                shortTitle: month.shortTitle,
-                total: month.total,
+                id: slot.idComps,
+                shortTitle: matched?.shortTitle ?? shortFormatter.string(from: slot.date),
+                total: total,
                 deltaFromPrevious: delta,
                 ratioFromPrevious: ratio
             )

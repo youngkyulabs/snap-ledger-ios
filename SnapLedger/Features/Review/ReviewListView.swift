@@ -346,6 +346,33 @@ private struct EntryRow: View {
     let entry: ParsedEntry
 
     var body: some View {
+        if let reason = entry.failureReason, !reason.isEmpty {
+            failureRow(reason: reason)
+        } else {
+            normalRow
+        }
+    }
+
+    private func failureRow(reason: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "info.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("자동 입력 실패")
+                    .font(.body.weight(.semibold))
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 2)
+        .contentShape(.rect)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var normalRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(entry.merchant)

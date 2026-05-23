@@ -52,7 +52,7 @@ struct StatisticsView: View {
                 breakdownSection(month: month)
             }
 
-            if trendPoints.count >= 2 {
+            if !trendPoints.isEmpty {
                 trendSection
             }
         }
@@ -133,7 +133,7 @@ struct StatisticsView: View {
                 TrendRow(point: point)
             }
         } header: {
-            Text("전월 대비 추세")
+            Text("월별 추세")
                 .textCase(nil)
         }
     }
@@ -152,6 +152,13 @@ private struct CategoryDonutChart: View {
             )
             .cornerRadius(4)
             .foregroundStyle(by: .value("카테고리", slice.category))
+            .annotation(position: .overlay) {
+                if slice.share >= 0.05 {
+                    Text(slice.share.formatted(.percent.precision(.fractionLength(0...0))))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+            }
         }
         .chartLegend(position: .bottom, alignment: .center, spacing: 8)
         .chartBackground { _ in

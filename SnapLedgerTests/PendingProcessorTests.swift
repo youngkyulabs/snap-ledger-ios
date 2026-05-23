@@ -390,6 +390,7 @@ struct PendingProcessorTests {
         #expect(parsed.count == 1)
         #expect(parsed.first?.amount == 0)
         #expect(parsed.first?.merchant.isEmpty == true)
+        #expect(parsed.first?.failureReason == PendingProcessor.noPaymentSignalReason)
     }
 }
 
@@ -539,6 +540,7 @@ struct PendingProcessorPaymentSignalGateTests {
         #expect(parsed.first?.amount == 0)
         #expect(parsed.first?.merchant.isEmpty == true)
         #expect(parsed.first?.merchant != "환각가맹점")
+        #expect(parsed.first?.failureReason == PendingProcessor.noPaymentSignalReason)
     }
 
     @Test func processCallsExtractionWhenOCRTextHasPaymentSignal() async throws {

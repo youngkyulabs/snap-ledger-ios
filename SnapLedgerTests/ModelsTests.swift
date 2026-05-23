@@ -70,6 +70,7 @@ struct ModelsTests {
         #expect(fetched.first?.sourceImagePath == nil)
         #expect(fetched.first?.merchantCandidates.isEmpty == true)
         #expect(fetched.first?.amountCandidates.isEmpty == true)
+        #expect(fetched.first?.failureReason == nil)
     }
 
     @Test func parsedEntryStoresCandidates() throws {

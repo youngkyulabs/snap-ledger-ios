@@ -94,7 +94,7 @@ struct OnboardingSetupPage: View {
                     .foregroundStyle(.tint)
                     .symbolEffect(.wiggle, options: .repeating, isActive: !canProceed)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("CSV 저장 폴더").font(.headline).foregroundStyle(.primary)
+                    Text("저장 폴더").font(.headline).foregroundStyle(.primary)
                     Text(folderName ?? "선택 안 됨")
                         .font(.subheadline)
                         .foregroundStyle(folderName == nil ? Color.accentColor : Color.primary)
@@ -151,13 +151,13 @@ struct OnboardingSetupPage: View {
                 .font(.title2)
                 .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 4) {
-                Text("야간 알림").font(.headline)
+                Text("검토 알림").font(.headline)
                 Text("매일 저녁 검토 항목을 알려드려요.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Toggle("야간 알림", isOn: Binding(
+            Toggle("검토 알림", isOn: Binding(
                 get: { notificationToggle },
                 set: { newValue in
                     if newValue {
