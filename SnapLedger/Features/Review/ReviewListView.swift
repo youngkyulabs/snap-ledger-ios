@@ -69,13 +69,18 @@ struct ReviewListView: View {
                                     }
                                     .buttonStyle(.plain)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            requestDelete(entry: entry)
+                                        // role: .destructive를 쓰면 SwiftUI가 자동으로
+                                        // ForEach row를 제거하려 하는데 @Query가 entry를
+                                        // 그대로 들고 있어 깜빡이며 다시 등장한다. tint로
+                                        // 색만 빨강으로 주고 role은 지정하지 않는다.
+                                        Button {
+                                            pendingToDelete = entry
                                         } label: {
                                             Label("삭제", systemImage: "trash")
                                         }
+                                        .tint(.red)
                                         Button {
-                                            requestSwipeSave(entry: entry)
+                                            handleSwipeSave(entry: entry)
                                         } label: {
                                             Label("저장", systemImage: "checkmark")
                                         }
@@ -275,25 +280,6 @@ struct ReviewListView: View {
                 .contentTransition(.numericText())
         }
         .accessibilityElement(children: .combine)
-    }
-
-    // swipe row가 닫히는 자연스러운 애니메이션을 잠시 보여준 뒤 alert를 띄운다.
-    // 즉시 alert를 띄우면 modal이 swipe close 트랜지션을 가려서 화면이 갑자기
-    // 튀는 것처럼 보인다.
-    private static let swipeActionDelay: Duration = .milliseconds(280)
-
-    private func requestDelete(entry: ParsedEntry) {
-        Task { @MainActor in
-            try? await Task.sleep(for: Self.swipeActionDelay)
-            pendingToDelete = entry
-        }
-    }
-
-    private func requestSwipeSave(entry: ParsedEntry) {
-        Task { @MainActor in
-            try? await Task.sleep(for: Self.swipeActionDelay)
-            handleSwipeSave(entry: entry)
-        }
     }
 
     private func handleSwipeSave(entry: ParsedEntry) {
