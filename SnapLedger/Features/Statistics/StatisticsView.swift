@@ -106,8 +106,6 @@ struct StatisticsView: View {
                 CategoryDonutChart(slices: month.slices, total: month.total)
                     .frame(height: 240)
                     .padding(.vertical, 8)
-                    .id(month.id)
-                    .transition(.opacity)
             }
         } header: {
             Text("카테고리 비중")
@@ -159,6 +157,7 @@ private struct CategoryDonutChart: View {
                     Text(slice.share.formatted(.percent.precision(.fractionLength(0...0))))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.white)
+                        .contentTransition(.numericText())
                 }
             }
         }

@@ -26,6 +26,8 @@ struct ReviewListView: View {
     @State private var isFileImporterPresented = false
     @State private var importError: String?
     @State private var isDropTargeted = false
+    @State private var pendingToDelete: ParsedEntry?
+    @State private var swipeError: String?
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -66,6 +68,19 @@ struct ReviewListView: View {
                                         EntryRow(entry: entry)
                                     }
                                     .buttonStyle(.plain)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button(role: .destructive) {
+                                            pendingToDelete = entry
+                                        } label: {
+                                            Label("삭제", systemImage: "trash")
+                                        }
+                                        Button {
+                                            handleSwipeSave(entry: entry)
+                                        } label: {
+                                            Label("저장", systemImage: "checkmark")
+                                        }
+                                        .tint(.green)
+                                    }
                                 }
                             }
                         }
@@ -135,6 +150,37 @@ struct ReviewListView: View {
             presenting: importError
         ) { _ in
             Button("확인", role: .cancel) { importError = nil }
+        } message: { message in
+            Text(message)
+        }
+        .alert(
+            "이 항목을 삭제할까요?",
+            isPresented: Binding(
+                get: { pendingToDelete != nil },
+                set: { if !$0 { pendingToDelete = nil } }
+            ),
+            presenting: pendingToDelete
+        ) { entry in
+            Button("삭제", role: .destructive) {
+                entry.status = .dismissed
+                try? modelContext.save()
+                pendingToDelete = nil
+            }
+            Button("취소", role: .cancel) {
+                pendingToDelete = nil
+            }
+        } message: { _ in
+            Text("검토 목록에서 사라져요.")
+        }
+        .alert(
+            "저장하지 못했어요",
+            isPresented: Binding(
+                get: { swipeError != nil },
+                set: { if !$0 { swipeError = nil } }
+            ),
+            presenting: swipeError
+        ) { _ in
+            Button("확인", role: .cancel) { swipeError = nil }
         } message: { message in
             Text(message)
         }
@@ -231,6 +277,19 @@ struct ReviewListView: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func handleSwipeSave(entry: ParsedEntry) {
+        if entry.merchant.isEmpty || entry.amount <= 0 {
+            swipeError = "이 항목은 비어 있어요. 항목을 눌러 값을 채운 뒤 저장하세요."
+            return
+        }
+        do {
+            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: modelContext)
+        } catch {
+            swipeError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
+    }
+
     private func openManualEntry() {
         manualEntry = ParsedEntry(
             date: .now,
@@ -239,8 +298,10 @@ struct ReviewListView: View {
             confidence: 1.0
         )
     }
+}
 
-    private func pasteFromClipboard() {
+extension ReviewListView {
+    fileprivate func pasteFromClipboard() {
         let board = UIPasteboard.general
         let images: [UIImage] = board.images ?? board.image.map { [$0] } ?? []
         guard !images.isEmpty else {
@@ -264,7 +325,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func ingestPhotoPickerItems(_ items: [PhotosPickerItem]) async {
+    fileprivate func ingestPhotoPickerItems(_ items: [PhotosPickerItem]) async {
         var inserted = 0
         for item in items {
             do {
@@ -283,7 +344,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func ingestFileURLs(_ urls: [URL]) async {
+    fileprivate func ingestFileURLs(_ urls: [URL]) async {
         var inserted = 0
         for url in urls where ingestOneFile(url) {
             inserted += 1
@@ -293,7 +354,7 @@ struct ReviewListView: View {
         }
     }
 
-    private func ingestOneFile(_ url: URL) -> Bool {
+    fileprivate func ingestOneFile(_ url: URL) -> Bool {
         let didStart = url.startAccessingSecurityScopedResource()
         defer { if didStart { url.stopAccessingSecurityScopedResource() } }
         do {
@@ -309,7 +370,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func ingestDroppedImages(_ images: [DroppedImage]) async {
+    fileprivate func ingestDroppedImages(_ images: [DroppedImage]) async {
         var inserted = 0
         for image in images {
             do {
@@ -326,7 +387,7 @@ struct ReviewListView: View {
     }
 
     @MainActor
-    private func drain() async {
+    fileprivate func drain() async {
         await PendingProcessor.make(in: modelContext).drain(in: modelContext)
     }
 }
