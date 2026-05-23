@@ -143,11 +143,6 @@ private struct CategoryDonutChart: View {
     let slices: [StatisticsAggregation.CategorySlice]
     let total: Int
 
-    // SectorMark.annotation 은 슬라이스 중심의 angular position 에 묶여 있어
-    // 평소에 % 라벨을 띄워두면 월 전환 보간 시 라벨도 같이 회전한다.
-    // 대신 사용자가 도넛을 길게 누르고 있는 동안에만 % 를 fade-in 한다.
-    @State private var isShowingLabels = false
-
     var body: some View {
         Chart(slices) { slice in
             SectorMark(
@@ -162,10 +157,13 @@ private struct CategoryDonutChart: View {
                     Text(slice.share.formatted(.percent.precision(.fractionLength(0...0))))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.white)
-                        .opacity(isShowingLabels ? 1 : 0)
                 }
             }
         }
+        // 카테고리별 색상을 고정 매핑한다. foregroundStyle(by:)의 자동 매핑은
+        // 슬라이스 순서가 바뀌면 같은 카테고리도 색이 달라져, 월 전환 보간 시
+        // 색이 흐르는 어색함의 원인이 된다.
+        .chartForegroundStyleScale(mapping: Self.color(for:))
         .chartLegend(position: .bottom, alignment: .center, spacing: 8)
         .chartBackground { _ in
             VStack(spacing: 2) {
@@ -177,16 +175,26 @@ private struct CategoryDonutChart: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .contentShape(.rect)
-        .onLongPressGesture(minimumDuration: 0.05, maximumDistance: .infinity) {
-            // 누름 확정 액션은 사용 안 함 — onPressingChanged 로 finger down/up 만 추적
-        } onPressingChanged: { pressing in
-            withAnimation(.smooth(duration: pressing ? 0.12 : 0.2)) {
-                isShowingLabels = pressing
-            }
-        }
-        .accessibilityHint("길게 누르면 카테고리별 퍼센트가 보여요.")
     }
+
+    private static func color(for category: String) -> Color {
+        switch category {
+        case "식비": .orange
+        case "카페": .brown
+        case "교통": .blue
+        case "쇼핑": .purple
+        case "공과금": .gray
+        case "의료": .red
+        case "문화": .pink
+        case "기타": .teal
+        case StatisticsAggregation.uncategorizedLabel: Color(.systemGray3)
+        default:
+            // 사용자 정의 카테고리는 해시 기반으로 안정적인 색을 부여
+            Self.fallbackPalette[abs(category.hashValue) % Self.fallbackPalette.count]
+        }
+    }
+
+    private static let fallbackPalette: [Color] = [.indigo, .mint, .cyan, .yellow, .green]
 }
 
 private struct CategoryBreakdownRow: View {
