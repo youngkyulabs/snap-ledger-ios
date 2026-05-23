@@ -250,7 +250,8 @@ struct PendingProcessorTests {
         #expect(!FileManager.default.fileExists(atPath: imagePath))
     }
 
-    @Test func processDeletesInboxFileOnFailure() async throws {
+    @Test func processKeepsInboxFileOnFailure() async throws {
+        // 실패한 이미지는 사용자가 검토 탭 배너에서 정리할 때까지 보관한다.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("bad.jpg", in: inbox)
@@ -271,7 +272,7 @@ struct PendingProcessorTests {
 
         #expect(pending.state == .failed)
         let imagePath = inbox.appendingPathComponent(filename).path
-        #expect(!FileManager.default.fileExists(atPath: imagePath))
+        #expect(FileManager.default.fileExists(atPath: imagePath))
     }
 
     @Test func drainSkipsWhenExtractionServiceUnavailable() async throws {
@@ -367,7 +368,9 @@ struct PendingProcessorTests {
         #expect(amounts == [3300, 10700, 25020])
     }
 
-    @Test func processEmptyTransactionsFallsBackToBlankEntry() async throws {
+    @Test func processEmptyTransactionsMarksPendingFailed() async throws {
+        // OCR 텍스트에 결제 신호는 있지만 LLM 추출 결과가 비어 있는 경우
+        // ParsedEntry 를 만들지 않고 PendingImage 자체를 failed 로 표시한다.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("empty.jpg", in: inbox)
@@ -385,12 +388,10 @@ struct PendingProcessorTests {
         )
         await processor.process(pending, in: ctx)
 
-        #expect(pending.state == .done)
+        #expect(pending.state == .failed)
+        #expect(pending.failureMessage == PendingProcessor.noPaymentSignalReason)
         let parsed = try ctx.fetch(FetchDescriptor<ParsedEntry>())
-        #expect(parsed.count == 1)
-        #expect(parsed.first?.amount == 0)
-        #expect(parsed.first?.merchant.isEmpty == true)
-        #expect(parsed.first?.failureReason == PendingProcessor.noPaymentSignalReason)
+        #expect(parsed.isEmpty)
     }
 }
 
@@ -534,13 +535,13 @@ struct PendingProcessorPaymentSignalGateTests {
         )
         await processor.process(pending, in: ctx)
 
-        #expect(pending.state == .done)
+        // 결제 신호가 없는 텍스트는 처음부터 LLM 호출도 안 하고, ParsedEntry 도
+        // 만들지 않는다. PendingImage 만 failed 로 표시되어 검토 탭 배너에 카운트로
+        // 노출된다 — 환각 가맹점이 검토 항목에 새지 않음을 보증.
+        #expect(pending.state == .failed)
+        #expect(pending.failureMessage == PendingProcessor.noPaymentSignalReason)
         let parsed = try ctx.fetch(FetchDescriptor<ParsedEntry>())
-        #expect(parsed.count == 1)
-        #expect(parsed.first?.amount == 0)
-        #expect(parsed.first?.merchant.isEmpty == true)
-        #expect(parsed.first?.merchant != "환각가맹점")
-        #expect(parsed.first?.failureReason == PendingProcessor.noPaymentSignalReason)
+        #expect(parsed.isEmpty)
     }
 
     @Test func processCallsExtractionWhenOCRTextHasPaymentSignal() async throws {

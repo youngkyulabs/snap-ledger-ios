@@ -28,6 +28,7 @@ struct ReviewListView: View {
     @State private var isDropTargeted = false
     @State private var pendingToDelete: ParsedEntry?
     @State private var swipeError: String?
+    @State private var confirmClearFailed = false
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -35,6 +36,10 @@ struct ReviewListView: View {
 
     private var processingPending: [PendingImage] {
         allPending.filter { $0.state == .queued || $0.state == .processing }
+    }
+
+    private var failedPending: [PendingImage] {
+        allPending.filter { $0.state == .failed }
     }
 
     private var isFMAvailable: Bool {
@@ -45,7 +50,7 @@ struct ReviewListView: View {
         NavigationStack {
             ZStack {
                 Color.clear
-                if pendingEntries.isEmpty && processingPending.isEmpty {
+                if pendingEntries.isEmpty && processingPending.isEmpty && failedPending.isEmpty {
                     emptyState
                 } else {
                     List {
@@ -57,6 +62,11 @@ struct ReviewListView: View {
                         if !processingPending.isEmpty {
                             Section {
                                 processingRow
+                            }
+                        }
+                        if !failedPending.isEmpty {
+                            Section {
+                                failedPendingRow
                             }
                         }
                         if !pendingEntries.isEmpty {
@@ -95,8 +105,9 @@ struct ReviewListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(.rect)
-            .animation(.smooth(duration: 0.3), value: pendingEntries.isEmpty && processingPending.isEmpty)
+            .animation(.smooth(duration: 0.3), value: pendingEntries.isEmpty && processingPending.isEmpty && failedPending.isEmpty)
             .animation(.smooth(duration: 0.25), value: processingPending.count)
+            .animation(.smooth(duration: 0.25), value: failedPending.count)
             .navigationTitle("검토 (\(pendingEntries.count))")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -189,6 +200,15 @@ struct ReviewListView: View {
         } message: { message in
             Text(message)
         }
+        .alert(
+            "자동 처리되지 않은 이미지를 정리할까요?",
+            isPresented: $confirmClearFailed
+        ) {
+            Button("정리", role: .destructive) { clearFailedPending() }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("이미지 \(failedPending.count)건이 삭제돼요.")
+        }
     }
 
     @ViewBuilder
@@ -280,6 +300,40 @@ struct ReviewListView: View {
                 .contentTransition(.numericText())
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var failedPendingRow: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("자동 처리되지 않은 이미지 \(failedPending.count)건")
+                    .font(.subheadline.weight(.semibold))
+                    .contentTransition(.numericText())
+                Text("결제 정보를 찾지 못한 이미지예요. 영수증·결제 알림 스크린샷이 맞는지 확인해 주세요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Button("정리") {
+                confirmClearFailed = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func clearFailedPending() {
+        for pending in failedPending {
+            let url = AppGroup.inboxURL.appendingPathComponent(pending.filename)
+            try? FileManager.default.removeItem(at: url)
+            modelContext.delete(pending)
+        }
+        try? modelContext.save()
     }
 
     private func handleSwipeSave(entry: ParsedEntry) {
@@ -401,33 +455,6 @@ private struct EntryRow: View {
     let entry: ParsedEntry
 
     var body: some View {
-        if let reason = entry.failureReason, !reason.isEmpty {
-            failureRow(reason: reason)
-        } else {
-            normalRow
-        }
-    }
-
-    private func failureRow(reason: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "info.circle.fill")
-                .font(.title3)
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("자동 입력 실패")
-                    .font(.body.weight(.semibold))
-                Text(reason)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.vertical, 2)
-        .contentShape(.rect)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var normalRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(entry.merchant)

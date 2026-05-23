@@ -14,22 +14,6 @@ struct EntryEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let reason = entry.failureReason, !reason.isEmpty {
-                    Section {
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "info.circle.fill")
-                                .foregroundStyle(.orange)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("자동 입력 실패")
-                                    .font(.subheadline.weight(.semibold))
-                                Text(reason)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-
                 Section("내용") {
                     DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
                     TextField("설명", text: $entry.merchant)

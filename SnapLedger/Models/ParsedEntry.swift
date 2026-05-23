@@ -19,7 +19,6 @@ final class ParsedEntry {
     var status: ParsedEntryStatus
     var merchantCandidates: [String] = []
     var amountCandidates: [Int] = []
-    var failureReason: String?
 
     init(
         id: UUID = UUID(),
@@ -32,8 +31,7 @@ final class ParsedEntry {
         createdAt: Date = .now,
         status: ParsedEntryStatus = .pending,
         merchantCandidates: [String] = [],
-        amountCandidates: [Int] = [],
-        failureReason: String? = nil
+        amountCandidates: [Int] = []
     ) {
         self.id = id
         self.date = date
@@ -46,6 +44,5 @@ final class ParsedEntry {
         self.status = status
         self.merchantCandidates = merchantCandidates
         self.amountCandidates = amountCandidates
-        self.failureReason = failureReason
     }
 }
