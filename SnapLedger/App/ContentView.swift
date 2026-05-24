@@ -17,7 +17,7 @@ struct ContentView: View {
                 ReviewListView()
             }
             .badge(pendingReviewCount)
-            Tab("기록", systemImage: "list.bullet.rectangle") {
+            Tab("최근 기록", systemImage: "list.bullet.rectangle") {
                 HistoryView()
             }
             Tab("통계", systemImage: "chart.pie") {
