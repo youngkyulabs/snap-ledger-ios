@@ -102,9 +102,3 @@ struct AppleIntelligenceStatusTests {
         }
     }
 }
-
-extension AppleIntelligenceStatus: CaseIterable {
-    public static var allCases: [AppleIntelligenceStatus] {
-        [.available, .appleIntelligenceOff, .deviceNotEligible, .modelNotReady]
-    }
-}
