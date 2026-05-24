@@ -183,17 +183,21 @@ App Store Connect "App Privacy" 섹션:
 ### 호스팅 워크플로우
 
 - **플랫폼:** Cloudflare Workers (Static Assets)
-- **계정 서브도메인:** `youngkyulabs.workers.dev`
-- **워커 이름:** `snap-ledger-ios` (앱별 워커 1개 = 미래 앱은 새 워커)
-- **HTML handling:** `auto-trailing-slash` — `.html` 확장자가 자동 제거되어 깔끔한 URL로 노출됨
-- **원본 source of truth:** `docs/privacy-policy.html`, `docs/support.html` (이 repo)
-- **배포 사본:** `~/Project/youngkyulabs-pages/snap-ledger-ios/` (로컬 deploy 스테이징)
+- **계정 서브도메인:** `youngkyulabs.workers.dev` — 앱별 워커 1개씩 (미래 앱은 새 워커 이름)
+- **워커 이름:** `snap-ledger-ios`
+- **배포 설정:** repo 루트 [`wrangler.toml`](../wrangler.toml) — assets `./docs/site`, `html_handling = auto-trailing-slash`
+- **Source of truth:** `docs/site/privacy-policy.html`, `docs/site/support.html` (이 repo, 별도 staging 폴더 없음)
 
-**수정 후 재배포 절차:**
-1. `docs/privacy-policy.html` 또는 `docs/support.html` 편집
-2. `cp docs/privacy-policy.html docs/support.html ~/Project/youngkyulabs-pages/snap-ledger-ios/`
-3. Cloudflare dashboard → Workers & Pages → `snap-ledger-ios` → Deployments → 새 deployment 업로드 (또는 `wrangler deploy --name=snap-ledger-ios --assets=~/Project/youngkyulabs-pages/snap-ledger-ios`)
-4. URL fetch로 반영 확인
+**최초 셋업 (1회):**
+```bash
+brew install cloudflare-wrangler2
+wrangler login
+```
+
+**수정 후 재배포:**
+1. `docs/site/{privacy-policy,support}.html` 편집
+2. repo 루트에서 `wrangler deploy` (한 줄)
+3. `curl -sI https://snap-ledger-ios.youngkyulabs.workers.dev/privacy-policy`로 반영 확인
 
 ---
 
