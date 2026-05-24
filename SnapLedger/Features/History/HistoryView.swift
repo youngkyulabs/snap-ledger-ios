@@ -169,6 +169,12 @@ private struct HistoryRow: View {
                 if let category = entry.category {
                     Text(category).font(.caption).foregroundStyle(.secondary)
                 }
+                if let note = entry.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
             Spacer()
             Text("\(entry.amount.formatted(.number))원")

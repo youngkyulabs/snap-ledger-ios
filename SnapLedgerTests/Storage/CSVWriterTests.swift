@@ -37,8 +37,39 @@ struct CSVWriterTests {
 
         let content = String(data: data, encoding: .utf8) ?? ""
         let stripped = content.hasPrefix("\u{FEFF}") ? String(content.dropFirst()) : content
-        #expect(stripped.hasPrefix("날짜,설명,카테고리,금액\n"))
-        #expect(stripped.contains("2026-05-17,스타벅스,카페,5000"))
+        #expect(stripped.hasPrefix("날짜,설명,카테고리,금액,메모\n"))
+        #expect(stripped.contains("2026-05-17,스타벅스,카페,5000,"))
+    }
+
+    @Test func writesNoteColumnWhenPresent() throws {
+        let folder = try makeTempFolder()
+        let writer = CSVWriter(folder: folder, calendar: utcCalendar)
+        try writer.append(SavedRow(
+            date: date(2026, 5, 17),
+            description: "스타벅스",
+            category: "카페",
+            amount: 5000,
+            note: "출장 경비"
+        ))
+
+        let file = folder.appendingPathComponent("expenses-2026-05.csv")
+        let content = try String(contentsOf: file, encoding: .utf8)
+        #expect(content.contains("2026-05-17,스타벅스,카페,5000,출장 경비"))
+    }
+
+    @Test func escapesNoteWithCommaQuoteAndNewline() throws {
+        let folder = try makeTempFolder()
+        let writer = CSVWriter(folder: folder, calendar: utcCalendar)
+        try writer.append(SavedRow(
+            date: date(2026, 5, 17),
+            description: "A",
+            amount: 1000,
+            note: "줄1\n줄2, \"인용\""
+        ))
+
+        let file = folder.appendingPathComponent("expenses-2026-05.csv")
+        let content = try String(contentsOf: file, encoding: .utf8)
+        #expect(content.contains("\"줄1\n줄2, \"\"인용\"\"\""))
     }
 
     @Test func appendDoesNotDuplicateHeader() throws {

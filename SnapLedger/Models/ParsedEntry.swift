@@ -13,6 +13,7 @@ final class ParsedEntry {
     var amount: Int
     var merchant: String
     var category: String?
+    var note: String?
     var sourceImagePath: String?
     var confidence: Double
     var createdAt: Date
@@ -26,6 +27,7 @@ final class ParsedEntry {
         amount: Int,
         merchant: String,
         category: String? = nil,
+        note: String? = nil,
         sourceImagePath: String? = nil,
         confidence: Double = 1.0,
         createdAt: Date = .now,
@@ -38,6 +40,7 @@ final class ParsedEntry {
         self.amount = amount
         self.merchant = merchant
         self.category = category
+        self.note = note
         self.sourceImagePath = sourceImagePath
         self.confidence = confidence
         self.createdAt = createdAt

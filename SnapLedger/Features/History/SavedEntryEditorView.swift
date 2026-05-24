@@ -11,6 +11,7 @@ struct SavedEntryEditorView: View {
     @State private var merchant: String
     @State private var amount: Int
     @State private var category: String
+    @State private var note: String
     @State private var saveError: String?
     @State private var showDeleteConfirm = false
 
@@ -23,6 +24,7 @@ struct SavedEntryEditorView: View {
         self._merchant = State(initialValue: entry.merchant)
         self._amount = State(initialValue: entry.amount)
         self._category = State(initialValue: entry.category ?? "")
+        self._note = State(initialValue: entry.note ?? "")
     }
 
     var body: some View {
@@ -44,6 +46,11 @@ struct SavedEntryEditorView: View {
                 Section("카테고리") {
                     TextField("카테고리", text: $category)
                     presetChips
+                }
+
+                Section("메모") {
+                    TextField("선택 사항", text: $note, axis: .vertical)
+                        .lineLimit(1...3)
                 }
 
                 Section {
@@ -149,6 +156,7 @@ struct SavedEntryEditorView: View {
         entry.merchant = merchant
         entry.amount = amount
         entry.category = category.isEmpty ? nil : category
+        entry.note = note.isEmpty ? nil : note
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
                 .update(entry, originalDate: originalDate, in: modelContext)

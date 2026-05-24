@@ -62,6 +62,32 @@ struct SaveCoordinatorTests {
         #expect(entry.status == .dismissed)
     }
 
+    @Test func savePropagatesNoteToCSVAndSavedEntry() throws {
+        let ctx = try makeContext()
+        let folder = try makeTempFolderWithBookmark(in: ctx)
+
+        let entry = ParsedEntry(
+            date: date(2026, 5, 17),
+            amount: 5000,
+            merchant: "스타벅스",
+            category: "카페",
+            note: "팀 회의"
+        )
+        ctx.insert(entry)
+        try ctx.save()
+
+        try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: ctx)
+
+        let csv = try String(
+            contentsOf: folder.appendingPathComponent("expenses-2026-05.csv"),
+            encoding: .utf8
+        )
+        #expect(csv.contains("2026-05-17,스타벅스,카페,5000,팀 회의"))
+
+        let saved = try ctx.fetch(FetchDescriptor<SavedEntry>())
+        #expect(saved.first?.note == "팀 회의")
+    }
+
     @Test func saveLearnsMerchantCategoryMapping() throws {
         let ctx = try makeContext()
         _ = try makeTempFolderWithBookmark(in: ctx)

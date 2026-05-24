@@ -38,6 +38,11 @@ struct EntryEditorView: View {
                     presetChips
                 }
 
+                Section("메모") {
+                    TextField("선택 사항", text: noteBinding, axis: .vertical)
+                        .lineLimit(1...3)
+                }
+
                 if entry.confidence < 0.8 {
                     Section {
                         Label("신뢰도가 낮아요 — 값 확인 후 저장하세요.",
@@ -96,6 +101,13 @@ struct EntryEditorView: View {
         Binding(
             get: { entry.category ?? "" },
             set: { entry.category = $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    private var noteBinding: Binding<String> {
+        Binding(
+            get: { entry.note ?? "" },
+            set: { entry.note = $0.isEmpty ? nil : $0 }
         )
     }
 

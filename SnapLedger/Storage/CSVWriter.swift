@@ -5,12 +5,20 @@ struct SavedRow: Equatable, Sendable {
     let description: String
     let category: String?
     let amount: Int
+    let note: String?
 
-    init(date: Date, description: String, category: String? = nil, amount: Int) {
+    init(
+        date: Date,
+        description: String,
+        category: String? = nil,
+        amount: Int,
+        note: String? = nil
+    ) {
         self.date = date
         self.description = description
         self.category = category
         self.amount = amount
+        self.note = note
     }
 }
 
@@ -19,7 +27,7 @@ struct CSVWriter {
     let calendar: Calendar
 
     private static let bom = "\u{FEFF}"
-    private static let header = "날짜,설명,카테고리,금액"
+    private static let header = "날짜,설명,카테고리,금액,메모"
 
     init(folder: URL, calendar: Calendar = .current) {
         self.folder = folder
@@ -68,6 +76,7 @@ struct CSVWriter {
             Self.escape(row.description),
             Self.escape(row.category ?? ""),
             String(row.amount),
+            Self.escape(row.note ?? ""),
         ].joined(separator: ",")
     }
 

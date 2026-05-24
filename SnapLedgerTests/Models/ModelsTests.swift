@@ -67,9 +67,22 @@ struct ModelsTests {
 
         let fetched = try ctx.fetch(FetchDescriptor<ParsedEntry>())
         #expect(fetched.first?.category == nil)
+        #expect(fetched.first?.note == nil)
         #expect(fetched.first?.sourceImagePath == nil)
         #expect(fetched.first?.merchantCandidates.isEmpty == true)
         #expect(fetched.first?.amountCandidates.isEmpty == true)
+    }
+
+    @Test func parsedEntryStoresNote() throws {
+        let ctx = try makeContext()
+        let entry = ParsedEntry(
+            date: .now, amount: 5000, merchant: "스타벅스", note: "출장 경비"
+        )
+        ctx.insert(entry)
+        try ctx.save()
+
+        let fetched = try ctx.fetch(FetchDescriptor<ParsedEntry>())
+        #expect(fetched.first?.note == "출장 경비")
     }
 
     @Test func parsedEntryStoresCandidates() throws {
@@ -100,6 +113,21 @@ struct ModelsTests {
         #expect(fetched.count == 1)
         #expect(fetched.first?.csvFile == "expenses-2026-05.csv")
         #expect(fetched.first?.category == "편의점")
+        #expect(fetched.first?.note == nil)
+    }
+
+    @Test func savedEntryStoresNote() throws {
+        let ctx = try makeContext()
+        let entry = SavedEntry(
+            date: .now, amount: 3000, merchant: "GS25",
+            category: "편의점", note: "음료수만",
+            csvFile: "expenses-2026-05.csv"
+        )
+        ctx.insert(entry)
+        try ctx.save()
+
+        let fetched = try ctx.fetch(FetchDescriptor<SavedEntry>())
+        #expect(fetched.first?.note == "음료수만")
     }
 
     @Test func merchantCategoryStoresAndFetches() throws {
