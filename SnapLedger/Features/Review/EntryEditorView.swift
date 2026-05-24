@@ -132,10 +132,7 @@ struct EntryEditorView: View {
             }
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(250))
-                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
-                }
+                withAnimation { proxy.scrollTo(newValue, anchor: .center) }
             }
             }
         }
