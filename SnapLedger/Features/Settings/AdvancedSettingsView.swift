@@ -2,15 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct AdvancedSettingsView: View {
-    private enum Field: Hashable {
-        case newCategory
-        case extractionGuide
-    }
-
     @Environment(\.modelContext) private var modelContext
     @Query private var settingsList: [AppSettings]
     @State private var newCategoryText = ""
-    @FocusState private var focusedField: Field?
 
     private var settings: AppSettings {
         if let existing = settingsList.first {
@@ -36,12 +30,6 @@ struct AdvancedSettingsView: View {
                     EditButton()
                 }
             }
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("완료") {
-                    focusedField = nil
-                }
-            }
         }
     }
 
@@ -59,7 +47,6 @@ struct AdvancedSettingsView: View {
                     .animation(.smooth(duration: 0.2), value: canAddCategory)
                 TextField("새 카테고리 추가", text: $newCategoryText)
                     .submitLabel(.done)
-                    .focused($focusedField, equals: .newCategory)
                     .onSubmit(addCategoryPreset)
                 if canAddCategory {
                     Button("추가", action: addCategoryPreset)
@@ -111,7 +98,6 @@ struct AdvancedSettingsView: View {
             TextEditor(text: extractionGuideBinding)
                 .frame(minHeight: 100)
                 .font(.body)
-                .focused($focusedField, equals: .extractionGuide)
         } header: {
             Text("추출 가이드 (선택)")
         } footer: {

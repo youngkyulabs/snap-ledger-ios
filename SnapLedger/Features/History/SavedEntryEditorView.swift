@@ -3,7 +3,7 @@ import SwiftData
 
 struct SavedEntryEditorView: View {
     private enum Field: Hashable {
-        case merchant, amount, category, note
+        case merchant, category
     }
 
     let entry: SavedEntry
@@ -47,7 +47,6 @@ struct SavedEntryEditorView: View {
                         TextField("0", value: amountBinding, format: .number)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
-                            .focused($focusedField, equals: .amount)
                         Text("원").foregroundStyle(.secondary)
                     }
                 }
@@ -63,7 +62,6 @@ struct SavedEntryEditorView: View {
                 Section("메모") {
                     TextField("선택 사항", text: $note, axis: .vertical)
                         .lineLimit(1...3)
-                        .focused($focusedField, equals: .note)
                 }
 
                 Section {
@@ -84,12 +82,6 @@ struct SavedEntryEditorView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button("저장", action: save)
                         .disabled(merchant.isEmpty || amount <= 0)
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("완료") {
-                        focusedField = nil
-                    }
                 }
             }
             .navigationTitle("편집")
