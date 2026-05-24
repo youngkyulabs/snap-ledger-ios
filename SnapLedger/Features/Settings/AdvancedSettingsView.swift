@@ -3,6 +3,7 @@ import SwiftData
 
 struct AdvancedSettingsView: View {
     private enum Field: Hashable {
+        case newCategory
         case extractionGuide
     }
 
@@ -30,7 +31,7 @@ struct AdvancedSettingsView: View {
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
-                if focusedField == .extractionGuide {
+                if focusedField != nil {
                     HStack {
                         Spacer()
                         Button {
@@ -77,7 +78,9 @@ struct AdvancedSettingsView: View {
                     .animation(.smooth(duration: 0.2), value: canAddCategory)
                 TextField("새 카테고리 추가", text: $newCategoryText)
                     .submitLabel(.done)
+                    .focused($focusedField, equals: .newCategory)
                     .onSubmit(addCategoryPreset)
+                    .id(Field.newCategory)
                 if canAddCategory {
                     Button("추가", action: addCategoryPreset)
                         .buttonStyle(.borderless)

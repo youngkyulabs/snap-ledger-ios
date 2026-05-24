@@ -83,7 +83,7 @@ struct SavedEntryEditorView: View {
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
-                if focusedField == .amount || focusedField == .note {
+                if focusedField != nil {
                     HStack {
                         Spacer()
                         Button {
