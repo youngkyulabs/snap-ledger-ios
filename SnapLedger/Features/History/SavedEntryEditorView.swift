@@ -77,7 +77,7 @@ struct SavedEntryEditorView: View {
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaBar(edge: .bottom) {
+            .overlay(alignment: .bottom) {
                 if focusedField == .amount || focusedField == .note {
                     HStack {
                         Spacer()
@@ -85,9 +85,13 @@ struct SavedEntryEditorView: View {
                             focusedField = nil
                         } label: {
                             Image(systemName: "keyboard.chevron.compact.down")
+                                .padding(4)
                         }
+                        .buttonStyle(.glass)
                         .accessibilityLabel("키보드 닫기")
                     }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal)
                 }
             }
             .toolbar {
