@@ -233,6 +233,7 @@ struct PastMonthDetailView: View {
                 }
                 .contentMargins(.bottom, 24, for: .scrollContent)
                 .navigationTitle(month.title)
+                .navigationSubtitle("합계 \(month.total.formatted(.number))원")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
