@@ -27,6 +27,12 @@ struct StatisticsView: View {
         StatisticsAggregation.trend(months: months)
     }
 
+    // 차트는 항상 6개월 슬롯을 그대로 보여주고, 기록 없는 달은 빈 막대로 둔다.
+    // 리스트만 leading-zero trim이 적용된다 (trendPoints).
+    private var chartPoints: [StatisticsAggregation.TrendPoint] {
+        StatisticsAggregation.trend(months: months, trimLeadingZeros: false)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -131,7 +137,7 @@ struct StatisticsView: View {
 
     private var trendSection: some View {
         Section {
-            TrendChart(points: trendPoints)
+            TrendChart(points: chartPoints)
                 .frame(height: 200)
                 .padding(.vertical, 8)
             ForEach(trendPoints.reversed()) { point in
