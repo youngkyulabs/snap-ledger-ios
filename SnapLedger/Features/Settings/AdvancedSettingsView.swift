@@ -28,15 +28,9 @@ struct AdvancedSettingsView: View {
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("고급 설정")
-        .toolbar {
-            if !settings.categoryPresets.isEmpty {
-                ToolbarItem(placement: .primaryAction) {
-                    EditButton()
-                }
-            }
+        .safeAreaBar(edge: .bottom) {
             if focusedField == .extractionGuide {
-                ToolbarItemGroup(placement: .keyboard) {
+                HStack {
                     Spacer()
                     Button {
                         focusedField = nil
@@ -44,6 +38,14 @@ struct AdvancedSettingsView: View {
                         Image(systemName: "keyboard.chevron.compact.down")
                     }
                     .accessibilityLabel("키보드 닫기")
+                }
+            }
+        }
+        .navigationTitle("고급 설정")
+        .toolbar {
+            if !settings.categoryPresets.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    EditButton()
                 }
             }
         }

@@ -77,16 +77,9 @@ struct SavedEntryEditorView: View {
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("취소") { dismiss() }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("저장", action: save)
-                        .disabled(merchant.isEmpty || amount <= 0)
-                }
+            .safeAreaBar(edge: .bottom) {
                 if focusedField == .amount || focusedField == .note {
-                    ToolbarItemGroup(placement: .keyboard) {
+                    HStack {
                         Spacer()
                         Button {
                             focusedField = nil
@@ -95,6 +88,15 @@ struct SavedEntryEditorView: View {
                         }
                         .accessibilityLabel("키보드 닫기")
                     }
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("취소") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("저장", action: save)
+                        .disabled(merchant.isEmpty || amount <= 0)
                 }
             }
             .navigationTitle("편집")

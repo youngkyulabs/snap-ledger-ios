@@ -76,16 +76,9 @@ struct EntryEditorView: View {
             .animation(.smooth(duration: 0.25), value: entry.confidence < 0.8)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("닫기") { dismiss() }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("저장", action: save)
-                        .disabled(entry.merchant.isEmpty || entry.amount <= 0)
-                }
+            .safeAreaBar(edge: .bottom) {
                 if focusedField == .amount || focusedField == .note {
-                    ToolbarItemGroup(placement: .keyboard) {
+                    HStack {
                         Spacer()
                         Button {
                             focusedField = nil
@@ -94,6 +87,15 @@ struct EntryEditorView: View {
                         }
                         .accessibilityLabel("키보드 닫기")
                     }
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("닫기") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("저장", action: save)
+                        .disabled(entry.merchant.isEmpty || entry.amount <= 0)
                 }
             }
             .navigationTitle("검토")
