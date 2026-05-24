@@ -2,6 +2,10 @@ import SwiftUI
 import SwiftData
 
 struct EntryEditorView: View {
+    private enum Field: Hashable {
+        case merchant, amount, category, note
+    }
+
     @Bindable var entry: ParsedEntry
     var insertOnSave: Bool = false
     @Environment(\.modelContext) private var modelContext
@@ -10,6 +14,7 @@ struct EntryEditorView: View {
 
     @State private var saveError: String?
     @State private var confirmDelete = false
+    @FocusState private var focusedField: Field?
 
     var body: some View {
         NavigationStack {
@@ -17,6 +22,9 @@ struct EntryEditorView: View {
                 Section("내용") {
                     DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
                     TextField("설명", text: $entry.merchant)
+                        .focused($focusedField, equals: .merchant)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
                     if !entry.merchantCandidates.isEmpty {
                         merchantCandidateChips
                     }
@@ -26,6 +34,7 @@ struct EntryEditorView: View {
                         TextField("0", value: amountBinding, format: .number)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
+                            .focused($focusedField, equals: .amount)
                         Text("원").foregroundStyle(.secondary)
                     }
                     if !entry.amountCandidates.isEmpty {
@@ -35,12 +44,16 @@ struct EntryEditorView: View {
 
                 Section("카테고리") {
                     TextField("카테고리", text: categoryBinding)
+                        .focused($focusedField, equals: .category)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
                     presetChips
                 }
 
                 Section("메모") {
                     TextField("선택 사항", text: noteBinding, axis: .vertical)
                         .lineLimit(1...3)
+                        .focused($focusedField, equals: .note)
                 }
 
                 if entry.confidence < 0.8 {
@@ -62,6 +75,7 @@ struct EntryEditorView: View {
             }
             .animation(.smooth(duration: 0.25), value: entry.confidence < 0.8)
             .contentMargins(.bottom, 24, for: .scrollContent)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("닫기") { dismiss() }
@@ -69,6 +83,12 @@ struct EntryEditorView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button("저장", action: save)
                         .disabled(entry.merchant.isEmpty || entry.amount <= 0)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("완료") {
+                        focusedField = nil
+                    }
                 }
             }
             .navigationTitle("검토")

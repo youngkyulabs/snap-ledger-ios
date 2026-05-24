@@ -2,6 +2,10 @@ import SwiftUI
 import SwiftData
 
 struct SavedEntryEditorView: View {
+    private enum Field: Hashable {
+        case merchant, amount, category, note
+    }
+
     let entry: SavedEntry
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +18,7 @@ struct SavedEntryEditorView: View {
     @State private var note: String
     @State private var saveError: String?
     @State private var showDeleteConfirm = false
+    @FocusState private var focusedField: Field?
 
     private let originalDate: Date
 
@@ -33,24 +38,32 @@ struct SavedEntryEditorView: View {
                 Section("내용") {
                     DatePicker("날짜", selection: $date, displayedComponents: .date)
                     TextField("설명", text: $merchant)
+                        .focused($focusedField, equals: .merchant)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
                     HStack {
                         Text("금액")
                         Spacer()
                         TextField("0", value: amountBinding, format: .number)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
+                            .focused($focusedField, equals: .amount)
                         Text("원").foregroundStyle(.secondary)
                     }
                 }
 
                 Section("카테고리") {
                     TextField("카테고리", text: $category)
+                        .focused($focusedField, equals: .category)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
                     presetChips
                 }
 
                 Section("메모") {
                     TextField("선택 사항", text: $note, axis: .vertical)
                         .lineLimit(1...3)
+                        .focused($focusedField, equals: .note)
                 }
 
                 Section {
@@ -63,6 +76,7 @@ struct SavedEntryEditorView: View {
                 }
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("취소") { dismiss() }
@@ -70,6 +84,12 @@ struct SavedEntryEditorView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button("저장", action: save)
                         .disabled(merchant.isEmpty || amount <= 0)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("완료") {
+                        focusedField = nil
+                    }
                 }
             }
             .navigationTitle("편집")
