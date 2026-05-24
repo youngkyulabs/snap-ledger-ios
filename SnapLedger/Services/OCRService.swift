@@ -7,11 +7,11 @@ enum OCRError: Error {
     case invalidImage
 }
 
-protocol OCRService {
+protocol OCRService: Sendable {
     func recognize(imageURL: URL) async throws -> String
 }
 
-struct VisionKitOCRService: OCRService {
+nonisolated struct VisionKitOCRService: OCRService {
     let languages: [String]
     let level: VNRequestTextRecognitionLevel
 

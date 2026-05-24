@@ -2,7 +2,7 @@ import FoundationModels
 
 /// Apple Intelligence(SystemLanguageModel) 가용성을 사용자 친화 문구로 매핑한다.
 /// 설정/온보딩/검토 탭이 모두 같은 메시지·아이콘·심각도를 쓰도록 단일 진입점.
-enum AppleIntelligenceStatus: Equatable {
+enum AppleIntelligenceStatus: Equatable, CaseIterable {
     case available
     case appleIntelligenceOff
     case deviceNotEligible
