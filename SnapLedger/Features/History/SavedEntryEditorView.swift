@@ -133,7 +133,9 @@ struct SavedEntryEditorView: View {
             }
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
-                withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                Task { @MainActor in
+                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                }
             }
             }
         }
