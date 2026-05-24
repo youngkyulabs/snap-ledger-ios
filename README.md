@@ -2,6 +2,12 @@
 
 카드 결제 알림 스크린샷이나 영수증을 공유받아 자동으로 가계부에 정리하는 iOS 앱.
 
+- **App Store**: [다운로드](https://apps.apple.com/app/idXXXXXXXXXX) _(출시 준비 중)_
+- [개인정보처리방침](https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html)
+- [지원 페이지](https://youngkyulabs.github.io/snap-ledger-ios/support.html)
+
+> 이 저장소는 투명성을 위해 소스 코드를 공개합니다. 외부 Pull Request·기여는 받지 않으며, 코드의 재사용·재배포를 허용하지 않습니다 (자세한 내용은 [LICENSE](LICENSE) 참고). 버그 제보·기능 제안은 [Issues](../../issues)로 환영합니다.
+
 ## 동작 흐름
 
 1. iOS 공유 시트에서 찰칵가계부 선택 (또는 Shortcuts/Siri로 "이미지에서 지출 추가")
