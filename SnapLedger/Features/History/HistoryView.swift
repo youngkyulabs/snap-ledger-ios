@@ -5,6 +5,7 @@ struct HistoryView: View {
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var monthsBack: Int = 0
     @State private var isLoadingMore = false
+    @State private var editingEntry: SavedEntry?
 
     private var allMonths: [HistoryGrouping.MonthGroup] {
         HistoryGrouping.group(entries: entries)
@@ -51,7 +52,7 @@ struct HistoryView: View {
     private var historyList: some View {
         List {
             ForEach(displayedMonths) { month in
-                MonthSections(month: month)
+                MonthSections(month: month, editingEntry: $editingEntry)
             }
 
             footerSection
@@ -65,6 +66,11 @@ struct HistoryView: View {
             if offset <= 0 {
                 collapseIfPossible()
             }
+        }
+        // sheet을 부모 레벨에 두어야 자식(MonthSections)이 무한 스크롤이나
+        // SwiftData @Query 갱신으로 재구성될 때도 dismiss되지 않는다.
+        .sheet(item: $editingEntry) { entry in
+            SavedEntryEditorView(entry: entry)
         }
     }
 
@@ -132,28 +138,23 @@ struct HistoryView: View {
 
 struct MonthSections: View {
     let month: HistoryGrouping.MonthGroup
-    @State private var editingEntry: SavedEntry?
+    @Binding var editingEntry: SavedEntry?
 
     var body: some View {
-        Group {
-            ForEach(month.days) { day in
-                Section {
-                    ForEach(day.entries) { entry in
-                        Button {
-                            editingEntry = entry
-                        } label: {
-                            HistoryRow(entry: entry)
-                        }
-                        .buttonStyle(.plain)
+        ForEach(month.days) { day in
+            Section {
+                ForEach(day.entries) { entry in
+                    Button {
+                        editingEntry = entry
+                    } label: {
+                        HistoryRow(entry: entry)
                     }
-                } header: {
-                    Text(day.title)
-                        .textCase(nil)
+                    .buttonStyle(.plain)
                 }
+            } header: {
+                Text(day.title)
+                    .textCase(nil)
             }
-        }
-        .sheet(item: $editingEntry) { entry in
-            SavedEntryEditorView(entry: entry)
         }
     }
 }
@@ -220,6 +221,7 @@ struct PastMonthsView: View {
 struct PastMonthDetailView: View {
     let monthId: DateComponents
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
+    @State private var editingEntry: SavedEntry?
 
     private var month: HistoryGrouping.MonthGroup? {
         HistoryGrouping.group(entries: entries).first { $0.id == monthId }
@@ -229,11 +231,14 @@ struct PastMonthDetailView: View {
         Group {
             if let month {
                 List {
-                    MonthSections(month: month)
+                    MonthSections(month: month, editingEntry: $editingEntry)
                 }
                 .contentMargins(.bottom, 24, for: .scrollContent)
                 .navigationTitle(month.title)
                 .navigationSubtitle("합계 \(month.total.formatted(.number))원")
+                .sheet(item: $editingEntry) { entry in
+                    SavedEntryEditorView(entry: entry)
+                }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
