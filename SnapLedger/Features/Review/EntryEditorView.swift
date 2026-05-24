@@ -3,7 +3,7 @@ import SwiftData
 
 struct EntryEditorView: View {
     private enum Field: Hashable {
-        case merchant, category
+        case merchant, amount, category, note
     }
 
     @Bindable var entry: ParsedEntry
@@ -34,6 +34,7 @@ struct EntryEditorView: View {
                         TextField("0", value: amountBinding, format: .number)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
+                            .focused($focusedField, equals: .amount)
                         Text("원").foregroundStyle(.secondary)
                     }
                     if !entry.amountCandidates.isEmpty {
@@ -52,6 +53,7 @@ struct EntryEditorView: View {
                 Section("메모") {
                     TextField("선택 사항", text: noteBinding, axis: .vertical)
                         .lineLimit(1...3)
+                        .focused($focusedField, equals: .note)
                 }
 
                 if entry.confidence < 0.8 {
@@ -81,6 +83,17 @@ struct EntryEditorView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button("저장", action: save)
                         .disabled(entry.merchant.isEmpty || entry.amount <= 0)
+                }
+                if focusedField == .amount || focusedField == .note {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button {
+                            focusedField = nil
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                        }
+                        .accessibilityLabel("키보드 닫기")
+                    }
                 }
             }
             .navigationTitle("검토")

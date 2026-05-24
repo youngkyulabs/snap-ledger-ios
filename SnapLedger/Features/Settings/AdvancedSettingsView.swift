@@ -2,9 +2,14 @@ import SwiftUI
 import SwiftData
 
 struct AdvancedSettingsView: View {
+    private enum Field: Hashable {
+        case extractionGuide
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Query private var settingsList: [AppSettings]
     @State private var newCategoryText = ""
+    @FocusState private var focusedField: Field?
 
     private var settings: AppSettings {
         if let existing = settingsList.first {
@@ -28,6 +33,17 @@ struct AdvancedSettingsView: View {
             if !settings.categoryPresets.isEmpty {
                 ToolbarItem(placement: .primaryAction) {
                     EditButton()
+                }
+            }
+            if focusedField == .extractionGuide {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        focusedField = nil
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("키보드 닫기")
                 }
             }
         }
@@ -98,6 +114,7 @@ struct AdvancedSettingsView: View {
             TextEditor(text: extractionGuideBinding)
                 .frame(minHeight: 100)
                 .font(.body)
+                .focused($focusedField, equals: .extractionGuide)
         } header: {
             Text("추출 가이드 (선택)")
         } footer: {
