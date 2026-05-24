@@ -82,21 +82,25 @@ struct EntryEditorView: View {
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
-                if focusedField == .amount || focusedField == .note {
-                    HStack {
-                        Spacer()
-                        Button {
-                            focusedField = nil
-                        } label: {
-                            Image(systemName: "keyboard.chevron.compact.down")
-                                .padding(4)
+                Group {
+                    if focusedField == .amount || focusedField == .note {
+                        HStack {
+                            Spacer()
+                            Button {
+                                focusedField = nil
+                            } label: {
+                                Image(systemName: "keyboard.chevron.compact.down")
+                                    .padding(4)
+                            }
+                            .buttonStyle(.glass)
+                            .accessibilityLabel("키보드 닫기")
                         }
-                        .buttonStyle(.glass)
-                        .accessibilityLabel("키보드 닫기")
+                        .padding(.vertical, 8)
+                        .padding(.horizontal)
+                        .transition(.scale.combined(with: .opacity))
                     }
-                    .padding(.vertical, 8)
-                    .padding(.horizontal)
                 }
+                .animation(.smooth(duration: 0.25), value: focusedField)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
