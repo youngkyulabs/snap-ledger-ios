@@ -85,7 +85,8 @@ enum StatisticsAggregation {
         limit: Int = 6,
         referenceDate: Date = .now,
         calendar: Calendar = .current,
-        locale: Locale = Locale(identifier: "ko_KR")
+        locale: Locale = Locale(identifier: "ko_KR"),
+        trimLeadingZeros: Bool = true
     ) -> [TrendPoint] {
         guard limit > 0 else { return [] }
 
@@ -135,6 +136,8 @@ enum StatisticsAggregation {
                 ratioFromPrevious: ratio
             )
         }
+
+        guard trimLeadingZeros else { return raw }
 
         // 앞쪽의 0 슬롯(아직 기록이 없던 달)은 잘라낸다. 중간에 끼인 0은
         // "이 달은 기록을 안 했다"는 사실을 보여주기 위해 유지한다.

@@ -104,6 +104,27 @@ struct StatisticsAggregationTests {
         #expect(trend.isEmpty)
     }
 
+    @Test func trendWithoutTrimKeepsFullSixSlots() {
+        let entries = [
+            entry(2026, 3, 1, amount: 10_000),
+            entry(2026, 5, 1, amount: 8_000),
+        ]
+        let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
+        let trend = StatisticsAggregation.trend(
+            months: stats,
+            limit: 6,
+            referenceDate: date(2026, 5, 1),
+            calendar: kst,
+            trimLeadingZeros: false
+        )
+        // 차트용 호출. 앞쪽 0도 그대로 살아있다.
+        #expect(trend.count == 6)
+        #expect(trend.map { $0.id.month } == [12, 1, 2, 3, 4, 5])
+        #expect(trend[0].total == 0)
+        #expect(trend[3].total == 10_000)
+        #expect(trend[5].total == 8_000)
+    }
+
     @Test func trendTrimsLeadingZeroMonths() {
         let entries = [
             entry(2026, 3, 1, amount: 10_000),
