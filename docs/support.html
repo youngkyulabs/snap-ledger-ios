@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>찰칵가계부 지원</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: #111;
+    --bg: #fff;
+    --muted: #666;
+    --rule: #e5e5e7;
+    --accent: #007aff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #f2f2f7; --bg: #1c1c1e; --muted: #98989f; --rule: #38383a; --accent: #0a84ff; }
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+          "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+  h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.5px; }
+  h2 { font-size: 18px; margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--rule); }
+  h3 { font-size: 16px; margin-top: 20px; }
+  p, li { color: var(--fg); }
+  .meta { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: rgba(127,127,127,0.12); padding: 1px 6px; border-radius: 4px; font-size: 14px; }
+  .cta {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 10px;
+    margin: 8px 8px 8px 0;
+    font-weight: 600;
+  }
+  .cta:hover { text-decoration: none; opacity: 0.9; }
+  .footer { margin-top: 56px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>찰칵가계부 지원</h1>
+<p class="meta">결제 알림 스크린샷이나 영수증을 한 장 보내면 Apple Intelligence가 가계부에 정리해주는 iOS 26 앱입니다.</p>
+
+<p>
+  <a class="cta" href="mailto:youngkyulabs@gmail.com">이메일 문의</a>
+</p>
+
+<h2>빠른 시작</h2>
+<ol>
+  <li>처음 실행 시 안내에 따라 <strong>저장 폴더</strong>를 선택합니다 (iCloud Drive 권장).</li>
+  <li>카드 결제 알림을 캡쳐하거나 영수증을 촬영합니다.</li>
+  <li>사진을 열고 공유 시트에서 <strong>찰칵가계부</strong>를 선택합니다.</li>
+  <li>앱을 열면 <strong>검토</strong> 탭에 추출된 항목이 보입니다. 한 번 확인 후 <strong>저장</strong>을 누르면 월별 CSV에 추가됩니다.</li>
+</ol>
+
+<h2>자주 묻는 질문</h2>
+
+<h3>Q. 자동 추출이 동작하지 않아요.</h3>
+<p>Apple Intelligence를 사용할 수 있는 환경인지 확인해 주세요.</p>
+<ul>
+  <li>iOS 26 이상</li>
+  <li>Apple Intelligence 지원 기기 (iPhone 15 Pro·15 Pro Max 또는 iPhone 16 이상 전 모델, M1 이상의 iPad/iPad Air/iPad Pro, A17 Pro 이상의 iPad mini)</li>
+  <li>설정 → Apple Intelligence 및 Siri에서 Apple Intelligence가 활성화되어 있어야 합니다.</li>
+  <li>시뮬레이터에서는 동작하지 않을 수 있습니다.</li>
+</ul>
+<p>지원되지 않는 환경에서도 항목을 직접 입력해 사용할 수 있습니다.</p>
+
+<h3>Q. 추출 결과가 정확하지 않아요.</h3>
+<p>설정 → <strong>추출 가이드</strong>에서 사용자 규칙을 추가할 수 있습니다. 예: "스타벅스는 항상 '카페' 카테고리로 분류" 같은 지시를 자연어로 적으면 다음 추출부터 반영됩니다.</p>
+<p>또한 검토 탭에서 카테고리를 직접 고치면 그 가맹점은 자동으로 학습됩니다.</p>
+
+<h3>Q. CSV 파일은 어디에 저장되나요?</h3>
+<p>온보딩에서 선택한 폴더 안에 <code>expenses-YYYY-MM.csv</code> 형식으로 월별 저장됩니다. 컬럼은 <code>날짜, 설명, 카테고리, 금액, 메모</code> 5열입니다. Numbers, Excel, 다른 가계부 앱에서 자유롭게 열 수 있습니다.</p>
+
+<h3>Q. 데이터가 외부로 전송되나요?</h3>
+<p>아니요. 모든 처리는 기기 안에서 이루어지며, 앱은 어떤 서버와도 통신하지 않습니다. 자세한 내용은 <a href="privacy-policy.html">개인정보 처리방침</a>을 참고해 주세요.</p>
+
+<h3>Q. 한 이미지에 여러 결제가 있어요.</h3>
+<p>지원합니다. 카드사 알림 여러 건이 한 스크린샷에 있으면 각각 별도 항목으로 추출됩니다.</p>
+
+<h3>Q. 검토 알림을 끄고 싶어요.</h3>
+<p>설정 → 알림에서 끌 수 있습니다. iOS 설정 → 찰칵가계부 → 알림에서도 조정 가능합니다.</p>
+
+<h3>Q. 다른 기기로 옮기고 싶어요.</h3>
+<p>저장 폴더를 iCloud Drive로 지정해 두면 다른 기기에서 같은 폴더를 선택해 이어서 사용할 수 있습니다. 학습된 가맹점-카테고리 매핑은 기기별로 유지됩니다.</p>
+
+<h2>알려진 한계</h2>
+<ul>
+  <li>시뮬레이터 또는 Apple Intelligence가 비활성화된 환경에서는 자동 추출이 동작하지 않습니다. 큐에 쌓인 이미지는 사용 가능한 환경에서 처리됩니다.</li>
+  <li>검토 알림 본문의 항목 수는 백그라운드 진입 시점 기준이라 그 후 추가된 항목은 다음 알림에 반영됩니다.</li>
+  <li>인식 결과는 항상 검토 화면에서 한 번 확인한 뒤 저장됩니다.</li>
+</ul>
+
+<h2>의견 보내기</h2>
+<p>기능 제안, 버그 신고, 사용 중 불편한 점은 언제든 알려주세요. 빠르게 검토하겠습니다.</p>
+<ul>
+  <li>이메일: <a href="mailto:youngkyulabs@gmail.com">youngkyulabs@gmail.com</a></li>
+</ul>
+
+<p class="footer">© 2026 YOUNGKYU SEO. All rights reserved.
+<a href="privacy-policy.html">개인정보 처리방침</a></p>
+
+</body>
+</html>
