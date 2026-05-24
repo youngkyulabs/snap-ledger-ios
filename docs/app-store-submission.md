@@ -16,7 +16,7 @@
 | Primary Language | Korean |
 | Version | 1.0 |
 | Build | 1 |
-| Copyright | `2026 박영규` (개인 계정 기준 실명, ©는 시스템이 자동 부착) |
+| Copyright | `2026 YOUNGKYU SEO` (©는 시스템이 자동 부착) |
 | Primary Category | Finance |
 | Secondary Category | Productivity |
 | Pricing | Free, In-App Purchase 없음 |
