@@ -57,6 +57,40 @@ struct CSVWriterTests {
         #expect(content.contains("2026-05-17,스타벅스,카페,5000,출장 경비"))
     }
 
+    @Test func appendMigratesLegacy4ColumnHeaderTo5Column() throws {
+        let folder = try makeTempFolder()
+        let file = folder.appendingPathComponent("expenses-2026-05.csv")
+
+        // 메모 컬럼이 없던 시절에 만들어진 4열 CSV를 시뮬레이션
+        let legacy = "\u{FEFF}날짜,설명,카테고리,금액\n" +
+                     "2026-05-01,A,식비,1000\n" +
+                     "2026-05-02,\"B, with comma\",,2000\n"
+        try Data(legacy.utf8).write(to: file)
+
+        // 새 entry 하나를 메모 포함해서 append
+        let writer = CSVWriter(folder: folder, calendar: utcCalendar)
+        try writer.append(SavedRow(
+            date: date(2026, 5, 17),
+            description: "C",
+            category: "카페",
+            amount: 3000,
+            note: "팀 미팅"
+        ))
+
+        let content = try String(contentsOf: file, encoding: .utf8)
+        let stripped = content.hasPrefix("\u{FEFF}") ? String(content.dropFirst()) : content
+        // 헤더가 5열로 마이그레이션됨
+        #expect(stripped.hasPrefix("날짜,설명,카테고리,금액,메모\n"))
+        // 기존 row는 trailing 빈 메모로 padding
+        #expect(content.contains("2026-05-01,A,식비,1000,\n"))
+        #expect(content.contains("\"B, with comma\",,2000,\n"))
+        // 새 row는 메모 포함
+        #expect(content.contains("2026-05-17,C,카페,3000,팀 미팅"))
+        // 헤더는 정확히 한 번만 등장
+        let headerCount = content.components(separatedBy: "날짜,설명,카테고리,금액,메모").count - 1
+        #expect(headerCount == 1)
+    }
+
     @Test func escapesNoteWithCommaQuoteAndNewline() throws {
         let folder = try makeTempFolder()
         let writer = CSVWriter(folder: folder, calendar: utcCalendar)
