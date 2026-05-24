@@ -47,16 +47,17 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Install SwiftLint
-        if: matrix.language == 'swift'
-        run: brew list swiftlint &>/dev/null || brew install swiftlint
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
+      # CodeQL Swift extractor가 swiftc를 wrap하므로 일반 빌드보다 무겁다.
+      # ARCHS=arm64로 단일 아키텍처 빌드(runner가 Apple Silicon),
+      # 인덱스 스토어/플러그인 검증 끄기로 추가 단축.
+      # SwiftLint 빌드 페이즈는 swiftlint 부재 시 graceful pass — ci.yml에서
+      # 별도로 strict 검증하므로 여기서는 설치 생략.
       - name: Build (Swift)
         if: matrix.language == 'swift'
         run: |
@@ -65,8 +66,12 @@ jobs:
             -project SnapLedger.xcodeproj \
             -scheme SnapLedger \
             -destination 'generic/platform=iOS Simulator' \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            ARCHS=arm64 \
             CODE_SIGNING_ALLOWED=NO \
-            clean build
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
