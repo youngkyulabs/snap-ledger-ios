@@ -18,6 +18,7 @@ struct EntryEditorView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 Section("내용") {
                     DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
@@ -25,6 +26,7 @@ struct EntryEditorView: View {
                         .focused($focusedField, equals: .merchant)
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }
+                        .id(Field.merchant)
                     if !entry.merchantCandidates.isEmpty {
                         merchantCandidateChips
                     }
@@ -37,6 +39,7 @@ struct EntryEditorView: View {
                             .focused($focusedField, equals: .amount)
                         Text("원").foregroundStyle(.secondary)
                     }
+                    .id(Field.amount)
                     if !entry.amountCandidates.isEmpty {
                         amountCandidateChips
                     }
@@ -47,6 +50,7 @@ struct EntryEditorView: View {
                         .focused($focusedField, equals: .category)
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }
+                        .id(Field.category)
                     presetChips
                 }
 
@@ -54,6 +58,7 @@ struct EntryEditorView: View {
                     TextField("선택 사항", text: noteBinding, axis: .vertical)
                         .lineLimit(1...3)
                         .focused($focusedField, equals: .note)
+                        .id(Field.note)
                 }
 
                 if entry.confidence < 0.8 {
@@ -124,6 +129,14 @@ struct EntryEditorView: View {
                 Button("취소", role: .cancel) { }
             } message: {
                 Text("검토 목록에서 사라져요.")
+            }
+            .onChange(of: focusedField) { _, newValue in
+                guard let newValue else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                }
+            }
             }
         }
     }

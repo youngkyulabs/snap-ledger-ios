@@ -22,34 +22,43 @@ struct AdvancedSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            categoriesSection
-            extractionGuideSection
-        }
-        .contentMargins(.bottom, 24, for: .scrollContent)
-        .scrollDismissesKeyboard(.interactively)
-        .overlay(alignment: .bottom) {
-            if focusedField == .extractionGuide {
-                HStack {
-                    Spacer()
-                    Button {
-                        focusedField = nil
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                            .padding(4)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityLabel("키보드 닫기")
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal)
+        ScrollViewReader { proxy in
+            Form {
+                categoriesSection
+                extractionGuideSection
             }
-        }
-        .navigationTitle("고급 설정")
-        .toolbar {
-            if !settings.categoryPresets.isEmpty {
-                ToolbarItem(placement: .primaryAction) {
-                    EditButton()
+            .contentMargins(.bottom, 24, for: .scrollContent)
+            .scrollDismissesKeyboard(.interactively)
+            .overlay(alignment: .bottom) {
+                if focusedField == .extractionGuide {
+                    HStack {
+                        Spacer()
+                        Button {
+                            focusedField = nil
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .padding(4)
+                        }
+                        .buttonStyle(.glass)
+                        .accessibilityLabel("키보드 닫기")
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal)
+                }
+            }
+            .navigationTitle("고급 설정")
+            .toolbar {
+                if !settings.categoryPresets.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        EditButton()
+                    }
+                }
+            }
+            .onChange(of: focusedField) { _, newValue in
+                guard let newValue else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
                 }
             }
         }
@@ -121,6 +130,7 @@ struct AdvancedSettingsView: View {
                 .frame(minHeight: 100)
                 .font(.body)
                 .focused($focusedField, equals: .extractionGuide)
+                .id(Field.extractionGuide)
         } header: {
             Text("추출 가이드 (선택)")
         } footer: {

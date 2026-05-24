@@ -34,6 +34,7 @@ struct SavedEntryEditorView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 Section("내용") {
                     DatePicker("날짜", selection: $date, displayedComponents: .date)
@@ -41,6 +42,7 @@ struct SavedEntryEditorView: View {
                         .focused($focusedField, equals: .merchant)
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }
+                        .id(Field.merchant)
                     HStack {
                         Text("금액")
                         Spacer()
@@ -50,6 +52,7 @@ struct SavedEntryEditorView: View {
                             .focused($focusedField, equals: .amount)
                         Text("원").foregroundStyle(.secondary)
                     }
+                    .id(Field.amount)
                 }
 
                 Section("카테고리") {
@@ -57,6 +60,7 @@ struct SavedEntryEditorView: View {
                         .focused($focusedField, equals: .category)
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }
+                        .id(Field.category)
                     presetChips
                 }
 
@@ -64,6 +68,7 @@ struct SavedEntryEditorView: View {
                     TextField("선택 사항", text: $note, axis: .vertical)
                         .lineLimit(1...3)
                         .focused($focusedField, equals: .note)
+                        .id(Field.note)
                 }
 
                 Section {
@@ -125,6 +130,14 @@ struct SavedEntryEditorView: View {
                 Button("취소", role: .cancel) { }
             } message: {
                 Text("CSV 파일에서도 함께 제거돼요.")
+            }
+            .onChange(of: focusedField) { _, newValue in
+                guard let newValue else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                }
+            }
             }
         }
     }
