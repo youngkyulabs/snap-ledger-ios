@@ -80,12 +80,12 @@ struct AdvancedSettingsView: View {
                     .submitLabel(.done)
                     .focused($focusedField, equals: .newCategory)
                     .onSubmit(addCategoryPreset)
-                    .id(Field.newCategory)
                 if canAddCategory {
                     Button("추가", action: addCategoryPreset)
                         .buttonStyle(.borderless)
                 }
             }
+            .id(Field.newCategory)
             .animation(.smooth(duration: 0.2), value: canAddCategory)
         } header: {
             Text("카테고리")
