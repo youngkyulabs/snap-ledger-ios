@@ -115,7 +115,7 @@ enum StatisticsAggregation {
         }
 
         var previous: Int?
-        return slots.map { slot in
+        let raw: [TrendPoint] = slots.map { slot in
             let matched = monthsByKey[slot.lookupKey]
             let total = matched?.total ?? 0
             let delta: Int? = previous.map { total - $0 }
@@ -135,6 +135,21 @@ enum StatisticsAggregation {
                 ratioFromPrevious: ratio
             )
         }
+
+        // 앞쪽의 0 슬롯(아직 기록이 없던 달)은 잘라낸다. 중간에 끼인 0은
+        // "이 달은 기록을 안 했다"는 사실을 보여주기 위해 유지한다.
+        // 트림 후의 첫 슬롯은 직전 0 슬롯과 비교한 delta가 의미 없으므로
+        // "기준 월"로 리셋한다.
+        let trimmed = Array(raw.drop { $0.total == 0 })
+        guard let first = trimmed.first else { return [] }
+        let resetFirst = TrendPoint(
+            id: first.id,
+            shortTitle: first.shortTitle,
+            total: first.total,
+            deltaFromPrevious: nil,
+            ratioFromPrevious: nil
+        )
+        return [resetFirst] + trimmed.dropFirst()
     }
 
     private static func slices(for items: [SavedEntry], monthTotal: Int) -> [CategorySlice] {

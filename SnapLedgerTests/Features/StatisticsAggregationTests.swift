@@ -94,22 +94,17 @@ struct StatisticsAggregationTests {
         #expect(out[0].csvFilename == "expenses-2026-05.csv")
     }
 
-    @Test func trendFillsEmptyMonthsWithZero() {
+    @Test func trendReturnsEmptyWhenAllSlotsAreZero() {
         let trend = StatisticsAggregation.trend(
             months: [],
             limit: 6,
             referenceDate: date(2026, 5, 1),
             calendar: kst
         )
-        #expect(trend.count == 6)
-        #expect(trend.allSatisfy { $0.total == 0 })
-        #expect(trend.first?.id.year == 2025)
-        #expect(trend.first?.id.month == 12)
-        #expect(trend.last?.id.year == 2026)
-        #expect(trend.last?.id.month == 5)
+        #expect(trend.isEmpty)
     }
 
-    @Test func trendComputesDeltaAndRatioWithExistingMonths() {
+    @Test func trendTrimsLeadingZeroMonths() {
         let entries = [
             entry(2026, 3, 1, amount: 10_000),
             entry(2026, 4, 1, amount: 15_000),
@@ -122,21 +117,25 @@ struct StatisticsAggregationTests {
             referenceDate: date(2026, 5, 1),
             calendar: kst
         )
-        #expect(trend.count == 6)
-        // [12-2025, 1-2026, 2-2026, 3-2026, 4-2026, 5-2026] = [0, 0, 0, 10000, 15000, 12000]
-        #expect(trend[3].id.month == 3)
-        #expect(trend[3].total == 10_000)
-        #expect(trend[4].deltaFromPrevious == 5000)
-        #expect(trend[4].ratioFromPrevious == 0.5)
-        #expect(trend[5].deltaFromPrevious == -3000)
-        #expect(abs((trend[5].ratioFromPrevious ?? 0) - (-0.2)) < 0.0001)
+        // [12-2025, 1-2026, 2-2026, 3, 4, 5] = [0, 0, 0, 10000, 15000, 12000]
+        // 앞 3개월(12·1·2)은 트림되어 3·4·5월만 남는다.
+        #expect(trend.count == 3)
+        #expect(trend[0].id.month == 3)
+        #expect(trend[0].total == 10_000)
+        // 트림 후 첫 슬롯은 직전 비교가 무의미하므로 기준 월로 리셋된다.
+        #expect(trend[0].deltaFromPrevious == nil)
+        #expect(trend[0].ratioFromPrevious == nil)
+        #expect(trend[1].deltaFromPrevious == 5000)
+        #expect(trend[1].ratioFromPrevious == 0.5)
+        #expect(trend[2].deltaFromPrevious == -3000)
+        #expect(abs((trend[2].ratioFromPrevious ?? 0) - (-0.2)) < 0.0001)
     }
 
-    @Test func trendOrderedAscendingByMonth() {
+    @Test func trendKeepsInteriorZeroMonths() {
+        // 3월 데이터, 4월 기록 없음, 5월 데이터 → 4월의 0은 트림되지 않고 유지된다.
         let entries = [
-            entry(2026, 5, 1, amount: 100),
-            entry(2026, 3, 1, amount: 100),
-            entry(2026, 4, 1, amount: 100),
+            entry(2026, 3, 1, amount: 10_000),
+            entry(2026, 5, 1, amount: 8_000),
         ]
         let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
         let trend = StatisticsAggregation.trend(
@@ -145,11 +144,17 @@ struct StatisticsAggregationTests {
             referenceDate: date(2026, 5, 1),
             calendar: kst
         )
-        let monthsInOrder = trend.map { $0.id.month }
-        #expect(monthsInOrder == [12, 1, 2, 3, 4, 5])
+        #expect(trend.count == 3)
+        #expect(trend.map { $0.id.month } == [3, 4, 5])
+        #expect(trend[1].total == 0)
+        #expect(trend[1].deltaFromPrevious == -10_000)
+        #expect(trend[2].total == 8_000)
+        #expect(trend[2].deltaFromPrevious == 8_000)
+        // 직전이 0이면 ratio는 nil
+        #expect(trend[2].ratioFromPrevious == nil)
     }
 
-    @Test func trendCapsToLimitFromReferenceDate() {
+    @Test func trendKeepsFullWindowWhenAllMonthsHaveData() {
         var entries: [SavedEntry] = []
         for month in 1...8 {
             entries.append(entry(2026, month, 1, amount: month * 1000))
@@ -165,10 +170,13 @@ struct StatisticsAggregationTests {
         #expect(trend.first?.id.month == 3)
         #expect(trend.last?.id.month == 8)
         #expect(trend.first?.total == 3000)
+        // 윈도 첫 슬롯이지만 데이터가 있으므로 트림 없음. 그래도 트림 후 첫 슬롯
+        // 처리 규칙에 따라 delta는 nil(기준 월).
+        #expect(trend.first?.deltaFromPrevious == nil)
         #expect(trend.last?.total == 8000)
     }
 
-    @Test func trendRatioNilWhenPriorIsZero() {
+    @Test func trendSingleMonthIsBaseline() {
         let entries = [entry(2026, 5, 1, amount: 1000)]
         let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
         let trend = StatisticsAggregation.trend(
@@ -177,8 +185,11 @@ struct StatisticsAggregationTests {
             referenceDate: date(2026, 5, 1),
             calendar: kst
         )
-        #expect(trend.last?.total == 1000)
-        #expect(trend.last?.deltaFromPrevious == 1000)
-        #expect(trend.last?.ratioFromPrevious == nil)
+        // 앞 5개월(0)은 모두 트림되어 5월만 남고, 기준 월로 표시된다.
+        #expect(trend.count == 1)
+        #expect(trend[0].id.month == 5)
+        #expect(trend[0].total == 1000)
+        #expect(trend[0].deltaFromPrevious == nil)
+        #expect(trend[0].ratioFromPrevious == nil)
     }
 }
