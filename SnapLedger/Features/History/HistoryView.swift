@@ -137,20 +137,6 @@ struct MonthSections: View {
 
     var body: some View {
         Group {
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(month.title)
-                        .font(.title3.bold())
-                    Text("합계 \(month.total.formatted(.number))원")
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .animation(.smooth(duration: 0.3), value: month.total)
-            }
-
             ForEach(month.days) { day in
                 Section {
                     ForEach(day.entries) { entry in
