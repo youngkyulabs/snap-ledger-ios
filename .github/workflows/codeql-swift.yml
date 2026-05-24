@@ -1,0 +1,71 @@
+name: CodeQL (Swift)
+
+# Swift CodeQL은 ~18분이 걸리고 이 코드베이스에서 실제 발견 가능성이
+# 낮아서 PR 트리거는 두지 않는다. main push와 주간 schedule만으로
+# 충분 (PR 머지 직후 push 분석 + 정기 baseline).
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.swift'
+      - 'SnapLedger.xcodeproj/**'
+      - '.github/workflows/codeql-swift.yml'
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    name: Analyze (swift)
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Select Xcode (latest stable)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+          build-mode: manual
+
+      # CodeQL Swift extractor는 swiftc를 wrap하므로 일반 빌드보다 무겁다.
+      # ARCHS=arm64로 단일 아키텍처 빌드(runner가 Apple Silicon),
+      # 인덱스 스토어/플러그인 검증 끄기로 추가 단축.
+      # SwiftLint 빌드 페이즈는 swiftlint 부재 시 graceful pass — ci.yml에서
+      # 별도로 strict 검증하므로 여기서는 설치 생략.
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SnapLedger.xcodeproj \
+            -scheme SnapLedger \
+            -destination 'generic/platform=iOS Simulator' \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:swift"
