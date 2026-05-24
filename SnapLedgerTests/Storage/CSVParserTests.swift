@@ -60,7 +60,8 @@ struct CSVParserTests {
         var comps = DateComponents(); comps.year = 2026; comps.month = 5; comps.day = 17
         let date = utc.date(from: comps) ?? Date()
         try writer.append([
-            SavedRow(date: date, description: "Tom\"s, Cafe", category: "카페", amount: 5000),
+            SavedRow(date: date, description: "Tom\"s, Cafe", category: "카페",
+                     amount: 5000, note: "팀 회의"),
             SavedRow(date: date, description: "line\nbreak", category: nil, amount: 200),
         ])
 
@@ -69,9 +70,9 @@ struct CSVParserTests {
         let rows = CSVParser.parse(content)
 
         #expect(rows.count == 3)
-        #expect(rows[0] == ["날짜", "설명", "카테고리", "금액"])
-        #expect(rows[1] == ["2026-05-17", "Tom\"s, Cafe", "카페", "5000"])
-        #expect(rows[2] == ["2026-05-17", "line\nbreak", "", "200"])
+        #expect(rows[0] == ["날짜", "설명", "카테고리", "금액", "메모"])
+        #expect(rows[1] == ["2026-05-17", "Tom\"s, Cafe", "카페", "5000", "팀 회의"])
+        #expect(rows[2] == ["2026-05-17", "line\nbreak", "", "200", ""])
     }
 
     @Test func emptyInputReturnsEmptyArray() {

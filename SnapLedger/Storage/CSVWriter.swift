@@ -5,12 +5,20 @@ struct SavedRow: Equatable, Sendable {
     let description: String
     let category: String?
     let amount: Int
+    let note: String?
 
-    init(date: Date, description: String, category: String? = nil, amount: Int) {
+    init(
+        date: Date,
+        description: String,
+        category: String? = nil,
+        amount: Int,
+        note: String? = nil
+    ) {
         self.date = date
         self.description = description
         self.category = category
         self.amount = amount
+        self.note = note
     }
 }
 
@@ -19,7 +27,7 @@ struct CSVWriter {
     let calendar: Calendar
 
     private static let bom = "\u{FEFF}"
-    private static let header = "날짜,설명,카테고리,금액"
+    private static let header = "날짜,설명,카테고리,금액,메모"
 
     init(folder: URL, calendar: Calendar = .current) {
         self.folder = folder
@@ -68,6 +76,7 @@ struct CSVWriter {
             Self.escape(row.description),
             Self.escape(row.category ?? ""),
             String(row.amount),
+            Self.escape(row.note ?? ""),
         ].joined(separator: ",")
     }
 
@@ -83,6 +92,8 @@ struct CSVWriter {
                 if !fileExisted {
                     let initial = Self.bom + Self.header + "\n"
                     try Data(initial.utf8).write(to: coordinatedURL, options: .atomic)
+                } else {
+                    try Self.migrateHeaderIfNeeded(at: coordinatedURL)
                 }
 
                 let body = rows.map { csvLine($0) }.joined(separator: "\n") + "\n"
@@ -99,6 +110,30 @@ struct CSVWriter {
         if let err = coordinationError { throw err }
         if let err = thrown { throw err }
     }
+
+    // 기존 파일의 헤더가 현재 헤더와 다르면 (예: 4열 → 5열 메모 컬럼 추가)
+    // 전체를 새 헤더로 재기록한다. 기존 row는 컬럼 수에 맞춰 빈 값을 padding.
+    private static func migrateHeaderIfNeeded(at url: URL) throws {
+        let existing = try String(contentsOf: url, encoding: .utf8)
+        let stripped = existing.hasPrefix("\u{FEFF}") ? String(existing.dropFirst()) : existing
+        guard let firstNewline = stripped.firstIndex(of: "\n") else { return }
+        let existingHeader = String(stripped[..<firstNewline])
+        if existingHeader == header { return }
+
+        let parsedRows = CSVParser.parse(stripped)
+        var rebuilt = bom + header + "\n"
+        for row in parsedRows.dropFirst() {
+            var padded = row
+            while padded.count < headerColumnCount {
+                padded.append("")
+            }
+            let trimmed = Array(padded.prefix(headerColumnCount))
+            rebuilt += trimmed.map { escape($0) }.joined(separator: ",") + "\n"
+        }
+        try Data(rebuilt.utf8).write(to: url, options: .atomic)
+    }
+
+    private static let headerColumnCount = header.split(separator: ",").count
 
     private func replaceRows(_ rows: [SavedRow], at url: URL) throws {
         let coordinator = NSFileCoordinator(filePresenter: nil)

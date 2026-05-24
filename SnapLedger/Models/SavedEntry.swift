@@ -8,6 +8,7 @@ final class SavedEntry {
     var amount: Int
     var merchant: String
     var category: String?
+    var note: String?
     var savedAt: Date
     var csvFile: String
 
@@ -17,6 +18,7 @@ final class SavedEntry {
         amount: Int,
         merchant: String,
         category: String? = nil,
+        note: String? = nil,
         savedAt: Date = .now,
         csvFile: String
     ) {
@@ -25,6 +27,7 @@ final class SavedEntry {
         self.amount = amount
         self.merchant = merchant
         self.category = category
+        self.note = note
         self.savedAt = savedAt
         self.csvFile = csvFile
     }

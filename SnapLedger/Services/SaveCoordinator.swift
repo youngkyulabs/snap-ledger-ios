@@ -38,7 +38,8 @@ struct SaveCoordinator {
             date: entry.date,
             description: entry.merchant,
             category: entry.category,
-            amount: entry.amount
+            amount: entry.amount,
+            note: entry.note
         )
         let writer = CSVWriter(folder: folderURL)
         try writer.append(row)
@@ -48,6 +49,7 @@ struct SaveCoordinator {
             amount: entry.amount,
             merchant: entry.merchant,
             category: entry.category,
+            note: entry.note,
             csvFile: Self.csvFilename(for: entry.date)
         )
         context.insert(saved)
@@ -107,7 +109,8 @@ struct SaveCoordinator {
                         date: entry.date,
                         description: entry.merchant,
                         category: entry.category,
-                        amount: entry.amount
+                        amount: entry.amount,
+                        note: entry.note
                     )
                 }
             try writer.replaceMonth(monthKey: key, rows: rows)
@@ -164,7 +167,8 @@ struct SaveCoordinator {
                         date: entry.date,
                         description: entry.merchant,
                         category: entry.category,
-                        amount: entry.amount
+                        amount: entry.amount,
+                        note: entry.note
                     )
                 }
             try writer.replaceMonth(monthKey: key, rows: rows)

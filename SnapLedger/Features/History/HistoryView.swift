@@ -162,8 +162,12 @@ struct MonthSections: View {
 private struct HistoryRow: View {
     let entry: SavedEntry
 
+    private var hasNote: Bool {
+        !(entry.note?.isEmpty ?? true)
+    }
+
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.merchant).font(.body)
                 if let category = entry.category {
@@ -171,6 +175,12 @@ private struct HistoryRow: View {
                 }
             }
             Spacer()
+            if hasNote {
+                Image(systemName: "text.bubble")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("메모 있음")
+            }
             Text("\(entry.amount.formatted(.number))원")
                 .font(.body.monospacedDigit())
         }
