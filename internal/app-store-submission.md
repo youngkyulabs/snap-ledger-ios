@@ -175,29 +175,28 @@ App Store Connect "App Privacy" 섹션:
 
 | 항목 | 필수 | 값 |
 |---|---|---|
-| Support URL | 필수 | `https://snap-ledger-ios.youngkyulabs.workers.dev/support` |
-| Privacy Policy URL | 필수 | `https://snap-ledger-ios.youngkyulabs.workers.dev/privacy-policy` |
+| Support URL | 필수 | `https://youngkyulabs.github.io/snap-ledger-ios/support.html` |
+| Privacy Policy URL | 필수 | `https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html` |
 | Marketing URL | 선택 | (없음) |
 | EULA | 선택 | Apple Standard EULA 사용 |
 
 ### 호스팅 워크플로우
 
-- **플랫폼:** Cloudflare Workers (Static Assets)
-- **계정 서브도메인:** `youngkyulabs.workers.dev` — 앱별 워커 1개씩 (미래 앱은 새 워커 이름)
-- **워커 이름:** `snap-ledger-ios`
-- **배포 설정:** repo 루트 [`wrangler.toml`](../wrangler.toml) — assets `./docs/site`, `html_handling = auto-trailing-slash`
-- **Source of truth:** `docs/site/privacy-policy.html`, `docs/site/support.html` (이 repo, 별도 staging 폴더 없음)
-
-**최초 셋업 (1회):**
-```bash
-brew install cloudflare-wrangler2
-wrangler login
-```
+- **플랫폼:** GitHub Pages
+- **Organization:** `youngkyulabs`, repo: `snap-ledger-ios` (public)
+- **Source:** branch `main`, folder `/docs`
+- **Jekyll:** 비활성화 (`docs/.nojekyll` 파일) — HTML을 변환 없이 그대로 serve
+- **Source of truth:** `docs/privacy-policy.html`, `docs/support.html`
 
 **수정 후 재배포:**
-1. `docs/site/{privacy-policy,support}.html` 편집
-2. repo 루트에서 `wrangler deploy` (한 줄)
-3. `curl -sI https://snap-ledger-ios.youngkyulabs.workers.dev/privacy-policy`로 반영 확인
+1. `docs/{privacy-policy,support}.html` 편집
+2. `main` 브랜치에 push (PR 또는 직접)
+3. 1~2분 후 GitHub Pages가 자동 재배포
+4. `curl -sI https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html`로 반영 확인 (200 OK)
+
+**미래 앱 추가:**
+- 같은 organization에 새 public repo 생성 → 동일하게 `docs/` + `.nojekyll` 패턴
+- URL: `https://youngkyulabs.github.io/<new-app>/{privacy-policy,support}.html`
 
 ---
 
