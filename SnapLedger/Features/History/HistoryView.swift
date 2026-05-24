@@ -4,6 +4,7 @@ import SwiftData
 struct HistoryView: View {
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var monthsBack: Int = 0
+    @State private var isLoadingMore = false
 
     private var allMonths: [HistoryGrouping.MonthGroup] {
         HistoryGrouping.group(entries: entries)
@@ -49,6 +50,16 @@ struct HistoryView: View {
 
     private var historyList: some View {
         List {
+            // 사용자가 스크롤을 맨 위까지 다시 끌어올리면 펼쳐진 이전 달들을
+            // 접어준다. 첫 진입 시에도 onAppear가 발화하지만 monthsBack==0이라
+            // no-op.
+            Color.clear
+                .frame(height: 0.1)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
+                .onAppear(perform: collapseIfPossible)
+
             ForEach(displayedMonths) { month in
                 MonthSections(month: month)
             }
@@ -58,24 +69,64 @@ struct HistoryView: View {
         .contentMargins(.bottom, 24, for: .scrollContent)
     }
 
+    @ViewBuilder
     private var footerSection: some View {
-        Section {
-            HStack {
-                Spacer()
-                Text(hasMore ? "↓ 이전 달 더 보기" : "처음 기록까지 표시됨")
+        if isLoadingMore {
+            Section {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("이전 달 불러오는 중…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+        } else if hasMore {
+            Section {
+                Text("↓ 이전 달 더 보기")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Spacer()
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    // monthsBack 변경 시 새 view 인스턴스로 재생성되도록 강제.
+                    // 그래야 SwiftUI lazy 캐싱에 막히지 않고 사용자가 다시
+                    // 스크롤 끝에 도달했을 때 onAppear가 재발화한다.
+                    .id("trigger-\(monthsBack)")
+                    .onAppear(perform: loadMoreIfNeeded)
             }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .onAppear {
-                if hasMore {
-                    withAnimation(.smooth(duration: 0.3)) {
-                        monthsBack += 1
-                    }
-                }
+        } else {
+            Section {
+                Text("처음 기록까지 표시됨")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
+        }
+    }
+
+    private func loadMoreIfNeeded() {
+        guard hasMore, !isLoadingMore else { return }
+        Task {
+            isLoadingMore = true
+            // 즉시 추가되면 사용자가 "방금 더 불러왔구나"를 인지할 시간이 없어
+            // 의도적 딜레이를 둔다. ProgressView가 잠깐 보였다가 새 달이 등장.
+            try? await Task.sleep(for: .milliseconds(400))
+            withAnimation(.smooth(duration: 0.3)) {
+                monthsBack += 1
+            }
+            isLoadingMore = false
+        }
+    }
+
+    private func collapseIfPossible() {
+        guard monthsBack > 0, !isLoadingMore else { return }
+        withAnimation(.smooth(duration: 0.3)) {
+            monthsBack = 0
         }
     }
 }
@@ -87,20 +138,17 @@ struct MonthSections: View {
     var body: some View {
         Group {
             Section {
-                NavigationLink {
-                    CSVFileView(csvFilename: month.csvFilename, monthTitle: month.title)
-                } label: {
-                    HStack {
-                        Text("\(month.title) 합계")
-                            .font(.subheadline)
-                        Spacer()
-                        Text("\(month.total.formatted(.number))원")
-                            .font(.subheadline.monospacedDigit())
-                            .contentTransition(.numericText())
-                    }
-                    .foregroundStyle(.primary)
-                    .animation(.smooth(duration: 0.3), value: month.total)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(month.title)
+                        .font(.title3.bold())
+                    Text("합계 \(month.total.formatted(.number))원")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                 }
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(.smooth(duration: 0.3), value: month.total)
             }
 
             ForEach(month.days) { day in
@@ -200,6 +248,19 @@ struct PastMonthDetailView: View {
                 }
                 .contentMargins(.bottom, 24, for: .scrollContent)
                 .navigationTitle(month.title)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink {
+                            CSVFileView(
+                                csvFilename: month.csvFilename,
+                                monthTitle: month.title
+                            )
+                        } label: {
+                            Image(systemName: "doc.text")
+                                .accessibilityLabel("CSV 파일 보기")
+                        }
+                    }
+                }
             } else {
                 ContentUnavailableView(
                     "기록 없음",
