@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -17,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Select Xcode (latest stable)
         uses: maxim-lobanov/setup-xcode@v1
@@ -31,7 +34,8 @@ jobs:
 
       - name: Install SwiftLint and xcbeautify
         run: |
-          brew install swiftlint xcbeautify
+          brew list swiftlint &>/dev/null || brew install swiftlint
+          brew list xcbeautify &>/dev/null || brew install xcbeautify
           swiftlint version
 
       - name: SwiftLint (strict)
