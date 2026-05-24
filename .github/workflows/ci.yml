@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: Lint · Build · Test
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode (latest stable)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install SwiftLint and xcbeautify
+        run: |
+          brew install swiftlint xcbeautify
+          swiftlint version
+
+      - name: SwiftLint (strict)
+        run: swiftlint --strict --config .swiftlint.yml
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SnapLedger.xcodeproj \
+            -scheme SnapLedger \
+            -destination 'generic/platform=iOS Simulator' \
+            build \
+            | xcbeautify --renderer github-actions
+
+      - name: Test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project SnapLedger.xcodeproj \
+            -scheme SnapLedger \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -only-testing:SnapLedgerTests \
+            | xcbeautify --renderer github-actions

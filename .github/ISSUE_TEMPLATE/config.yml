@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 지원 / FAQ
+    url: https://youngkyulabs.github.io/snap-ledger-ios/support.html
+    about: 일반 사용 문의는 지원 페이지를 먼저 확인해주세요.
+  - name: 개인정보처리방침
+    url: https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html
+    about: 데이터 처리 방식을 확인할 수 있습니다.

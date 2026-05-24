@@ -1,0 +1,72 @@
+name: 버그 신고
+description: 앱에서 발생한 문제를 신고합니다.
+title: "[버그] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        버그를 신고해주셔서 감사합니다. 빠른 확인을 위해 아래 항목을 가능한 한 자세히 채워주세요.
+        앱에 포함된 개인 정보(가맹점명·금액 등)는 스크린샷에서 가려주세요.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 무엇이 발생했나요?
+      description: 어떤 동작에서 어떤 문제가 발생했는지 설명해주세요.
+      placeholder: 예) 카드사 알림 스크린샷을 공유 시트로 보냈는데 검토 탭에 항목이 추가되지 않습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 문제를 재현하기 위한 단계.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대했던 동작
+      placeholder: 검토 탭에 새 항목이 표시되어야 합니다.
+    validations:
+      required: false
+
+  - type: input
+    id: app-version
+    attributes:
+      label: 앱 버전
+      description: 설정 탭 하단에 표시됩니다.
+      placeholder: 예) 1.0 (1)
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 기기 모델
+      placeholder: 예) iPhone 15 Pro
+    validations:
+      required: true
+
+  - type: input
+    id: ios-version
+    attributes:
+      label: iOS 버전
+      placeholder: 예) iOS 26.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 스크린샷 / 추가 정보
+      description: 첨부할 스크린샷이나 화면 녹화가 있다면 여기에 끌어다 놓아주세요.
+    validations:
+      required: false
