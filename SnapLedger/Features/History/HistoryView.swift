@@ -3,52 +3,104 @@ import SwiftData
 
 struct HistoryView: View {
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
+    @State private var monthsBack: Int = 0
 
-    private var months: [HistoryGrouping.MonthGroup] {
+    private var allMonths: [HistoryGrouping.MonthGroup] {
         HistoryGrouping.group(entries: entries)
+    }
+
+    private var displayedMonths: [HistoryGrouping.MonthGroup] {
+        Array(allMonths.prefix(monthsBack + 1))
+    }
+
+    private var hasMore: Bool {
+        displayedMonths.count < allMonths.count
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if let latest = months.first {
-                    MonthDetailContent(
-                        month: latest,
-                        showsPastMonthsLink: months.count > 1
-                    )
-                } else {
+                if allMonths.isEmpty {
                     ContentUnavailableView(
                         "기록 없음",
                         systemImage: "list.bullet.rectangle",
                         description: Text("저장한 항목이 여기 쌓여요.")
                     )
+                } else {
+                    historyList
                 }
             }
-            .animation(.smooth(duration: 0.3), value: months.isEmpty)
+            .animation(.smooth(duration: 0.3), value: allMonths.isEmpty)
+            .toolbar {
+                if allMonths.count > 1 {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink {
+                            PastMonthsView()
+                        } label: {
+                            Image(systemName: "calendar")
+                                .accessibilityLabel("월별 보기")
+                        }
+                    }
+                }
+            }
             .navigationTitle("최근 기록")
+        }
+    }
+
+    private var historyList: some View {
+        List {
+            ForEach(displayedMonths) { month in
+                MonthSections(month: month)
+            }
+
+            footerSection
+        }
+        .contentMargins(.bottom, 24, for: .scrollContent)
+    }
+
+    private var footerSection: some View {
+        Section {
+            HStack {
+                Spacer()
+                Text(hasMore ? "↓ 이전 달 더 보기" : "처음 기록까지 표시됨")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .onAppear {
+                if hasMore {
+                    withAnimation(.smooth(duration: 0.3)) {
+                        monthsBack += 1
+                    }
+                }
+            }
         }
     }
 }
 
-struct MonthDetailContent: View {
+struct MonthSections: View {
     let month: HistoryGrouping.MonthGroup
-    var showsPastMonthsLink: Bool = false
-
     @State private var editingEntry: SavedEntry?
 
     var body: some View {
-        List {
+        Group {
             Section {
-                HStack {
-                    Text("\(month.title) 합계")
-                        .font(.subheadline)
-                    Spacer()
-                    Text("\(month.total.formatted(.number))원")
-                        .font(.subheadline.monospacedDigit())
-                        .contentTransition(.numericText())
+                NavigationLink {
+                    CSVFileView(csvFilename: month.csvFilename, monthTitle: month.title)
+                } label: {
+                    HStack {
+                        Text("\(month.title) 합계")
+                            .font(.subheadline)
+                        Spacer()
+                        Text("\(month.total.formatted(.number))원")
+                            .font(.subheadline.monospacedDigit())
+                            .contentTransition(.numericText())
+                    }
+                    .foregroundStyle(.primary)
+                    .animation(.smooth(duration: 0.3), value: month.total)
                 }
-                .foregroundStyle(.primary)
-                .animation(.smooth(duration: 0.3), value: month.total)
             }
 
             ForEach(month.days) { day in
@@ -64,27 +116,6 @@ struct MonthDetailContent: View {
                 } header: {
                     Text(day.title)
                         .textCase(nil)
-                }
-            }
-        }
-        .contentMargins(.bottom, 24, for: .scrollContent)
-        .toolbar {
-            if showsPastMonthsLink {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        PastMonthsView()
-                    } label: {
-                        Image(systemName: "calendar")
-                            .accessibilityLabel("이전 기록")
-                    }
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    CSVFileView(csvFilename: month.csvFilename, monthTitle: month.title)
-                } label: {
-                    Image(systemName: "doc.text")
-                        .accessibilityLabel("CSV 파일 보기")
                 }
             }
         }
@@ -116,21 +147,21 @@ private struct HistoryRow: View {
 struct PastMonthsView: View {
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
 
-    private var pastMonths: [HistoryGrouping.MonthGroup] {
-        Array(HistoryGrouping.group(entries: entries).dropFirst())
+    private var months: [HistoryGrouping.MonthGroup] {
+        HistoryGrouping.group(entries: entries)
     }
 
     var body: some View {
         Group {
-            if pastMonths.isEmpty {
+            if months.isEmpty {
                 ContentUnavailableView(
-                    "이전 기록 없음",
+                    "기록 없음",
                     systemImage: "calendar",
-                    description: Text("이전 달 기록이 쌓이면 여기 보여요.")
+                    description: Text("기록이 쌓이면 월별로 여기 정리돼요.")
                 )
             } else {
                 List {
-                    ForEach(pastMonths) { month in
+                    ForEach(months) { month in
                         NavigationLink {
                             PastMonthDetailView(monthId: month.id)
                         } label: {
@@ -147,8 +178,8 @@ struct PastMonthsView: View {
                 .contentMargins(.bottom, 24, for: .scrollContent)
             }
         }
-        .animation(.smooth(duration: 0.3), value: pastMonths.isEmpty)
-        .navigationTitle("이전 기록")
+        .animation(.smooth(duration: 0.3), value: months.isEmpty)
+        .navigationTitle("월별 기록")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -164,8 +195,11 @@ struct PastMonthDetailView: View {
     var body: some View {
         Group {
             if let month {
-                MonthDetailContent(month: month)
-                    .navigationTitle(month.title)
+                List {
+                    MonthSections(month: month)
+                }
+                .contentMargins(.bottom, 24, for: .scrollContent)
+                .navigationTitle(month.title)
             } else {
                 ContentUnavailableView(
                     "기록 없음",
