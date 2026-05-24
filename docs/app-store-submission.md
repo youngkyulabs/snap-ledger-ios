@@ -173,12 +173,27 @@ App Store Connect "App Privacy" 섹션:
 
 ## 6. URL 항목
 
-| 항목 | 필수 | 상태 |
+| 항목 | 필수 | 값 |
 |---|---|---|
-| Support URL | 필수 | **미정** — 정적 페이지 호스팅 필요 (GitHub Pages 등) |
-| Marketing URL | 선택 | 미정 |
-| Privacy Policy URL | 필수 | **미정** — "데이터 수집 없음" 1페이지로 충분 |
-| EULA | 선택 | Apple Standard EULA 사용 권장 |
+| Support URL | 필수 | `https://snap-ledger-ios.youngkyulabs.workers.dev/support` |
+| Privacy Policy URL | 필수 | `https://snap-ledger-ios.youngkyulabs.workers.dev/privacy-policy` |
+| Marketing URL | 선택 | (없음) |
+| EULA | 선택 | Apple Standard EULA 사용 |
+
+### 호스팅 워크플로우
+
+- **플랫폼:** Cloudflare Workers (Static Assets)
+- **계정 서브도메인:** `youngkyulabs.workers.dev`
+- **워커 이름:** `snap-ledger-ios` (앱별 워커 1개 = 미래 앱은 새 워커)
+- **HTML handling:** `auto-trailing-slash` — `.html` 확장자가 자동 제거되어 깔끔한 URL로 노출됨
+- **원본 source of truth:** `docs/privacy-policy.html`, `docs/support.html` (이 repo)
+- **배포 사본:** `~/Project/youngkyulabs-pages/snap-ledger-ios/` (로컬 deploy 스테이징)
+
+**수정 후 재배포 절차:**
+1. `docs/privacy-policy.html` 또는 `docs/support.html` 편집
+2. `cp docs/privacy-policy.html docs/support.html ~/Project/youngkyulabs-pages/snap-ledger-ios/`
+3. Cloudflare dashboard → Workers & Pages → `snap-ledger-ios` → Deployments → 새 deployment 업로드 (또는 `wrangler deploy --name=snap-ledger-ios --assets=~/Project/youngkyulabs-pages/snap-ledger-ios`)
+4. URL fetch로 반영 확인
 
 ---
 
@@ -238,14 +253,14 @@ iOS 26 기준 필수 사이즈:
 - [x] `ITSAppUsesNonExemptEncryption = NO` (SnapLedger/Info.plist:9)
 - [x] App Group entitlement (`group.com.youngkyu.snapledger`)
 - [x] BGTaskSchedulerPermittedIdentifiers
-- [ ] Privacy Manifest (`PrivacyInfo.xcprivacy`) 추가
-- [ ] `NSPhotoLibraryUsageDescription` 필요 여부 점검 (ImageImporter 경로 확인)
+- [x] Privacy Manifest (`PrivacyInfo.xcprivacy`) — 메인 앱 + 익스텐션 둘 다 번들 포함 확인됨
+- [x] PhotoLibrary 직접 접근 없음 (`PHPicker`/`PHAsset`/`UIImagePickerController` 미사용) → `NSPhotoLibraryUsageDescription` 불필요
 
 ### 미정 항목
-- [ ] Copyright 최종 표기 (한글 vs 영문)
-- [ ] Support URL 호스팅 위치
-- [ ] Privacy Policy URL 호스팅 위치
-- [ ] 영문 메타데이터 활성화 여부 (1.0은 비활성 권장)
+- [x] Copyright: `2026 YOUNGKYU SEO`
+- [x] Support URL: `https://snap-ledger-ios.youngkyulabs.workers.dev/support`
+- [x] Privacy Policy URL: `https://snap-ledger-ios.youngkyulabs.workers.dev/privacy-policy`
+- [x] 영문 메타데이터: 1.0에서 비활성 (한국만 출시)
 - [ ] Review 샘플 스크린샷 (한국 카드사 알림 1~2장) 준비
 
 ### App Store Connect 작업
