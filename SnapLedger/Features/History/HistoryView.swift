@@ -50,16 +50,6 @@ struct HistoryView: View {
 
     private var historyList: some View {
         List {
-            // 사용자가 스크롤을 맨 위까지 다시 끌어올리면 펼쳐진 이전 달들을
-            // 접어준다. 첫 진입 시에도 onAppear가 발화하지만 monthsBack==0이라
-            // no-op.
-            Color.clear
-                .frame(height: 0.1)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets())
-                .onAppear(perform: collapseIfPossible)
-
             ForEach(displayedMonths) { month in
                 MonthSections(month: month)
             }
@@ -67,6 +57,15 @@ struct HistoryView: View {
             footerSection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
+        // 사용자가 스크롤을 맨 위까지 끌어올리면 펼쳐둔 이전 달들을 접는다.
+        // contentInsets를 보정해 rubber band 영역에서도 0 이하로 평가되도록.
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y - geometry.contentInsets.top
+        } action: { _, offset in
+            if offset <= 0 {
+                collapseIfPossible()
+            }
+        }
     }
 
     @ViewBuilder
