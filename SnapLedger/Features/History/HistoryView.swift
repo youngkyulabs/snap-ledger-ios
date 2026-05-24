@@ -25,7 +25,7 @@ struct HistoryView: View {
                 }
             }
             .animation(.smooth(duration: 0.3), value: months.isEmpty)
-            .navigationTitle("기록")
+            .navigationTitle("최근 기록")
         }
     }
 }
