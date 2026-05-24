@@ -55,7 +55,7 @@
 
 <h2>2. 사용자 데이터의 처리 방식</h2>
 <ul>
-  <li><strong>온디바이스 처리:</strong> 영수증·결제 알림 이미지의 문자 인식(OCR)과 항목 추출(Apple Intelligence)은 모두 사용자의 기기 안에서만 실행됩니다. 어떤 데이터도 외부 서버로 전송되지 않습니다.</li>
+  <li><strong>온디바이스 처리:</strong> 영수증·결제 알림 이미지의 문자 인식(OCR)과 항목 추출(Apple Foundation Models)은 모두 사용자의 기기 안에서 실행됩니다. 앱 자체는 어떤 네트워크 요청도 수행하지 않습니다.</li>
   <li><strong>사용자 지정 폴더 저장:</strong> 추출된 가계부 항목은 사용자가 직접 선택한 iCloud Drive 폴더의 CSV 파일(<code>expenses-YYYY-MM.csv</code>)로만 저장됩니다. 앱 자체 서버나 클라우드 계정에는 보관되지 않습니다.</li>
   <li><strong>iCloud Drive:</strong> CSV 파일이 iCloud Drive에 위치할 경우, 해당 데이터의 동기화·저장은 Apple의 iCloud 정책을 따릅니다. 앱은 iCloud 계정에 접근하거나 데이터를 읽지 않습니다.</li>
   <li><strong>공유 시트로 수신한 이미지:</strong> 공유 시트에서 받은 이미지는 앱 그룹 컨테이너의 임시 폴더(<code>inbox</code>)에 저장되며, 처리 후 자동 삭제됩니다.</li>
