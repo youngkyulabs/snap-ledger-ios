@@ -35,7 +35,8 @@ struct HistoryView: View {
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: allMonths.isEmpty)
             .toolbar {
-                if allMonths.count > 1 {
+                // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
+                if !allMonths.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             PastMonthsView()
@@ -59,15 +60,6 @@ struct HistoryView: View {
             footerSection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
-        // 사용자가 스크롤을 맨 위까지 끌어올리면 펼쳐둔 이전 달들을 접는다.
-        // contentInsets를 보정해 rubber band 영역에서도 0 이하로 평가되도록.
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y - geometry.contentInsets.top
-        } action: { _, offset in
-            if offset <= 0 {
-                collapseIfPossible()
-            }
-        }
         // sheet을 부모 레벨에 두어야 자식(MonthSections)이 무한 스크롤이나
         // SwiftData @Query 갱신으로 재구성될 때도 dismiss되지 않는다.
         .sheet(item: $editingEntry) { entry in
@@ -126,13 +118,6 @@ struct HistoryView: View {
                 monthsBack += 1
             }
             isLoadingMore = false
-        }
-    }
-
-    private func collapseIfPossible() {
-        guard monthsBack > 0, !isLoadingMore else { return }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            monthsBack = 0
         }
     }
 }
