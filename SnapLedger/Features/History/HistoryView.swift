@@ -6,6 +6,7 @@ struct HistoryView: View {
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var monthsBack: Int = 0
     @State private var isLoadingMore = false
+    @State private var isUserInteracting = false
     @State private var editingEntry: SavedEntry?
 
     private var allMonths: [HistoryGrouping.MonthGroup] {
@@ -35,7 +36,8 @@ struct HistoryView: View {
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: allMonths.isEmpty)
             .toolbar {
-                if allMonths.count > 1 {
+                // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
+                if !allMonths.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             PastMonthsView()
@@ -59,12 +61,17 @@ struct HistoryView: View {
             footerSection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
-        // 사용자가 스크롤을 맨 위까지 끌어올리면 펼쳐둔 이전 달들을 접는다.
-        // contentInsets를 보정해 rubber band 영역에서도 0 이하로 평가되도록.
+        // 사용자가 스크롤을 맨 위까지 *직접* 끌어올릴 때만 펼쳐둔 이전 달들을 접는다.
+        // 사용자 제스처가 아닌 자동 offset=0(컨텐츠가 화면을 못 채우는 경우)에서
+        // collapse가 발화하면, "이전 달 불러오기 → 접힘 → 다시 불러오기" 오실레이션
+        // 으로 이어진다. isUserInteracting으로 게이팅해 그 사이클을 끊는다.
+        .onScrollPhaseChange { _, newPhase in
+            isUserInteracting = (newPhase == .interacting || newPhase == .tracking)
+        }
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentOffset.y - geometry.contentInsets.top
         } action: { _, offset in
-            if offset <= 0 {
+            if offset <= 0, isUserInteracting {
                 collapseIfPossible()
             }
         }

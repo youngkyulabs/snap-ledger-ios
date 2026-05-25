@@ -187,10 +187,64 @@ struct FoundationModelsExtractionService: ExtractionService {
         "TOSS PAYMENTS": "토스페이",
     ]
 
-    static func normalize(_ extraction: PaymentExtraction) -> PaymentExtraction {
+    /// 모델이 `M/D` 같은 부분 날짜를 만나면 instructions에 명시한 "오늘의 연도" 규칙을
+    /// 무시하고 학습 분포의 이전 연도(2024/2025 등)로 채우는 환각이 자주 나온다.
+    /// 카드 알림·영수증은 "결제 시점 ≈ 추출 시점"이라는 강한 invariant가 있으므로
+    /// 후처리에서 그 invariant로 연도를 보정한다.
+    ///
+    /// - today + 2일보다 미래 → 연도 -1 (timezone 슬랙 2일)
+    /// - today - 330일보다 과거 → 연도 +1 (한 해 전 알림은 거의 없음, 다음 해 같은 M/D였을 가능성)
+    /// - 그 외(파싱 실패·범위 밖)는 원본 그대로 (안전망: 모델이 빈 문자열이나 비표준 형식을
+    ///   줘도 보정하지 않음).
+    static func normalizeYear(
+        _ raw: String,
+        today: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return raw }
+
+        let parts = trimmed
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ".", with: "-")
+            .split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]),
+              (1...12).contains(month),
+              (1...31).contains(day)
+        else { return raw }
+
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        guard let candidate = calendar.date(from: comps) else { return raw }
+
+        let todayStart = calendar.startOfDay(for: today)
+        let candidateStart = calendar.startOfDay(for: candidate)
+        let days = calendar.dateComponents([.day], from: todayStart, to: candidateStart).day ?? 0
+
+        var adjustedYear = year
+        if days > 2 {
+            adjustedYear -= 1
+        } else if days < -330 {
+            adjustedYear += 1
+        }
+
+        return String(format: "%04d-%02d-%02d", adjustedYear, month, day)
+    }
+
+    static func normalize(
+        _ extraction: PaymentExtraction,
+        today: Date = .now,
+        calendar: Calendar = .current
+    ) -> PaymentExtraction {
         let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
             if looksLikeExampleLeak(trans) { return nil }
             var t = trans
+            t.date = normalizeYear(t.date, today: today, calendar: calendar)
             let raw = t.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
             if isCardIssuerName(raw) {
                 t.merchant = ""
@@ -203,13 +257,14 @@ struct FoundationModelsExtractionService: ExtractionService {
     }
 
     func extract(from text: String) async throws -> PaymentExtraction {
+        let today = Date.now
         let session = LanguageModelSession(
             instructions: Self.instructions(
-                today: .now, customGuide: customGuide, categories: categories
+                today: today, customGuide: customGuide, categories: categories
             )
         )
         let response = try await session.respond(to: text, generating: PaymentExtraction.self)
-        return Self.normalize(response.content)
+        return Self.normalize(response.content, today: today)
     }
 }
 

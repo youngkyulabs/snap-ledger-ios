@@ -54,7 +54,7 @@ struct StatisticsView: View {
 
     private var statsContent: some View {
         List {
-            if months.count > 1 {
+            if !months.isEmpty {
                 monthPickerSection
             }
 
