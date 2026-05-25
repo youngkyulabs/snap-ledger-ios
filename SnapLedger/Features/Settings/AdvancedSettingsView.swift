@@ -8,6 +8,7 @@ struct AdvancedSettingsView: View {
     }
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
     @State private var newCategoryText = ""
     @FocusState private var focusedField: Field?
@@ -58,7 +59,7 @@ struct AdvancedSettingsView: View {
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
                 Task { @MainActor in
-                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                    withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(newValue, anchor: .center) }
                 }
             }
         }
@@ -75,7 +76,7 @@ struct AdvancedSettingsView: View {
             HStack {
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(canAddCategory ? Color.accentColor : Color.secondary)
-                    .animation(.smooth(duration: 0.2), value: canAddCategory)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
                 TextField("새 카테고리 추가", text: $newCategoryText)
                     .submitLabel(.done)
                     .focused($focusedField, equals: .newCategory)
@@ -86,7 +87,7 @@ struct AdvancedSettingsView: View {
                 }
             }
             .id(Field.newCategory)
-            .animation(.smooth(duration: 0.2), value: canAddCategory)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
         } header: {
             Text("카테고리")
         } footer: {
@@ -105,7 +106,7 @@ struct AdvancedSettingsView: View {
             newCategoryText = ""
             return
         }
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             settings.categoryPresets.append(trimmed)
             try? modelContext.save()
             newCategoryText = ""
@@ -113,14 +114,14 @@ struct AdvancedSettingsView: View {
     }
 
     private func deleteCategoryPresets(at offsets: IndexSet) {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             settings.categoryPresets.remove(atOffsets: offsets)
             try? modelContext.save()
         }
     }
 
     private func moveCategoryPresets(from source: IndexSet, to destination: Int) {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             settings.categoryPresets.move(fromOffsets: source, toOffset: destination)
             try? modelContext.save()
         }

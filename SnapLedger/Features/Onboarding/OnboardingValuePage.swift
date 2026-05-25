@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OnboardingValuePage: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onNext: () -> Void
 
     @State private var aiStatus: AppleIntelligenceStatus = .available
@@ -50,7 +51,7 @@ struct OnboardingValuePage: View {
         }
         .task {
             guard step == 0 else { return }
-            await OnboardingAppearStep.run { step = $0 }
+            await OnboardingAppearStep.run(reduceMotion: reduceMotion) { step = $0 }
         }
     }
 

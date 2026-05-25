@@ -25,8 +25,13 @@ enum OnboardingAppearStep {
 
     static func run(
         stages: Int = defaultStages,
+        reduceMotion: Bool = false,
         setStep: @escaping @MainActor (Int) -> Void
     ) async {
+        if reduceMotion {
+            await MainActor.run { setStep(stages) }
+            return
+        }
         try? await Task.sleep(for: initialDelay)
         for stage in 1...stages {
             await MainActor.run {

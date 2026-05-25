@@ -4,6 +4,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var allParsedEntries: [ParsedEntry]
     @Query private var allSettings: [AppSettings]
 
@@ -27,7 +28,7 @@ struct ContentView: View {
                 SettingsView()
             }
         }
-        .animation(.smooth(duration: 0.25), value: pendingReviewCount)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: pendingReviewCount)
         .sheet(isPresented: shouldShowOnboardingBinding) {
             if let settings = currentSettingsIfExists() {
                 OnboardingView(settings: settings) {}

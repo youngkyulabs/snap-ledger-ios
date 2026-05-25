@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var monthsBack: Int = 0
     @State private var isLoadingMore = false
@@ -32,7 +33,7 @@ struct HistoryView: View {
                     historyList
                 }
             }
-            .animation(.smooth(duration: 0.3), value: allMonths.isEmpty)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: allMonths.isEmpty)
             .toolbar {
                 if allMonths.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -121,7 +122,7 @@ struct HistoryView: View {
             // 즉시 추가되면 사용자가 "방금 더 불러왔구나"를 인지할 시간이 없어
             // 의도적 딜레이를 둔다. ProgressView가 잠깐 보였다가 새 달이 등장.
             try? await Task.sleep(for: .milliseconds(400))
-            withAnimation(.smooth(duration: 0.3)) {
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                 monthsBack += 1
             }
             isLoadingMore = false
@@ -130,7 +131,7 @@ struct HistoryView: View {
 
     private func collapseIfPossible() {
         guard monthsBack > 0, !isLoadingMore else { return }
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             monthsBack = 0
         }
     }
@@ -189,6 +190,7 @@ private struct HistoryRow: View {
 }
 
 struct PastMonthsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
 
     private var months: [HistoryGrouping.MonthGroup] {
@@ -222,7 +224,7 @@ struct PastMonthsView: View {
                 .contentMargins(.bottom, 24, for: .scrollContent)
             }
         }
-        .animation(.smooth(duration: 0.3), value: months.isEmpty)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
         .navigationTitle("월별 기록")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -230,6 +232,7 @@ struct PastMonthsView: View {
 
 struct PastMonthDetailView: View {
     let monthId: DateComponents
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var editingEntry: SavedEntry?
 
@@ -270,7 +273,7 @@ struct PastMonthDetailView: View {
                 )
             }
         }
-        .animation(.smooth(duration: 0.3), value: month == nil)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: month == nil)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

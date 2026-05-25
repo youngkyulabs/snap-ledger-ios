@@ -3,6 +3,7 @@ import SwiftData
 import Charts
 
 struct StatisticsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
     @Query private var settingsList: [AppSettings]
 
@@ -46,7 +47,7 @@ struct StatisticsView: View {
                     statsContent
                 }
             }
-            .animation(.smooth(duration: 0.3), value: months.isEmpty)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
             .navigationTitle("통계")
         }
     }
@@ -68,7 +69,7 @@ struct StatisticsView: View {
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
-        .animation(.smooth(duration: 0.35), value: selectedMonth?.id)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: selectedMonth?.id)
     }
 
     private var monthPickerSection: some View {

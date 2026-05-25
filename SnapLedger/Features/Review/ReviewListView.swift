@@ -17,6 +17,7 @@ private struct DroppedImage: Transferable, Sendable {
 
 struct ReviewListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \ParsedEntry.createdAt, order: .reverse) private var allEntries: [ParsedEntry]
     @Query(sort: \PendingImage.receivedAt, order: .reverse) private var allPending: [PendingImage]
     @State private var editingEntry: ParsedEntry?
@@ -108,9 +109,9 @@ struct ReviewListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(.rect)
-            .animation(.smooth(duration: 0.3), value: pendingEntries.isEmpty && processingPending.isEmpty && failedPending.isEmpty)
-            .animation(.smooth(duration: 0.25), value: processingPending.count)
-            .animation(.smooth(duration: 0.25), value: failedPending.count)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: pendingEntries.isEmpty && processingPending.isEmpty && failedPending.isEmpty)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: processingPending.count)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: failedPending.count)
             .navigationTitle("검토 (\(pendingEntries.count))")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -128,7 +129,7 @@ struct ReviewListView: View {
                     dropOverlay
                 }
             }
-            .animation(.smooth(duration: 0.2), value: isDropTargeted)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isDropTargeted)
         }
         .sheet(item: $editingEntry) { entry in
             EntryEditorView(entry: entry)
@@ -320,7 +321,7 @@ struct ReviewListView: View {
             }
             Spacer(minLength: 8)
             Button("정리") {
-                withAnimation(.smooth(duration: 0.25)) {
+                withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
                     clearFailedPending()
                 }
             }

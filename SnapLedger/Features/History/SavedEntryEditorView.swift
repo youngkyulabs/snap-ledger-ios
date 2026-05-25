@@ -9,6 +9,7 @@ struct SavedEntryEditorView: View {
     let entry: SavedEntry
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
 
     @State private var date: Date
@@ -134,7 +135,7 @@ struct SavedEntryEditorView: View {
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
                 Task { @MainActor in
-                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                    withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(newValue, anchor: .center) }
                 }
             }
             }
@@ -170,7 +171,7 @@ struct SavedEntryEditorView: View {
             }
             .onChange(of: category) { _, new in
                 guard !new.isEmpty else { return }
-                withAnimation { proxy.scrollTo("p:\(new)", anchor: .center) }
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("p:\(new)", anchor: .center) }
             }
         }
     }
