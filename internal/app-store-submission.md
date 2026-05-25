@@ -12,7 +12,8 @@
 | App Name (한국어) | 찰칵가계부 |
 | App Name (English) | SnapLedger |
 | Bundle ID | `com.youngkyu.snapledger` |
-| SKU | `snapledger-ios-001` |
+| Apple ID | `6772852897` |
+| SKU | `snapledger-001` |
 | Primary Language | Korean |
 | Version | 1.0 |
 | Build | 1 |
@@ -22,6 +23,10 @@
 | Pricing | Free, In-App Purchase 없음 |
 | Availability | South Korea (1차) |
 | Age Rating | 4+ |
+| Support URL | `https://youngkyulabs.github.io/snap-ledger-ios/support.html` |
+| Privacy Policy URL | `https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html` |
+| Marketing URL | (없음) |
+| EULA | Apple Standard EULA |
 
 ---
 
@@ -89,54 +94,7 @@
 
 ---
 
-## 3. 영어 메타데이터 (1.0에서는 비활성, 글로벌 출시 시 추가)
-
-### Subtitle
-```
-Receipts to ledger, instantly
-```
-
-### Keywords
-```
-budget,expense,receipt,screenshot,ledger,finance,ocr,csv,apple intelligence,tracker
-```
-
-### Description
-```
-SnapLedger turns Korean credit-card notification screenshots and receipt photos into a clean expense ledger — on device.
-
-How it works
-1. Capture a payment notification or receipt.
-2. Send it to SnapLedger from the share sheet.
-3. Apple Intelligence extracts the amount, merchant, date, and category.
-4. Review once, save, done.
-
-Highlights
-• Multiple transactions per image
-• Merchant-to-category learning that improves with each correction
-• Monthly CSV (expenses-YYYY-MM.csv, 5 columns: date, description, category, amount, note)
-  saved to a folder you choose in iCloud Drive — open in Numbers, Excel, or anywhere
-• Recent-history tab grouped by month with infinite scroll, multi-select copy for Numbers and email
-• Category donut and month-over-month comparison
-• Free-form note per entry
-• Nightly review reminder and badge so nothing slips
-• Photo Library, clipboard, Files, drag & drop, manual entry — every input path supported
-
-Privacy
-• All recognition and extraction run on device. Your payment data never leaves your iPhone.
-• Entries live only in the CSV folder you choose; export or delete anytime.
-• No ads. No analytics SDKs.
-
-Requirements
-• iOS 26
-• Apple Intelligence–capable device recommended (extraction disables on unsupported devices)
-
-Designed and optimized for Korean credit-card notification formats.
-```
-
----
-
-## 4. App Privacy
+## 3. App Privacy
 
 App Store Connect "App Privacy" 섹션:
 
@@ -159,50 +117,7 @@ App Store Connect "App Privacy" 섹션:
 
 ---
 
-## 5. Usage Description (Info.plist)
-
-현재 `SnapLedger/Info.plist`에 권한 설명 키 없음. 코드 경로 점검 후 필요 시 추가.
-
-| 키 | 필요 여부 | 권장 문구 |
-|---|---|---|
-| `NSPhotoLibraryUsageDescription` | PHPicker만 쓰면 불필요. PHAsset 직접 접근 시 필수 | "사진 라이브러리에서 결제 알림 스크린샷이나 영수증을 불러옵니다." |
-| `NSPhotoLibraryAddUsageDescription` | 현재 미사용 (앱이 사진 저장하지 않음) | — |
-| `NSUserTrackingUsageDescription` | 절대 추가 금지 (ATT 다이얼로그 뜸) | — |
-
-알림 권한은 Usage Description 키가 필요 없음 (시스템 다이얼로그 자체 처리).
-
----
-
-## 6. URL 항목
-
-| 항목 | 필수 | 값 |
-|---|---|---|
-| Support URL | 필수 | `https://youngkyulabs.github.io/snap-ledger-ios/support.html` |
-| Privacy Policy URL | 필수 | `https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html` |
-| Marketing URL | 선택 | (없음) |
-| EULA | 선택 | Apple Standard EULA 사용 |
-
-### 호스팅 워크플로우
-
-- **플랫폼:** GitHub Pages
-- **Organization:** `youngkyulabs`, repo: `snap-ledger-ios` (public)
-- **Source:** branch `main`, folder `/docs`
-- **Jekyll:** 비활성화 (`docs/.nojekyll` 파일) — HTML을 변환 없이 그대로 serve
-- **Source of truth:** `docs/privacy-policy.html`, `docs/support.html`
-
-**수정 후 재배포:**
-1. `docs/{privacy-policy,support}.html` 편집
-2. `main` 브랜치에 push (PR 또는 직접)
-3. 1~2분 후 GitHub Pages가 자동 재배포
-4. `curl -sI https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html`로 반영 확인 (200 OK)
-
-**미래 앱 추가:**
-- 같은 organization에 새 public repo 생성 → 동일하게 `docs/` + `.nojekyll` 패턴
-- URL: `https://youngkyulabs.github.io/<new-app>/{privacy-policy,support}.html`
-
----
-
-## 7. Review Information (심사팀 메모)
+## 4. Review Information (심사팀 메모)
 
 ```
 Sign-in required: No
@@ -225,58 +140,9 @@ To exercise the extraction flow:
 
 The app does not require network access. All processing happens on device.
 There is no account, no purchase, no advertising.
-
-Contact: <your email>
 ```
 
-샘플 결제 알림 스크린샷 1~2장을 review attachments로 같이 업로드 권장.
-
----
-
-## 8. 스크린샷 가이드
-
-iOS 26 기준 필수 사이즈:
-- **6.9" (iPhone 17 Pro Max / 16 Pro Max)** — 1290 × 2796 — **필수**
-- **iPad 13" (M4)** — 2064 × 2752 — iPad 출시 시 필수
-- 6.5" / 6.7" 등 레거시는 6.9" 제출 시 자동 스케일링
-
-권장 5장 (한국어):
-1. 온보딩 가치 페이지 — "결제 알림을 자동으로 가계부에" + 카메라 아이콘 + AI 상태 뱃지
-2. 공유 시트 → 검토 탭 — 카드 알림 스크린샷이 검토 항목으로 들어온 화면 (chip row 보이게)
-3. 편집 화면 — 카테고리 chip row, 금액 후보 chip row, 메모 필드
-4. 통계 탭 — 카테고리 도넛 + 전월 대비
-5. 최근 기록 탭의 월별 CSV 뷰 — 한 달 지출이 깔끔하게 정리된 표
-
-캡션은 스크린샷 위에 한 줄 오버레이 추천.
-
----
-
-## 9. 제출 전 체크리스트
-
-### 빌드/설정
-- [x] `MARKETING_VERSION = 1.0`, `CURRENT_PROJECT_VERSION = 1`
-- [x] `ITSAppUsesNonExemptEncryption = NO` (SnapLedger/Info.plist:9)
-- [x] App Group entitlement (`group.com.youngkyu.snapledger`)
-- [x] BGTaskSchedulerPermittedIdentifiers
-- [x] Privacy Manifest (`PrivacyInfo.xcprivacy`) — 메인 앱 + 익스텐션 둘 다 번들 포함 확인됨
-- [x] PhotoLibrary 직접 접근 없음 (`PHPicker`/`PHAsset`/`UIImagePickerController` 미사용) → `NSPhotoLibraryUsageDescription` 불필요
-
-### 미정 항목
-- [x] Copyright: `2026 YOUNGKYU SEO`
-- [x] Support URL: `https://youngkyulabs.github.io/snap-ledger-ios/support.html`
-- [x] Privacy Policy URL: `https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html`
-- [x] 영문 메타데이터: 1.0에서 비활성 (한국만 출시)
-- [ ] Review 샘플 스크린샷 (한국 카드사 알림 1~2장) 준비
-
-### App Store Connect 작업
-- [ ] App Privacy 응답 (Data Not Collected)
-- [ ] Age Rating 설문 완료 (4+)
-- [ ] 스크린샷 5장 업로드 (6.9")
-- [ ] 메타데이터 입력
-- [ ] Review Information 입력 + 샘플 첨부
-- [ ] Build 업로드 (Xcode Organizer)
-- [ ] Export Compliance: "Uses encryption? → No" (ITSAppUsesNonExemptEncryption=NO와 일치)
-- [ ] Submit for Review
+샘플 결제 알림 스크린샷 3장을 review attachments로 같이 업로드.
 
 ---
 
