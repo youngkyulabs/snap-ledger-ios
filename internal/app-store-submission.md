@@ -150,10 +150,12 @@ App Store Connect "App Privacy" 섹션:
 
 ### Privacy Manifest (`PrivacyInfo.xcprivacy`)
 
-아직 없으면 추가 권장. Required Reason API 후보:
-- `NSPrivacyAccessedAPICategoryFileTimestamp` — CSV 작성/검사
-- `NSPrivacyAccessedAPICategoryDiskSpace` — CSV append
-- `NSPrivacyAccessedAPICategoryUserDefaults` — 사용 여부 확인 후
+메인 앱(`SnapLedger/PrivacyInfo.xcprivacy`)과 익스텐션(`SnapLedgerShareExtension/PrivacyInfo.xcprivacy`) 둘 다 번들에 포함됨. 공통:
+
+- `NSPrivacyTracking = false`, `NSPrivacyTrackingDomains = []`, `NSPrivacyCollectedDataTypes = []`
+- Required Reason API: `NSPrivacyAccessedAPICategoryFileTimestamp` (reasons `C617.1`, `3B52.1` — CSV append 시 mtime 비교용)
+
+새 시스템 API를 도입할 때 (예: UserDefaults, DiskSpace) 양쪽 `.xcprivacy`에 동시 추가 필요.
 
 ---
 
@@ -261,8 +263,8 @@ iOS 26 기준 필수 사이즈:
 
 ### 미정 항목
 - [x] Copyright: `2026 YOUNGKYU SEO`
-- [x] Support URL: `https://snap-ledger-ios.youngkyulabs.workers.dev/support`
-- [x] Privacy Policy URL: `https://snap-ledger-ios.youngkyulabs.workers.dev/privacy-policy`
+- [x] Support URL: `https://youngkyulabs.github.io/snap-ledger-ios/support.html`
+- [x] Privacy Policy URL: `https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html`
 - [x] 영문 메타데이터: 1.0에서 비활성 (한국만 출시)
 - [ ] Review 샘플 스크린샷 (한국 카드사 알림 1~2장) 준비
 

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>찰칵가계부 (SnapLedger)</title>
+<meta name="description" content="결제 알림 스크린샷이나 영수증을 공유 시트로 보내면 Apple Intelligence가 자동으로 가계부에 옮겨 적는 iOS 앱.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: #111;
+    --bg: #fff;
+    --muted: #666;
+    --rule: #e5e5e7;
+    --accent: #007aff;
+    --card: #f5f5f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #f2f2f7; --bg: #1c1c1e; --muted: #98989f; --rule: #38383a; --accent: #0a84ff; --card: #2c2c2e; }
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+          "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+  header { text-align: center; padding: 24px 0 8px; }
+  h1 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.5px; }
+  .tagline { color: var(--muted); font-size: 17px; margin: 0 0 4px; }
+  .subtag { color: var(--muted); font-size: 14px; margin: 0; }
+  h2 { font-size: 18px; margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--rule); }
+  p, li { color: var(--fg); }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .links { display: flex; flex-direction: column; gap: 12px; margin: 32px 0; }
+  .links a {
+    display: block;
+    background: var(--card);
+    padding: 14px 18px;
+    border-radius: 12px;
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .links a:hover { text-decoration: none; background: var(--rule); }
+  .links .arrow { float: right; color: var(--muted); }
+  .footer { margin-top: 56px; font-size: 13px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>찰칵가계부</h1>
+  <p class="tagline">스크린샷이 한 줄 가계부로</p>
+  <p class="subtag">SnapLedger · iOS 26 · Apple Intelligence</p>
+</header>
+
+<p>카드 결제 알림 스크린샷이나 영수증을 공유 시트로 보내기만 하면, Apple Intelligence가 금액·가맹점·카테고리를 자동으로 채워 가계부에 정리합니다. 모든 인식과 추출은 기기 안에서 이루어지며, 결제 정보가 서버로 전송되지 않습니다.</p>
+
+<div class="links">
+  <a href="support.html">지원 / 자주 묻는 질문 <span class="arrow">→</span></a>
+  <a href="privacy-policy.html">개인정보 처리방침 <span class="arrow">→</span></a>
+  <a href="https://github.com/youngkyulabs/snap-ledger-ios">소스 코드 (GitHub) <span class="arrow">→</span></a>
+</div>
+
+<h2>주요 기능</h2>
+<ul>
+  <li>공유 시트로 결제 알림·영수증 한 번에 캡쳐</li>
+  <li>한 이미지에서 여러 건의 결제도 자동 분리</li>
+  <li>가맹점 → 카테고리 자동 학습</li>
+  <li>사용자가 지정한 iCloud Drive 폴더에 월별 CSV로 저장</li>
+  <li>온디바이스 처리 — 광고·분석 SDK 없음, 네트워크 호출 없음</li>
+</ul>
+
+<h2>요구 사항</h2>
+<ul>
+  <li>iOS 26 이상</li>
+  <li>Apple Intelligence 지원 기기 (한국어 권장)</li>
+</ul>
+
+<p class="footer">© 2026 YOUNGKYU SEO. All rights reserved.</p>
+
+</body>
+</html>
