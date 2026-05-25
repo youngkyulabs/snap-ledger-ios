@@ -10,6 +10,7 @@ struct EntryEditorView: View {
     var insertOnSave: Bool = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
 
     @State private var saveError: String?
@@ -78,7 +79,7 @@ struct EntryEditorView: View {
                     }
                 }
             }
-            .animation(.smooth(duration: 0.25), value: entry.confidence < 0.8)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: entry.confidence < 0.8)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
@@ -133,7 +134,7 @@ struct EntryEditorView: View {
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
                 Task { @MainActor in
-                    withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                    withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(newValue, anchor: .center) }
                 }
             }
             }
@@ -183,7 +184,7 @@ struct EntryEditorView: View {
             }
             .onChange(of: entry.category) { _, new in
                 guard let new else { return }
-                withAnimation { proxy.scrollTo("p:\(new)", anchor: .center) }
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("p:\(new)", anchor: .center) }
             }
         }
     }
@@ -206,7 +207,7 @@ struct EntryEditorView: View {
             }
             .onAppear { proxy.scrollTo("m:\(entry.merchant)", anchor: .center) }
             .onChange(of: entry.merchant) { _, new in
-                withAnimation { proxy.scrollTo("m:\(new)", anchor: .center) }
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("m:\(new)", anchor: .center) }
             }
         }
     }
@@ -229,7 +230,7 @@ struct EntryEditorView: View {
             }
             .onAppear { proxy.scrollTo("a:\(entry.amount)", anchor: .center) }
             .onChange(of: entry.amount) { _, new in
-                withAnimation { proxy.scrollTo("a:\(new)", anchor: .center) }
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("a:\(new)", anchor: .center) }
             }
         }
     }

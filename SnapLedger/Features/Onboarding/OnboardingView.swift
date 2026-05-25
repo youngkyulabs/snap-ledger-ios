@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct OnboardingView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var settings: AppSettings
     let onComplete: () -> Void
 
@@ -18,6 +19,6 @@ struct OnboardingView: View {
     }
 
     private func goToSetup() {
-        withAnimation(.smooth) { selection = 1 }
+        withAnimation(reduceMotion ? nil : .smooth) { selection = 1 }
     }
 }

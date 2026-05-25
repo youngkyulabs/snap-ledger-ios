@@ -5,6 +5,7 @@ import UIKit
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
     @State private var showingPicker = false
     @State private var folderError: String?
@@ -124,7 +125,7 @@ struct SettingsView: View {
         Binding(
             get: { settings.reminderEnabled },
             set: { newValue in
-                withAnimation(.smooth(duration: 0.3)) {
+                withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                     settings.reminderEnabled = newValue
                 }
                 try? modelContext.save()
@@ -153,7 +154,7 @@ struct SettingsView: View {
     }
 
     private func rollbackReminder() {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             settings.reminderEnabled = false
         }
         try? modelContext.save()

@@ -5,6 +5,7 @@ import UserNotifications
 
 struct OnboardingSetupPage: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var settings: AppSettings
     let isVisible: Bool
     let onComplete: () -> Void
@@ -36,7 +37,7 @@ struct OnboardingSetupPage: View {
                     .appearStep(3, current: step)
                 reminderTimeCard
                     .opacity(notificationToggle ? 1 : 0)
-                    .animation(.smooth(duration: 0.3), value: notificationToggle)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: notificationToggle)
             }
             .padding(.horizontal)
 
@@ -55,7 +56,7 @@ struct OnboardingSetupPage: View {
         ))
         .onChange(of: isVisible, initial: true) { _, newValue in
             guard newValue, step == 0 else { return }
-            Task { await OnboardingAppearStep.run { step = $0 } }
+            Task { await OnboardingAppearStep.run(reduceMotion: reduceMotion) { step = $0 } }
         }
     }
 
@@ -81,7 +82,7 @@ struct OnboardingSetupPage: View {
             .padding(.horizontal)
         }
         .padding(.bottom, 16)
-        .animation(.smooth(duration: 0.25), value: canProceed)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: canProceed)
     }
 
     private var folderCard: some View {
@@ -92,7 +93,7 @@ struct OnboardingSetupPage: View {
                 Image(systemName: "folder.fill")
                     .font(.title2)
                     .foregroundStyle(.tint)
-                    .symbolEffect(.wiggle, options: .repeating, isActive: !canProceed)
+                    .symbolEffect(.wiggle, options: .repeating, isActive: !canProceed && !reduceMotion)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("저장 폴더").font(.headline).foregroundStyle(.primary)
                     Text(folderName ?? "선택 안 됨")
@@ -108,7 +109,7 @@ struct OnboardingSetupPage: View {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(canProceed ? Color.clear : Color.accentColor.opacity(0.15))
             )
-            .animation(.smooth(duration: 0.3), value: canProceed)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: canProceed)
         }
         .buttonStyle(.plain)
     }
@@ -163,7 +164,7 @@ struct OnboardingSetupPage: View {
                     if newValue {
                         Task { await requestPermission() }
                     } else {
-                        withAnimation(.smooth(duration: 0.3)) {
+                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                             notificationToggle = false
                         }
                     }
@@ -191,13 +192,13 @@ struct OnboardingSetupPage: View {
         switch OnboardingPermissionAction.decide(status: status) {
         case .requestAuthorization:
             let granted = await scheduler.requestPermissionIfNeeded()
-            withAnimation(.smooth(duration: 0.3)) {
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                 notificationToggle = granted
             }
         case .openSystemSettings:
             showingDeniedAlert = true
         case .keepOn:
-            withAnimation(.smooth(duration: 0.3)) {
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                 notificationToggle = true
             }
         }
@@ -211,6 +212,7 @@ struct OnboardingSetupPage: View {
 }
 
 private struct OnboardingSetupSheetsAndAlerts: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showingPicker: Bool
     @Binding var folderError: String?
     @Binding var showingDeniedAlert: Bool
@@ -239,7 +241,7 @@ private struct OnboardingSetupSheetsAndAlerts: ViewModifier {
             .alert("알림 권한이 꺼져 있어요", isPresented: $showingDeniedAlert) {
                 Button("설정 열기") { onOpenSettings() }
                 Button("취소", role: .cancel) {
-                    withAnimation(.smooth(duration: 0.3)) {
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                         notificationToggle = false
                     }
                 }
