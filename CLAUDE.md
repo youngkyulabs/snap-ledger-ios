@@ -26,6 +26,15 @@ SwiftLint는 `brew install swiftlint`로 사전 설치. 미설치 시 빌드 페
 
 시뮬레이터 디바이스 이름은 `xcrun simctl list devices available | grep iPhone`로 확인. iPhone 17 Pro 기본.
 
+## CI / CD
+
+역할 분리:
+
+- **CI는 GitHub Actions** (`.github/workflows/ci.yml`): 모든 push·PR마다 `swiftlint --strict` + `xcodebuild build` + `xcodebuild test` 풀세트. lint·빌드·테스트 게이트는 전부 여기서 담당.
+- **CD는 Xcode Cloud**: Archive → TestFlight 업로드 전용. Manual 트리거 워크플로 1개 (자동 트리거 없음 — App Store Connect 웹 또는 Xcode Cloud 탭에서 **Start Build**로 수동 실행). 빌드 번호는 Xcode Cloud 워크플로의 자동 증가 설정으로 관리 (pbxproj `CURRENT_PROJECT_VERSION`은 정적 값 유지).
+
+**SwiftLint 빌드 페이즈는 Xcode Cloud에서 스킵됨**: 빌드 페이즈 첫 줄에서 `CI_XCODE_CLOUD=TRUE`를 감지해 early-exit. 이유는 (1) lint gate는 이미 GitHub Actions가 담당하고 (2) Xcode Cloud 워커마다 매번 SwiftLint를 brew install 하는 비용·warning을 피하기 위함. 로컬과 GitHub Actions에서는 그대로 strict 실행됨.
+
 ## 모듈 레이아웃
 
 폴더 이름이 곧 역할이다. 어디에 뭐를 둘지 헷갈리면 이 표만 보면 된다.
@@ -162,21 +171,3 @@ e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWith
 - Foundation Models가 simulator에서 unavailable이면 drain이 통째로 스킵되어 검토 탭이 비어 보임. inbox 파일은 그대로 큐잉 상태로 남아 있음 — 실기기에서 처리됨.
 - Reminder 본문은 백그라운드 진입 시점의 pending 카운트로 baked-in. 그 후 Extension으로 더 공유해도 본문 숫자는 stale일 수 있음 (다음 백그라운드 진입 때 refresh됨). MVP에서 허용.
 - Share Extension UI는 호스트 앱이 detent 힌트(`preferredContentSize`)를 무시할 수도 있음. 표준 host (Photos, Safari, Messages)에서는 동작.
-
-## 릴리즈 준비 시점 (2026-05-19)
-
-1차 MVP 이후 다음이 추가됨 (App Store 제출 직전 상태):
-- 다중 거래 추출 (한 이미지의 알림 N건 → N개 entry)
-- 검토 탭 + 메뉴 (사진/클립보드/파일/드래그&드롭/수동 입력)
-- 검토 항목의 merchant·amount 후보 chip row + 카테고리 chip row (AppSettings.categoryPresets)
-- 기록 탭 월별 CSV 뷰어 + 다중 선택 복사 (HTML+TSV 멀티 페이로드)
-- 통계 대시보드 (카테고리 도넛, 전월 대비)
-- CandidateHeuristics로 풍경 등 결제 신호 없는 이미지 환각 차단
-- Apple Intelligence 미지원 기기/언어 안내 (검토 탭 placeholder)
-- 야간 알림 + 아이콘 뱃지 (pending 카운트)
-- ITSAppUsesNonExemptEncryption=false (App Store 수출 규정 면제)
-- 한글 디스플레이 네임 "찰칵가계부" / 세로 고정
-
-다음 단계 후보 (미구현):
-- Few-shot learning: 사용자가 검토 탭에서 수정한 항목을 자동으로 prompt에 예시로 추가
-- 카테고리 hard constraint (post-process로 목록 밖 → "" 강제)
