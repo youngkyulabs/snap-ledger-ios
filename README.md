@@ -82,3 +82,8 @@ Xcode에서 **SnapLedger**, **SnapLedgerTests**, **SnapLedgerUITests**, **SnapLe
 - UserNotifications (야간 알림)
 - BackgroundTasks (BGAppRefreshTask)
 - Swift Testing (`@Test` / `#expect`)
+
+## CI / CD
+
+- **CI**: GitHub Actions — 모든 push·PR마다 lint + build + test
+- **CD**: Xcode Cloud — Manual 트리거 워크플로로 TestFlight 업로드

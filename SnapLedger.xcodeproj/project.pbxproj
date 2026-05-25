@@ -335,7 +335,12 @@
 			shellPath = /bin/sh;
 			shellScript = (
 				"# SwiftLint - fails the build on any violation (strict).",
-				"# Defensive: if swiftlint is missing, warn and continue.",
+				"# Skipped on Xcode Cloud (lint runs separately on GitHub Actions).",
+				"# Defensive: if swiftlint is missing locally, warn and continue.",
+				"",
+				"if [ \"$CI_XCODE_CLOUD\" = \"TRUE\" ]; then",
+				"    exit 0",
+				"fi",
 				"",
 				"export PATH=\"$PATH:/opt/homebrew/bin:/usr/local/bin\"",
 				"",
