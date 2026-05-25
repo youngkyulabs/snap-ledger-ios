@@ -2,7 +2,7 @@
 
 카드 결제 알림 스크린샷이나 영수증을 공유받아 자동으로 가계부에 정리하는 iOS 앱.
 
-- **App Store**: [다운로드](https://apps.apple.com/app/idXXXXXXXXXX) _(출시 준비 중)_
+- **App Store**: [다운로드](https://apps.apple.com/app/id6772852897)
 - [개인정보처리방침](https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html)
 - [지원 페이지](https://youngkyulabs.github.io/snap-ledger-ios/support.html)
 
