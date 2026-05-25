@@ -43,19 +43,34 @@ struct FoundationModelsExtractionService: ExtractionService {
         return categories.first ?? ""
     }
 
+    /// 카테고리 라벨을 prompt에 끼워넣기 전에 정제합니다.
+    /// - 따옴표(`"`)는 prompt 안에서 `"label1", "label2"` 구조를 만들기 때문에
+    ///   라벨 내부의 따옴표가 그대로 들어가면 짝이 깨져 모델이 라벨 경계를 오인합니다.
+    /// - 줄바꿈은 prompt 본문의 다음 줄을 흉내내 모델이 새 규칙으로 오해할 수
+    ///   있으므로 공백으로 치환합니다.
+    /// - 양옆 공백은 trim합니다.
+    static func sanitizeCategoryLabel(_ label: String) -> String {
+        label
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func categoryPromptParts(for categories: [String]) -> CategoryPromptParts {
-        guard !categories.isEmpty else {
+        let cleaned = categories.map(sanitizeCategoryLabel).filter { !$0.isEmpty }
+        guard !cleaned.isEmpty else {
             return CategoryPromptParts(
                 line: "- category: 사용 가능한 카테고리 목록이 비어 있어요. 항상 빈 문자열로 두세요.",
                 example1: "", example2: ""
             )
         }
-        let list = categories.map { "\"\($0)\"" }.joined(separator: ", ")
+        let list = cleaned.map { "\"\($0)\"" }.joined(separator: ", ")
         let line = "- category: 다음 라벨 중 가장 잘 맞는 것 하나를 그대로 복사 (양옆 따옴표 제외): \(list). 라벨의 '0.', '1.' 접두 번호나 '・' 구분 기호도 라벨의 일부 — 잘라내지 말고 함께 복사. 맞는 라벨이 없거나 헷갈리면 빈 문자열. 첫 번째 라벨을 기본값으로 쓰지 마세요. 목록 밖 단어 금지."
         return CategoryPromptParts(
             line: line,
-            example1: bestCategoryMatch(in: categories, keywords: ["쇼핑", "생활"]),
-            example2: bestCategoryMatch(in: categories, keywords: ["카페", "식비"])
+            example1: bestCategoryMatch(in: cleaned, keywords: ["쇼핑", "생활"]),
+            example2: bestCategoryMatch(in: cleaned, keywords: ["카페", "식비"])
         )
     }
 
