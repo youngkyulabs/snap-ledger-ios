@@ -31,7 +31,7 @@ SwiftLint는 `brew install swiftlint`로 사전 설치. 미설치 시 빌드 페
 역할 분리:
 
 - **CI는 GitHub Actions** (`.github/workflows/ci.yml`): 모든 push·PR마다 `swiftlint --strict` + `xcodebuild build` + `xcodebuild test` 풀세트. lint·빌드·테스트 게이트는 전부 여기서 담당.
-- **CD는 Xcode Cloud**: Archive → TestFlight 업로드 전용. Manual 트리거 워크플로 1개 (자동 트리거 없음 — App Store Connect 웹 또는 Xcode Cloud 탭에서 **Start Build**로 수동 실행). 빌드 번호는 Xcode Cloud 워크플로의 자동 증가 설정으로 관리 (pbxproj `CURRENT_PROJECT_VERSION`은 정적 값 유지).
+- **CD는 Xcode Cloud**: Archive → TestFlight 업로드 전용. `main` push에 빌드에 영향이 있는 코드가 변경되면 자동 트리거 (문서만 바뀌는 경우 스킵하도록 Xcode Cloud 워크플로의 start condition에서 path 필터링). 필요 시 App Store Connect 웹 또는 Xcode Cloud 탭에서 **Start Build**로 수동 실행도 가능. 빌드 번호는 Xcode Cloud 워크플로의 자동 증가 설정으로 관리 (pbxproj `CURRENT_PROJECT_VERSION`은 정적 값 유지).
 
 **SwiftLint 빌드 페이즈는 Xcode Cloud에서 스킵됨**: 빌드 페이즈 첫 줄에서 `CI_XCODE_CLOUD=TRUE`를 감지해 early-exit. 이유는 (1) lint gate는 이미 GitHub Actions가 담당하고 (2) Xcode Cloud 워커마다 매번 SwiftLint를 brew install 하는 비용·warning을 피하기 위함. 로컬과 GitHub Actions에서는 그대로 strict 실행됨.
 

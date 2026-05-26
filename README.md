@@ -86,4 +86,4 @@ Xcode에서 **SnapLedger**, **SnapLedgerTests**, **SnapLedgerUITests**, **SnapLe
 ## CI / CD
 
 - **CI**: GitHub Actions — 모든 push·PR마다 lint + build + test
-- **CD**: Xcode Cloud — Manual 트리거 워크플로로 TestFlight 업로드
+- **CD**: Xcode Cloud — `main` push에 빌드에 영향이 있는 코드가 변경되면 자동으로 TestFlight 업로드 (문서만 바뀌면 스킵, 수동 실행도 가능)
