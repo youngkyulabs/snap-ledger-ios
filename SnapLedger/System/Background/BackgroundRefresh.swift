@@ -10,7 +10,7 @@ enum BackgroundRefresh {
     static func register(modelContainer: ModelContainer) {
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: taskIdentifier,
-            using: nil
+            using: .main
         ) { task in
             guard let task = task as? BGAppRefreshTask else { return }
             Task { @MainActor in
