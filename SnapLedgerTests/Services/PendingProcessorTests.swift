@@ -486,6 +486,24 @@ struct PendingProcessorReconcileInboxTests {
     }
 }
 
+@Suite
+struct PendingProcessorRetryEligibilityTests {
+    @Test func noPaymentSignalFailureIsNotRetryable() {
+        // 결제 신호 없음은 OCR→휴리스틱이 결정적이라 재시도해도 같은 결과 — 재시도 불가.
+        #expect(PendingProcessor.isRetryable(failureMessage: PendingProcessor.noPaymentSignalReason) == false)
+    }
+
+    @Test func errorFailureIsRetryable() {
+        // OCR/FM 에러 등은 일시적일 수 있어 재시도 허용.
+        #expect(PendingProcessor.isRetryable(failureMessage: "invalidImage") == true)
+    }
+
+    @Test func nilFailureIsRetryable() {
+        // 사유 미상은 안전하게 재시도 허용으로 본다.
+        #expect(PendingProcessor.isRetryable(failureMessage: nil) == true)
+    }
+}
+
 @MainActor
 @Suite(.serialized)
 struct PendingProcessorPaymentSignalGateTests {

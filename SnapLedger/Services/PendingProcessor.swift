@@ -124,7 +124,14 @@ struct PendingProcessor {
         }
     }
 
-    static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요."
+    nonisolated static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요."
+
+    /// 실패한 이미지를 다시 시도할 가치가 있는지 판단한다.
+    /// 결제 신호 없음(`noPaymentSignalReason`)은 OCR→휴리스틱이 결정적이라 재시도해도
+    /// 같은 결과가 나오므로 false. 그 외(OCR/FM 에러 등)는 일시적일 수 있어 재시도 허용.
+    nonisolated static func isRetryable(failureMessage: String?) -> Bool {
+        failureMessage != noPaymentSignalReason
+    }
 
     func makeEntries(
         from enriched: [EnrichedTransaction],

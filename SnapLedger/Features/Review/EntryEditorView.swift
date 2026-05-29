@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import SwiftData
 
@@ -8,6 +9,9 @@ struct EntryEditorView: View {
 
     @Bindable var entry: ParsedEntry
     var insertOnSave: Bool = false
+    /// 저장이 성공한 직후(닫기 전) 호출. 실패 이미지에서 수동 입력으로 들어온 경우
+    /// 원본 PendingImage·inbox 파일을 정리하는 데 쓴다.
+    var onSaved: (() -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -21,6 +25,13 @@ struct EntryEditorView: View {
         NavigationStack {
             ScrollViewReader { proxy in
             Form {
+                if let sourceImageFilename {
+                    Section("원본 이미지") {
+                        InboxImageView(filename: sourceImageFilename)
+                            .frame(maxWidth: .infinity, maxHeight: 320)
+                    }
+                }
+
                 Section("내용") {
                     DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
                     TextField("설명", text: $entry.merchant)
@@ -139,6 +150,14 @@ struct EntryEditorView: View {
             }
             }
         }
+    }
+
+    /// 원본 이미지가 inbox 에 아직 남아 있을 때만 미리보기를 띄운다.
+    /// 정상 추출된 항목은 성공 시 파일이 삭제되므로 자연히 표시되지 않는다.
+    private var sourceImageFilename: String? {
+        guard let name = entry.sourceImagePath else { return nil }
+        let url = AppGroup.inboxURL.appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? name : nil
     }
 
     private var categoryBinding: Binding<String> {
@@ -280,6 +299,7 @@ struct EntryEditorView: View {
         }
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: modelContext)
+            onSaved?()
             dismiss()
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription

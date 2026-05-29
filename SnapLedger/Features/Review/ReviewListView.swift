@@ -69,9 +69,7 @@ struct ReviewListView: View {
                             }
                         }
                         if !failedPending.isEmpty {
-                            Section {
-                                failedPendingRow
-                            }
+                            FailedImagesSection(failed: failedPending)
                         }
                         if !pendingEntries.isEmpty {
                             Section {
@@ -303,42 +301,6 @@ struct ReviewListView: View {
                 .contentTransition(.numericText())
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private var failedPendingRow: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.circle.fill")
-                .font(.title3)
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("자동 처리되지 않은 이미지 \(failedPending.count)건")
-                    .font(.subheadline.weight(.semibold))
-                    .contentTransition(.numericText())
-                Text("결제 정보를 찾지 못한 이미지예요. 영수증·결제 알림 스크린샷이 맞는지 확인해 주세요.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            Button("정리") {
-                withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
-                    clearFailedPending()
-                }
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-        }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func clearFailedPending() {
-        for pending in failedPending {
-            let url = AppGroup.inboxURL.appendingPathComponent(pending.filename)
-            try? FileManager.default.removeItem(at: url)
-            modelContext.delete(pending)
-        }
-        try? modelContext.save()
     }
 
     private func handleSwipeSave(entry: ParsedEntry) {
