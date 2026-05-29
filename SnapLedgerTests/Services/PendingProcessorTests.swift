@@ -222,7 +222,9 @@ struct PendingProcessorTests {
         #expect(parsed.first?.merchant == "Y")
     }
 
-    @Test func processDeletesInboxFileOnSuccess() async throws {
+    @Test func processKeepsInboxFileOnSuccess() async throws {
+        // 검토 편집 화면에서 영수증을 보여주기 위해, 성공해도 원본을 보관한다.
+        // 회수는 검토 완료 후 cleanupResolvedImages 가 담당.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("ok.jpg", in: inbox)
@@ -247,7 +249,7 @@ struct PendingProcessorTests {
 
         #expect(pending.state == .done)
         let imagePath = inbox.appendingPathComponent(filename).path
-        #expect(!FileManager.default.fileExists(atPath: imagePath))
+        #expect(FileManager.default.fileExists(atPath: imagePath))
     }
 
     @Test func processKeepsInboxFileOnFailure() async throws {
