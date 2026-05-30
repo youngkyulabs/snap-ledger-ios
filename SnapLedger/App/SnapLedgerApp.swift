@@ -12,6 +12,7 @@ struct SnapLedgerApp: App {
             SavedEntry.self,
             MerchantCategory.self,
             AppSettings.self,
+            CSVFileState.self,
         ])
         let configuration = ModelConfiguration(
             schema: schema,

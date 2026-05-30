@@ -19,6 +19,7 @@ struct SavedEntryEditorView: View {
     @State private var note: String
     @State private var saveError: String?
     @State private var showDeleteConfirm = false
+    @State private var saveConflict: SyncConflict?
     @FocusState private var focusedField: Field?
 
     private let originalDate: Date
@@ -132,6 +133,7 @@ struct SavedEntryEditorView: View {
             } message: {
                 Text("CSV 파일에서도 함께 제거돼요.")
             }
+            .syncConflictAlert($saveConflict)
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
                 Task { @MainActor in
@@ -201,10 +203,21 @@ struct SavedEntryEditorView: View {
         entry.amount = amount
         entry.category = category.isEmpty ? nil : category
         entry.note = note.isEmpty ? nil : note
+        performUpdate(ignoringConflict: false)
+    }
+
+    private func performUpdate(ignoringConflict: Bool) {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
-                .update(entry, originalDate: originalDate, in: modelContext)
+                .update(entry, originalDate: originalDate, ignoringConflict: ignoringConflict, in: modelContext)
             dismiss()
+        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
+            saveConflict = SyncConflict(months: months) { mode in
+                switch mode {
+                case .afterImport: dismiss()
+                case .overwrite: performUpdate(ignoringConflict: true)
+                }
+            }
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
@@ -212,10 +225,21 @@ struct SavedEntryEditorView: View {
     }
 
     private func delete() {
+        performDelete(ignoringConflict: false)
+    }
+
+    private func performDelete(ignoringConflict: Bool) {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
-                .delete(entry, originalDate: originalDate, in: modelContext)
+                .delete(entry, originalDate: originalDate, ignoringConflict: ignoringConflict, in: modelContext)
             dismiss()
+        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
+            saveConflict = SyncConflict(months: months) { mode in
+                switch mode {
+                case .afterImport: dismiss()
+                case .overwrite: performDelete(ignoringConflict: true)
+                }
+            }
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription

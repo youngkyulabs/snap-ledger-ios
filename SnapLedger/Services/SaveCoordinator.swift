@@ -4,20 +4,31 @@ import SwiftData
 @MainActor
 struct SaveCoordinator {
     let categoryLearner: CategoryLearner
+    private let sync = SyncCoordinator()
 
     enum CoordinatorError: Error, LocalizedError {
         case noCSVFolder
         case bookmarkResolveFailed(underlying: Error)
+        case externalConflict(months: [String])
+        case fileNotReady(months: [String])
 
         var errorDescription: String? {
             switch self {
             case .noCSVFolder: "CSV 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 골라주세요."
             case .bookmarkResolveFailed(let err): "폴더 권한을 복구하지 못했어요: \(err.localizedDescription)"
+            case .externalConflict(let months):
+                "\(months.joined(separator: ", ")) 파일이 앱 밖에서 변경됐어요. 먼저 가져오거나 덮어쓸지 선택해 주세요."
+            case .fileNotReady(let months):
+                "\(months.joined(separator: ", ")) 파일을 아직 받아오는 중이에요. 잠시 후 다시 시도해 주세요."
             }
         }
     }
 
-    func save(_ entry: ParsedEntry, in context: ModelContext) throws {
+    func save(
+        _ entry: ParsedEntry,
+        ignoringConflict: Bool = false,
+        in context: ModelContext
+    ) throws {
         let settings = try fetchOrCreateSettings(in: context)
         guard let bookmark = settings.csvFolderBookmark else {
             throw CoordinatorError.noCSVFolder
@@ -33,6 +44,11 @@ struct SaveCoordinator {
 
         let didStart = folderURL.startAccessingSecurityScopedResource()
         defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
+
+        let monthKey = CSVWriter.monthKey(for: entry.date)
+        if !ignoringConflict {
+            try ensureNoConflict(monthKeys: [monthKey], folderURL: folderURL, in: context)
+        }
 
         let row = SavedRow(
             date: entry.date,
@@ -61,18 +77,16 @@ struct SaveCoordinator {
         }
 
         entry.status = .dismissed
+        sync.refreshFileState(monthKey: monthKey, folderURL: folderURL, in: context)
         try context.save()
 
-        if resolved.isStale,
-           let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
-            settings.csvFolderBookmark = refreshed
-            try? context.save()
-        }
+        refreshStaleBookmark(resolved, settings: settings, folderURL: folderURL, in: context)
     }
 
     func update(
         _ entry: SavedEntry,
         originalDate: Date,
+        ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         let settings = try fetchOrCreateSettings(in: context)
@@ -93,45 +107,31 @@ struct SaveCoordinator {
 
         let newKey = CSVWriter.monthKey(for: entry.date)
         let oldKey = CSVWriter.monthKey(for: originalDate)
-        entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
+        let affectedKeys = Array(Set([oldKey, newKey]))
 
+        if !ignoringConflict {
+            try ensureNoConflict(monthKeys: affectedKeys, folderURL: folderURL, in: context)
+        }
+
+        entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
         try context.save()
 
-        let writer = CSVWriter(folder: folderURL)
-        let affectedKeys: Set<String> = [oldKey, newKey]
-        let allSaved = try context.fetch(FetchDescriptor<SavedEntry>())
-        for key in affectedKeys {
-            let rows = allSaved
-                .filter { CSVWriter.monthKey(for: $0.date) == key }
-                .sorted { $0.savedAt < $1.savedAt }
-                .map { entry in
-                    SavedRow(
-                        date: entry.date,
-                        description: entry.merchant,
-                        category: entry.category,
-                        amount: entry.amount,
-                        note: entry.note
-                    )
-                }
-            try writer.replaceMonth(monthKey: key, rows: rows)
-        }
+        try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
 
         if let category = entry.category, !category.isEmpty {
             try categoryLearner.learn(
                 merchant: entry.merchant, category: category, in: context
             )
         }
+        try context.save()
 
-        if resolved.isStale,
-           let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
-            settings.csvFolderBookmark = refreshed
-            try? context.save()
-        }
+        refreshStaleBookmark(resolved, settings: settings, folderURL: folderURL, in: context)
     }
 
     func delete(
         _ entry: SavedEntry,
         originalDate: Date? = nil,
+        ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         let settings = try fetchOrCreateSettings(in: context)
@@ -152,28 +152,42 @@ struct SaveCoordinator {
 
         let currentKey = CSVWriter.monthKey(for: entry.date)
         let oldKey = CSVWriter.monthKey(for: originalDate ?? entry.date)
+        let affectedKeys = Array(Set([oldKey, currentKey]))
+
+        if !ignoringConflict {
+            try ensureNoConflict(monthKeys: affectedKeys, folderURL: folderURL, in: context)
+        }
+
         context.delete(entry)
         try context.save()
 
-        let writer = CSVWriter(folder: folderURL)
-        let affectedKeys: Set<String> = [oldKey, currentKey]
-        let allSaved = try context.fetch(FetchDescriptor<SavedEntry>())
-        for key in affectedKeys {
-            let rows = allSaved
-                .filter { CSVWriter.monthKey(for: $0.date) == key }
-                .sorted { $0.savedAt < $1.savedAt }
-                .map { entry in
-                    SavedRow(
-                        date: entry.date,
-                        description: entry.merchant,
-                        category: entry.category,
-                        amount: entry.amount,
-                        note: entry.note
-                    )
-                }
-            try writer.replaceMonth(monthKey: key, rows: rows)
-        }
+        try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
+        try context.save()
 
+        refreshStaleBookmark(resolved, settings: settings, folderURL: folderURL, in: context)
+    }
+
+    private func ensureNoConflict(
+        monthKeys: [String],
+        folderURL: URL,
+        in context: ModelContext
+    ) throws {
+        switch sync.checkWriteGuard(monthKeys: monthKeys, folderURL: folderURL, in: context) {
+        case .clear:
+            return
+        case .notReady(let keys):
+            throw CoordinatorError.fileNotReady(months: keys)
+        case .conflict(let keys):
+            throw CoordinatorError.externalConflict(months: keys)
+        }
+    }
+
+    private func refreshStaleBookmark(
+        _ resolved: (url: URL, isStale: Bool),
+        settings: AppSettings,
+        folderURL: URL,
+        in context: ModelContext
+    ) {
         if resolved.isStale,
            let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
             settings.csvFolderBookmark = refreshed

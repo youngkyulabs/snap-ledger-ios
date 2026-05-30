@@ -19,6 +19,7 @@ struct EntryEditorView: View {
 
     @State private var saveError: String?
     @State private var confirmDelete = false
+    @State private var saveConflict: SyncConflict?
     @FocusState private var focusedField: Field?
 
     var body: some View {
@@ -142,6 +143,7 @@ struct EntryEditorView: View {
             } message: {
                 Text("검토 목록에서 사라져요.")
             }
+            .syncConflictAlert($saveConflict)
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
                 Task { @MainActor in
@@ -297,10 +299,19 @@ struct EntryEditorView: View {
         if insertOnSave {
             modelContext.insert(entry)
         }
+        performSave(ignoringConflict: false)
+    }
+
+    private func performSave(ignoringConflict: Bool) {
         do {
-            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: modelContext)
+            try SaveCoordinator(categoryLearner: CategoryLearner())
+                .save(entry, ignoringConflict: ignoringConflict, in: modelContext)
             onSaved?()
             dismiss()
+        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
+            saveConflict = SyncConflict(months: months, allowOverwrite: false) { _ in
+                performSave(ignoringConflict: true)
+            }
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription

@@ -61,6 +61,7 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
 
   Models/                            # SwiftData @Model
     AppSettings.swift, ParsedEntry.swift, SavedEntry.swift, PendingImage.swift, MerchantCategory.swift
+    CSVFileState.swift               # 월별 CSV 파일의 마지막 동기화 지문 (해시+mtime) — 외부 변경 감지 기준
 
   Services/                          # 비즈니스 로직 (전부 unit-testable)
     OCRService.swift                 # protocol + VisionKitOCRService (한·영 accurate)
@@ -85,7 +86,7 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     History/                         # HistoryView (@Query SavedEntry, 일별 섹션), SavedEntryEditorView,
                                      # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping (pure)
     Statistics/                      # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure)
-    Settings/                        # SettingsView (폴더 / reminder / 카테고리 / 추출 가이드 / FM 상태),
+    Settings/                        # SettingsView (폴더 / 파일 동기화 / reminder / 카테고리 / 추출 가이드 / FM 상태),
                                      # AdvancedSettingsView, FolderPicker, FeedbackMail (pure), MailComposeSheet
     Onboarding/                      # OnboardingView + ValuePage/SetupPage + AppearStep/PermissionAction (pure)
 
@@ -124,6 +125,14 @@ SnapLedgerTests/                     # Swift Testing — 소스 구조를 미러
 
 6. **CSV 쓰기는 NSFileCoordinator로 보호**
    `CSVWriter.append`는 `.forMerging`으로 cross-process safe. 헤더는 첫 호출에만 BOM과 함께. 월별 파일은 `expenses-YYYY-MM.csv`.
+
+7. **파일 동기화는 월 단위 통째 교체** (`SyncCoordinator`)
+   CSV 행에 안정적 ID가 없어 fine-grained 머지는 포기 — 외부 변경된 달은 그 달 전체를 한 방향으로 교체한다.
+   - **감지**: `CSVFileState`(앱이 마지막으로 쓴 지문) vs 현재 `FileFingerprint`(내용 SHA-256). 앱 진입(`scenePhase .active`) 시 비교 → 변경 있으면 인앱 알럿. 백그라운드 파일 감시는 iOS 제약상 안 함.
+   - **충돌 가드**: `SaveCoordinator`가 저장/수정/삭제 직전 `checkWriteGuard`로 대상 달 지문을 확인. 외부 변경이면 `externalConflict` throw → UI에서 [가져오기/덮어쓰기] 해소 (`SyncConflictAlert`).
+   - **iCloud 다운로드 게이트**: `FileFingerprint`가 미다운로드 파일을 만나면 다운로드만 트리거하고 `.notDownloaded` 반환 → 감지/충돌/import에서 그 파일은 건너뜀 (부분 데이터로 덮어쓰기 방지). 메인 스레드를 다운로드 완료까지 블로킹하지 않음.
+   - **마이그레이션**: 기능 도입 전부터 있던 파일을 "외부 새 파일"로 오인하지 않도록, 폴더가 준비된 첫 진입에서 현재 지문을 baseline으로 기록 (`AppSettings.hasSyncBaseline`). 폴더 변경 시 `resetSyncState`로 지문을 비우고 baseline 리셋.
+   - 모든 CSV 쓰기/import 후 지문을 갱신해 다음 감지의 기준으로 삼는다. 설정의 "앱 → 파일 다시 쓰기 / 파일 → 앱 가져오기"는 전체 일괄 escape hatch.
 
 ## 컨벤션 (지켜주세요)
 

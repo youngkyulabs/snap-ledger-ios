@@ -11,7 +11,7 @@ struct SaveCoordinatorTests {
     private func makeContext() throws -> ModelContext {
         let container = try ModelContainer(
             for: PendingImage.self, ParsedEntry.self, SavedEntry.self,
-            MerchantCategory.self, AppSettings.self,
+            MerchantCategory.self, AppSettings.self, CSVFileState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         return ModelContext(container)
