@@ -32,13 +32,12 @@ private struct SyncConflictAlertModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog(
+            .alert(
                 "파일이 앱 밖에서 바뀌었어요",
                 isPresented: Binding(
                     get: { conflict != nil },
                     set: { if !$0 { conflict = nil } }
                 ),
-                titleVisibility: .visible,
                 presenting: conflict
             ) { conflict in
                 Button(importButtonTitle(for: conflict)) { importThenPerform(conflict) }
@@ -52,22 +51,26 @@ private struct SyncConflictAlertModifier: ViewModifier {
             } message: { conflict in
                 Text(dialogMessage(for: conflict))
             }
-            .alert(
-                "가져오기",
-                isPresented: Binding(
-                    get: { notice != nil },
-                    set: { if !$0 { notice = nil } }
-                ),
-                presenting: notice
-            ) { _ in
-                Button("확인", role: .cancel) {
-                    let proceed = proceedAfterNotice
-                    proceedAfterNotice = nil
-                    notice = nil
-                    proceed?()
+            // 가져오기 안내(건너뛴 행 등)는 충돌 알럿이 닫힌 직후 뜨므로, 같은 뷰에
+            // 두 알럿을 겹쳐 전환 경합이 생기지 않도록 별도 레이어에 붙인다.
+            .background {
+                Color.clear.alert(
+                    "가져오기",
+                    isPresented: Binding(
+                        get: { notice != nil },
+                        set: { if !$0 { notice = nil } }
+                    ),
+                    presenting: notice
+                ) { _ in
+                    Button("확인", role: .cancel) {
+                        let proceed = proceedAfterNotice
+                        proceedAfterNotice = nil
+                        notice = nil
+                        proceed?()
+                    }
+                } message: { message in
+                    Text(message)
                 }
-            } message: { message in
-                Text(message)
             }
     }
 
