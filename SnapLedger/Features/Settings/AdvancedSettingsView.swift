@@ -28,6 +28,7 @@ struct AdvancedSettingsView: View {
             Form {
                 categoriesSection
                 extractionGuideSection
+                fileSyncSection
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
@@ -62,18 +63,6 @@ struct AdvancedSettingsView: View {
                     withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(newValue, anchor: .center) }
                 }
             }
-        }
-    }
-
-    private var fileSyncSection: some View {
-        Section {
-            NavigationLink {
-                FileSyncView()
-            } label: {
-                Label("파일 동기화", systemImage: "arrow.triangle.2.circlepath")
-            }
-        } footer: {
-            Text("앱 기록과 폴더의 CSV를 월 단위로 맞춰요. 외부에서 파일을 직접 고쳤을 때 사용하세요.")
         }
     }
 
@@ -150,6 +139,20 @@ struct AdvancedSettingsView: View {
             Text("추출 가이드 (선택)")
         } footer: {
             Text("자주 쓰는 카드사 형식이나 추출 오류 패턴을 적어주세요. 사진에서 자동 추출할 때 기본 규칙보다 먼저 참고해요.")
+        }
+    }
+
+    private var fileSyncSection: some View {
+        Section {
+            NavigationLink {
+                FileSyncView()
+            } label: {
+                Label("파일 동기화", systemImage: "arrow.triangle.2.circlepath")
+            }
+        } header: {
+            Text("파일 동기화")
+        } footer: {
+            Text("앱 기록과 폴더의 CSV를 월 단위로 맞춰요. 외부에서 파일을 직접 고쳤을 때 사용하세요.")
         }
     }
 
