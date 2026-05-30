@@ -5,6 +5,7 @@ import SwiftUI
 /// 상태를 보여주고 각 달을 한 방향(파일→앱 / 앱→파일)으로 맞춘다.
 struct FileSyncView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
     @State private var statuses: [MonthSyncStatus] = []
     @State private var prompt: SyncPrompt?
@@ -185,8 +186,13 @@ struct FileSyncView: View {
 
     private func reload() async {
         let sync = SyncCoordinator()
-        folderReachable = sync.isFolderReachable(in: modelContext) ?? false
-        statuses = await sync.monthStatuses(in: modelContext)
+        let reachable = sync.isFolderReachable(in: modelContext) ?? false
+        let newStatuses = await sync.monthStatuses(in: modelContext)
+        // 화면 전환(폴더 없음 ↔ 목록)과 월별 상태 변화(배지·탭가능 전환)를 부드럽게.
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            folderReachable = reachable
+            statuses = newStatuses
+        }
     }
 
     private func runMonth(_ monthKey: String, importingFromFile: Bool) {
@@ -222,6 +228,7 @@ private struct MonthSyncRow: View {
             Text(badgeText)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(badgeColor)
+                .contentTransition(.opacity)
         }
         .contentShape(.rect)
     }
