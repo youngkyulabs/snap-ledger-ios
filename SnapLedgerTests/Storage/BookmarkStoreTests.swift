@@ -41,4 +41,26 @@ struct BookmarkStoreTests {
             _ = try BookmarkStore.resolve(bogus)
         }
     }
+
+    @Test func detectsTrashPathComponent() {
+        let trashed = URL(fileURLWithPath:
+            "/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/.Trash/MyFolder")
+        #expect(BookmarkStore.isInTrash(trashed))
+
+        let normal = URL(fileURLWithPath:
+            "/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/MyFolder")
+        #expect(!BookmarkStore.isInTrash(normal))
+    }
+
+    @Test func reachableDirectoryRejectsTrashedFolder() throws {
+        // 실제로 존재하는 디렉토리지만 .Trash 안에 있으면 사용 가능한 폴더로 보지 않는다.
+        let trashed = try makeTempFolder()
+            .appendingPathComponent(".Trash", isDirectory: true)
+            .appendingPathComponent("MyFolder", isDirectory: true)
+        try FileManager.default.createDirectory(at: trashed, withIntermediateDirectories: true)
+
+        #expect(FileManager.default.fileExists(atPath: trashed.path))
+        #expect(BookmarkStore.isInTrash(trashed))
+        #expect(!BookmarkStore.isReachableDirectory(trashed))
+    }
 }
