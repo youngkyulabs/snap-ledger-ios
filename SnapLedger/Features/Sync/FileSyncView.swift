@@ -237,7 +237,7 @@ private struct MonthSyncRow: View {
 
     private var badgeColor: Color {
         switch state {
-        case .synced: .secondary
+        case .synced: .green  // 설정 화면의 동기화됨(초록 체크)과 통일
         case .externalModified: .orange
         case .fileOnly, .appOnly: .blue
         case .notReady: .secondary
