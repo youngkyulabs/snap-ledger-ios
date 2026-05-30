@@ -94,14 +94,16 @@ struct SettingsView: View {
 
     private var csvFolderSection: some View {
         Section {
-            if let folderName = currentFolderName() {
+            // 폴더 설정 여부는 북마크 존재로 판단한다. 폴더가 삭제/이동돼 이름을
+            // resolve하지 못해도 "폴더 미설정"으로 떨어지지 않게(=폴더 없음 경고 유지).
+            if hasFolder {
                 NavigationLink {
                     FileSyncView()
                 } label: {
                     LabeledContent {
                         folderStatusIcon
                     } label: {
-                        Label(folderName, systemImage: "folder.fill")
+                        Label(currentFolderName() ?? "저장 폴더", systemImage: folderRowIcon)
                     }
                 }
             } else {
@@ -118,9 +120,18 @@ struct SettingsView: View {
         }
     }
 
+    private var hasFolder: Bool {
+        settings.csvFolderBookmark != nil
+    }
+
+    private var folderRowIcon: String {
+        syncSummary == .folderMissing ? "folder.badge.questionmark" : "folder.fill"
+    }
+
     private var folderFooterText: String {
-        if currentFolderName() != nil, syncSummary == .folderMissing {
-            return "저장 폴더를 찾을 수 없어요. 폴더가 삭제됐거나 이동했을 수 있어요. 폴더 이름을 눌러 다른 폴더를 선택해 주세요."
+        if hasFolder, syncSummary == .folderMissing {
+            return "저장 폴더를 찾을 수 없어요. 폴더가 삭제·이동됐을 수 있어요. "
+                + "파일 앱의 ‘최근 삭제된 항목’에 있다면 복원한 뒤 다시 열거나, 위 ‘저장 폴더’ 행을 눌러 다른 폴더를 선택해 주세요."
         }
         return "월별 CSV 파일이 이 폴더에 저장돼요."
     }

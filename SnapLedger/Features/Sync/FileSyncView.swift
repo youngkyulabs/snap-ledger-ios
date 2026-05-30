@@ -41,7 +41,8 @@ struct FileSyncView: View {
                 ContentUnavailableView {
                     Label("폴더를 찾을 수 없어요", systemImage: "folder.badge.questionmark")
                 } description: {
-                    Text("폴더가 삭제됐거나 이동했을 수 있어요. 다른 폴더를 선택해 주세요.")
+                    Text("폴더가 삭제·이동됐을 수 있어요. 파일 앱의 ‘최근 삭제된 항목’에 있다면 "
+                        + "복원한 뒤 다시 열거나, 다른 폴더를 선택해 주세요.")
                 } actions: {
                     Button("폴더 변경") { showingPicker = true }
                 }
