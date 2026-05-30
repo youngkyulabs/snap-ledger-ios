@@ -132,7 +132,8 @@ SnapLedgerTests/                     # Swift Testing — 소스 구조를 미러
    - **충돌 가드**: `SaveCoordinator`가 저장/수정/삭제 직전 `checkWriteGuard`로 대상 달 지문을 확인. 외부 변경이면 `externalConflict` throw → UI에서 [가져오기/덮어쓰기] 해소 (`SyncConflictAlert`).
    - **iCloud 다운로드 게이트**: `FileFingerprint`가 미다운로드 파일을 만나면 다운로드만 트리거하고 `.notDownloaded` 반환 → 감지/충돌/import에서 그 파일은 건너뜀 (부분 데이터로 덮어쓰기 방지). 메인 스레드를 다운로드 완료까지 블로킹하지 않음.
    - **마이그레이션**: 기능 도입 전부터 있던 파일을 "외부 새 파일"로 오인하지 않도록, 폴더가 준비된 첫 진입에서 현재 지문을 baseline으로 기록 (`AppSettings.hasSyncBaseline`). 폴더 변경 시 `resetSyncState`로 지문을 비우고 baseline 리셋.
-   - 모든 CSV 쓰기/import 후 지문을 갱신해 다음 감지의 기준으로 삼는다. 수동 동기화 진입점은 **설정 → 저장 폴더 행**: 폴더 이름 행 우측에 상태 아이콘(동기화됨=초록 체크 / 변경 있음=노랑 경고 / 데이터 없음=아이콘 없음, `SyncCoordinator.folderSyncSummary`)을 두고, 탭하면 `FileSyncView`("폴더 상태")로 이동. 그 화면에서 월별 상태(최신/파일 변경됨/파일에만 있음/앱에만 있음)를 보고 **달별로** 가져오기/저장(`SyncCoordinator.monthStatuses`, 월 탭 시 일반 alert), 하단에서 폴더 변경. (전체 일괄 동기화는 위험 대비 실효가 낮아 미제공 — importAll/exportAll은 테스트 전용 API로만 잔존.)
+   - 모든 CSV 쓰기/import 후 지문을 갱신해 다음 감지의 기준으로 삼는다. 수동 동기화 진입점은 **설정 → 저장 폴더 행**: 폴더 이름 행 우측에 상태 아이콘(동기화됨=초록 체크 / 변경 있음=노랑 경고 / 폴더 없음=빨강 경고 / 데이터 없음=아이콘 없음, `SyncCoordinator.folderSyncSummary`)을 두고, 탭하면 `FileSyncView`("폴더 상태")로 이동. 그 화면에서 월별 상태(최신/파일 변경됨/파일에만 있음/앱에만 있음)를 보고 **달별로** 가져오기/저장(`SyncCoordinator.monthStatuses`, 월 탭 시 일반 alert), 하단에서 폴더 변경. (전체 일괄 동기화는 위험 대비 실효가 낮아 미제공 — importAll/exportAll은 테스트 전용 API로만 잔존.)
+   - **폴더 삭제/이동 처리**: bookmark는 resolve돼도 실제 디렉토리가 없을 수 있음 → `BookmarkStore.isReachableDirectory`로 확인. `SyncCoordinator.withFolder`·`SaveCoordinator`(save/update/delete)는 `folderUnavailable`로 차단하고, `folderSyncSummary`는 `.folderMissing`(빨강 경고), `FileSyncView`는 "폴더를 찾을 수 없어요 + 폴더 변경" 화면을 노출.
 
 ## 컨벤션 (지켜주세요)
 

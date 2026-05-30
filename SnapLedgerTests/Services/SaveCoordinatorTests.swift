@@ -121,6 +121,18 @@ struct SaveCoordinatorTests {
         }
     }
 
+    @Test func saveThrowsWhenFolderDeleted() throws {
+        let ctx = try makeContext()
+        let folder = try makeTempFolderWithBookmark(in: ctx)
+        try FileManager.default.removeItem(at: folder)
+        let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스")
+        ctx.insert(entry)
+        try ctx.save()
+        #expect(throws: SaveCoordinator.CoordinatorError.self) {
+            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: ctx)
+        }
+    }
+
     @Test func updateRewritesCSVForSameMonthEdit() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)

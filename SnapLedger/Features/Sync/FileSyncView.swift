@@ -11,6 +11,7 @@ struct FileSyncView: View {
     @State private var resultMessage: String?
     @State private var showingPicker = false
     @State private var folderError: String?
+    @State private var folderReachable = true
 
     private enum SyncPrompt: Identifiable {
         case month(MonthSyncStatus)
@@ -28,14 +29,24 @@ struct FileSyncView: View {
 
     var body: some View {
         Group {
-            if hasFolder {
-                listContent
+            if !hasFolder {
+                ContentUnavailableView {
+                    Label("폴더 미설정", systemImage: "folder.badge.plus")
+                } description: {
+                    Text("저장 폴더를 먼저 골라주세요.")
+                } actions: {
+                    Button("폴더 선택") { showingPicker = true }
+                }
+            } else if !folderReachable {
+                ContentUnavailableView {
+                    Label("폴더를 찾을 수 없어요", systemImage: "folder.badge.questionmark")
+                } description: {
+                    Text("폴더가 삭제됐거나 이동했을 수 있어요. 다른 폴더를 선택해 주세요.")
+                } actions: {
+                    Button("폴더 변경") { showingPicker = true }
+                }
             } else {
-                ContentUnavailableView(
-                    "폴더 미설정",
-                    systemImage: "folder.badge.questionmark",
-                    description: Text("설정에서 저장 폴더를 먼저 골라주세요.")
-                )
+                listContent
             }
         }
         .navigationTitle("폴더 상태")
@@ -170,7 +181,9 @@ struct FileSyncView: View {
     }
 
     private func reload() {
-        statuses = SyncCoordinator().monthStatuses(in: modelContext)
+        let sync = SyncCoordinator()
+        folderReachable = sync.isFolderReachable(in: modelContext) ?? false
+        statuses = sync.monthStatuses(in: modelContext)
     }
 
     private func runMonth(_ monthKey: String, importingFromFile: Bool) {

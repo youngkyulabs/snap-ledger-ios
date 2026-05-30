@@ -19,4 +19,12 @@ enum BookmarkStore {
         )
         return (url, isStale)
     }
+
+    /// bookmark가 resolve돼도 폴더가 삭제·이동된 경우를 잡는다.
+    /// security-scoped 접근을 이미 시작한 상태에서 호출할 것.
+    static func isReachableDirectory(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            && isDirectory.boolValue
+    }
 }

@@ -43,9 +43,10 @@ struct MonthSyncStatus: Identifiable, Equatable {
 
 /// 저장 폴더 섹션에 요약해 보여줄 전체 동기화 상태.
 enum FolderSyncSummary: Equatable {
-    case empty                  // 아직 동기화할 데이터가 없음 → 행 숨김
+    case empty                  // 아직 동기화할 데이터가 없음 → 아이콘 없음
     case synced                 // 모든 달이 최신
     case needsSync(count: Int)  // 맞춰야 할 달이 있음
+    case folderMissing          // bookmark는 있으나 폴더가 삭제/이동돼 접근 불가
 }
 
 /// 월별 CSV 파일과 SwiftData(`SavedEntry`) 사이의 양방향 동기화를 오케스트레이션한다.
@@ -59,11 +60,14 @@ struct SyncCoordinator {
     enum SyncError: Error, LocalizedError {
         case noCSVFolder
         case bookmarkResolveFailed(underlying: Error)
+        case folderUnavailable
 
         var errorDescription: String? {
             switch self {
             case .noCSVFolder: "CSV 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 골라주세요."
             case .bookmarkResolveFailed(let err): "폴더 권한을 복구하지 못했어요: \(err.localizedDescription)"
+            case .folderUnavailable:
+                "저장 폴더를 찾을 수 없어요. 폴더가 삭제됐거나 이동했을 수 있어요. 설정 → 저장 폴더에서 다시 선택해 주세요."
             }
         }
     }
@@ -147,10 +151,33 @@ struct SyncCoordinator {
 
     /// 저장 폴더 섹션 배지용 — 전체 동기화 상태 요약.
     func folderSyncSummary(in context: ModelContext) -> FolderSyncSummary {
-        let statuses = monthStatuses(in: context)
-        if statuses.isEmpty { return .empty }
-        let pending = statuses.filter { $0.state != .synced }
-        return pending.isEmpty ? .synced : .needsSync(count: pending.count)
+        switch isFolderReachable(in: context) {
+        case .none:
+            return .empty
+        case .some(false):
+            return .folderMissing
+        case .some(true):
+            let statuses = monthStatuses(in: context)
+            if statuses.isEmpty { return .empty }
+            let pending = statuses.filter { $0.state != .synced }
+            return pending.isEmpty ? .synced : .needsSync(count: pending.count)
+        }
+    }
+
+    /// 저장 폴더에 실제 접근 가능한지. bookmark는 있으나 폴더가 삭제/이동된 경우 false.
+    /// 폴더 미설정이면 nil.
+    func isFolderReachable(in context: ModelContext) -> Bool? {
+        guard let settings = try? fetchOrCreateSettings(in: context),
+              let bookmark = settings.csvFolderBookmark else {
+            return nil
+        }
+        guard let resolved = try? BookmarkStore.resolve(bookmark) else {
+            return false
+        }
+        let url = resolved.url
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
+        return BookmarkStore.isReachableDirectory(url)
     }
 
     private func monthState(
@@ -432,6 +459,10 @@ struct SyncCoordinator {
         let folderURL = resolved.url
         let didStart = folderURL.startAccessingSecurityScopedResource()
         defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
+
+        guard BookmarkStore.isReachableDirectory(folderURL) else {
+            throw SyncError.folderUnavailable
+        }
 
         let result = try body(folderURL, context)
 

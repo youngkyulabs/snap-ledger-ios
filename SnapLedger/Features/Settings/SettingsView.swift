@@ -102,7 +102,6 @@ struct SettingsView: View {
                         folderStatusIcon
                     } label: {
                         Label(folderName, systemImage: "folder.fill")
-                            .foregroundStyle(.primary)
                     }
                 }
             } else {
@@ -110,14 +109,20 @@ struct SettingsView: View {
                     showingPicker = true
                 } label: {
                     Label("폴더 선택", systemImage: "folder.badge.plus")
-                        .foregroundStyle(.primary)
                 }
             }
         } header: {
             Text("저장 폴더")
         } footer: {
-            Text("월별 CSV 파일이 이 폴더에 저장돼요. 폴더 이름을 누르면 동기화 상태를 볼 수 있어요.")
+            Text(folderFooterText)
         }
+    }
+
+    private var folderFooterText: String {
+        if currentFolderName() != nil, syncSummary == .folderMissing {
+            return "저장 폴더를 찾을 수 없어요. 폴더가 삭제됐거나 이동했을 수 있어요. 폴더 이름을 눌러 다른 폴더를 선택해 주세요."
+        }
+        return "월별 CSV 파일이 이 폴더에 저장돼요. 폴더 이름을 누르면 동기화 상태를 볼 수 있어요."
     }
 
     @ViewBuilder
@@ -133,6 +138,10 @@ struct SettingsView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.yellow)
                 .accessibilityLabel("맞출 변경 사항 있음")
+        case .folderMissing:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .accessibilityLabel("폴더를 찾을 수 없음")
         }
     }
 

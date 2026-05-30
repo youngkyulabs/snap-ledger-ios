@@ -281,4 +281,28 @@ struct SyncCoordinatorTests {
         )
         #expect(sync.folderSyncSummary(in: context) == .needsSync(count: 1))
     }
+
+    @Test func folderMissingWhenFolderDeleted() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        insertEntry(context, day: 1, amount: 100, merchant: "S")
+        try context.save()
+        try sync.exportAll(in: context)
+        #expect(sync.folderSyncSummary(in: context) == .synced)
+        #expect(sync.isFolderReachable(in: context) == true)
+
+        try FileManager.default.removeItem(at: dir)
+        #expect(sync.isFolderReachable(in: context) == false)
+        #expect(sync.folderSyncSummary(in: context) == .folderMissing)
+    }
+
+    @Test func isFolderReachableNilWhenNoBookmark() throws {
+        let context = try makeContext()
+        let settings = AppSettings()
+        context.insert(settings)
+        try context.save()
+        #expect(SyncCoordinator().isFolderReachable(in: context) == nil)
+    }
 }
