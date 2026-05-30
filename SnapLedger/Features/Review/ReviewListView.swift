@@ -33,6 +33,7 @@ struct ReviewListView: View {
     // Section 에 직접 붙이면 첫 표시에서 바로 닫히는 문제가 있다.
     @State private var failedManual: FailedManualContext?
     @State private var retryUnavailable = false
+    @State private var saveConflict: SyncConflict?
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -225,6 +226,7 @@ struct ReviewListView: View {
         } message: {
             Text(aiStatus.reviewTabMessage)
         }
+        .syncConflictAlert($saveConflict)
     }
 
     @ViewBuilder
@@ -331,8 +333,17 @@ struct ReviewListView: View {
             swipeError = "이 항목은 비어 있어요. 항목을 눌러 값을 채운 뒤 저장하세요."
             return
         }
+        performSwipeSave(entry: entry, ignoringConflict: false)
+    }
+
+    private func performSwipeSave(entry: ParsedEntry, ignoringConflict: Bool) {
         do {
-            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: modelContext)
+            try SaveCoordinator(categoryLearner: CategoryLearner())
+                .save(entry, ignoringConflict: ignoringConflict, in: modelContext)
+        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
+            saveConflict = SyncConflict(months: months, allowOverwrite: false) { _ in
+                performSwipeSave(entry: entry, ignoringConflict: true)
+            }
         } catch {
             swipeError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription

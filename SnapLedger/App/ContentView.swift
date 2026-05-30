@@ -7,6 +7,10 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var allParsedEntries: [ParsedEntry]
     @Query private var allSettings: [AppSettings]
+    @State private var detectedChanges: [DetectedChange] = []
+    @State private var syncResultMessage: String?
+    /// "나중에"로 미룬 달 — 이번 세션 동안 같은 달을 매 포그라운드마다 다시 묻지 않도록.
+    @State private var snoozedMonths: Set<String> = []
 
     private var pendingReviewCount: Int {
         allParsedEntries.filter { $0.status == .pending }.count
@@ -37,6 +41,34 @@ struct ContentView: View {
         }
         .task {
             await drainPending()
+            await checkExternalChanges()
+        }
+        .alert(
+            "파일이 앱 밖에서 바뀌었어요",
+            isPresented: Binding(
+                get: { !detectedChanges.isEmpty },
+                set: { if !$0 { detectedChanges = [] } }
+            )
+        ) {
+            Button("파일 내용 가져오기") { importDetectedChanges() }
+            Button("나중에", role: .cancel) {
+                snoozedMonths.formUnion(detectedChanges.map(\.monthKey))
+                detectedChanges = []
+            }
+        } message: {
+            Text(detectedChangesMessage)
+        }
+        .alert(
+            "파일 동기화",
+            isPresented: Binding(
+                get: { syncResultMessage != nil },
+                set: { if !$0 { syncResultMessage = nil } }
+            ),
+            presenting: syncResultMessage
+        ) { _ in
+            Button("확인", role: .cancel) { syncResultMessage = nil }
+        } message: { message in
+            Text(message)
         }
         .onChange(of: pendingReviewCount, initial: true) { _, newCount in
             Task { await NotificationScheduler().syncIconBadge(count: newCount) }
@@ -44,7 +76,10 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
-                Task { await drainPending() }
+                Task {
+                    await drainPending()
+                    await checkExternalChanges()
+                }
             case .background:
                 BackgroundRefresh.schedule()
                 Task { await refreshReminder() }
@@ -57,6 +92,36 @@ struct ContentView: View {
     @MainActor
     private func drainPending() async {
         await PendingProcessor.make(in: modelContext).drain(in: modelContext)
+    }
+
+    @MainActor
+    private func checkExternalChanges() async {
+        let sync = SyncCoordinator()
+        sync.establishBaselineIfNeeded(in: modelContext)
+        let changes = await sync.detectChanges(in: modelContext)
+            .filter { !snoozedMonths.contains($0.monthKey) }
+        if !changes.isEmpty {
+            detectedChanges = changes
+        }
+    }
+
+    private var detectedChangesMessage: String {
+        let months = CSVWriter.monthLabels(detectedChanges.map(\.monthKey))
+        return "\(months) 파일이 앱 밖에서 바뀌었어요. 가져오면 그 달 기록이 파일 내용으로 바뀌어요. "
+            + "앱 내용을 그대로 두려면 ‘나중에’를 누르고, 설정 → 저장 폴더 → 폴더 상태에서 맞춰주세요."
+    }
+
+    @MainActor
+    private func importDetectedChanges() {
+        let keys = detectedChanges.map(\.monthKey)
+        detectedChanges = []
+        do {
+            let summary = try SyncCoordinator().importMonths(keys, in: modelContext)
+            syncResultMessage = summary.userMessage
+        } catch {
+            syncResultMessage = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
     }
 
     private var shouldShowOnboardingBinding: Binding<Bool> {

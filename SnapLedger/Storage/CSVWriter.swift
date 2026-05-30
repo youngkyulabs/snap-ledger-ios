@@ -61,6 +61,22 @@ struct CSVWriter {
         "expenses-\(key).csv"
     }
 
+    /// `2026-05` → `2026년 5월`. 사용자 노출 문구에서 월 키를 사람이 읽는 라벨로.
+    /// 패턴이 안 맞으면 입력 키를 그대로 반환한다.
+    /// `LocalizedError.errorDescription`(nonisolated)에서도 부르므로 `nonisolated`.
+    nonisolated static func monthLabel(forMonthKey key: String) -> String {
+        let parts = key.split(separator: "-")
+        guard parts.count == 2, let year = Int(parts[0]), let month = Int(parts[1]) else {
+            return key
+        }
+        return "\(year)년 \(month)월"
+    }
+
+    /// 여러 월 키를 "2026년 5월, 2026년 6월"처럼 라벨로 이어 붙인다.
+    nonisolated static func monthLabels(_ keys: [String]) -> String {
+        keys.map { monthLabel(forMonthKey: $0) }.joined(separator: ", ")
+    }
+
     private func monthKey(for date: Date) -> String {
         Self.monthKey(for: date, calendar: calendar)
     }

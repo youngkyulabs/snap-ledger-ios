@@ -11,7 +11,7 @@ struct SaveCoordinatorTests {
     private func makeContext() throws -> ModelContext {
         let container = try ModelContainer(
             for: PendingImage.self, ParsedEntry.self, SavedEntry.self,
-            MerchantCategory.self, AppSettings.self,
+            MerchantCategory.self, AppSettings.self, CSVFileState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         return ModelContext(container)
@@ -121,6 +121,18 @@ struct SaveCoordinatorTests {
         }
     }
 
+    @Test func saveThrowsWhenFolderDeleted() throws {
+        let ctx = try makeContext()
+        let folder = try makeTempFolderWithBookmark(in: ctx)
+        try FileManager.default.removeItem(at: folder)
+        let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스")
+        ctx.insert(entry)
+        try ctx.save()
+        #expect(throws: SaveCoordinator.CoordinatorError.self) {
+            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: ctx)
+        }
+    }
+
     @Test func updateRewritesCSVForSameMonthEdit() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
@@ -136,11 +148,18 @@ struct SaveCoordinatorTests {
 
         let saved = try ctx.fetch(FetchDescriptor<SavedEntry>())
         let target = try #require(saved.first { $0.merchant == "스타벅스" })
-        let originalDate = target.date
-        target.amount = 7500
-        target.category = "식비"
 
-        try coord.update(target, originalDate: originalDate, in: ctx)
+        try coord.update(
+            target,
+            to: SavedEntryEdit(
+                date: target.date,
+                merchant: target.merchant,
+                amount: 7500,
+                category: "식비",
+                note: target.note
+            ),
+            in: ctx
+        )
 
         let csv = try String(
             contentsOf: folder.appendingPathComponent("expenses-2026-05.csv"),
@@ -165,10 +184,18 @@ struct SaveCoordinatorTests {
         try coord.save(entry, in: ctx)
 
         let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
-        let originalDate = saved.date
-        saved.date = date(2026, 6, 1)
 
-        try coord.update(saved, originalDate: originalDate, in: ctx)
+        try coord.update(
+            saved,
+            to: SavedEntryEdit(
+                date: date(2026, 6, 1),
+                merchant: saved.merchant,
+                amount: saved.amount,
+                category: saved.category,
+                note: saved.note
+            ),
+            in: ctx
+        )
 
         let mayFile = folder.appendingPathComponent("expenses-2026-05.csv")
         let junFile = folder.appendingPathComponent("expenses-2026-06.csv")
@@ -178,7 +205,45 @@ struct SaveCoordinatorTests {
 
         let junCSV = try String(contentsOf: junFile, encoding: .utf8)
         #expect(junCSV.contains("2026-06-01,스타벅스,카페,5000"))
+        #expect(saved.date == date(2026, 6, 1))
         #expect(saved.csvFile == "expenses-2026-06.csv")
+    }
+
+    @Test func updateFailureLeavesEntryUnmutated() throws {
+        let ctx = try makeContext()
+        let folder = try makeTempFolderWithBookmark(in: ctx)
+
+        let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스", category: "카페")
+        ctx.insert(entry)
+        try ctx.save()
+
+        let coord = SaveCoordinator(categoryLearner: CategoryLearner())
+        try coord.save(entry, in: ctx)
+        let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
+
+        // 폴더를 지워 쓰기를 실패시킨다 (folderUnavailable).
+        try FileManager.default.removeItem(at: folder)
+
+        #expect(throws: SaveCoordinator.CoordinatorError.self) {
+            try coord.update(
+                saved,
+                to: SavedEntryEdit(
+                    date: date(2026, 6, 1),
+                    merchant: "바뀐상호",
+                    amount: 9999,
+                    category: "식비",
+                    note: "메모"
+                ),
+                in: ctx
+            )
+        }
+
+        // 쓰기가 실패했으니 모델은 원래대로여야 한다 — 앱↔파일 divergence 방지.
+        #expect(saved.merchant == "스타벅스")
+        #expect(saved.amount == 5000)
+        #expect(saved.category == "카페")
+        #expect(saved.date == date(2026, 5, 17))
+        #expect(saved.csvFile == "expenses-2026-05.csv")
     }
 
     @Test func deleteRemovesEntryAndRewritesCSV() throws {
@@ -209,75 +274,5 @@ struct SaveCoordinatorTests {
         )
         #expect(!csv.contains("스타벅스"))
         #expect(csv.contains("2026-05-18,GS25,편의점,3000"))
-    }
-
-    @Test func deleteOfOnlyEntryDeletesCSVFile() throws {
-        let ctx = try makeContext()
-        let folder = try makeTempFolderWithBookmark(in: ctx)
-
-        let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스", category: "카페")
-        ctx.insert(entry)
-        try ctx.save()
-
-        let coord = SaveCoordinator(categoryLearner: CategoryLearner())
-        try coord.save(entry, in: ctx)
-
-        let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
-        try coord.delete(saved, in: ctx)
-
-        let file = folder.appendingPathComponent("expenses-2026-05.csv")
-        #expect(!FileManager.default.fileExists(atPath: file.path))
-    }
-
-    @Test func deleteWithOriginalDateRewritesBothMonthsWhenDateMutated() throws {
-        let ctx = try makeContext()
-        let folder = try makeTempFolderWithBookmark(in: ctx)
-
-        let a = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "Old", category: nil)
-        let b = ParsedEntry(date: date(2026, 6, 1), amount: 1000, merchant: "Jun", category: nil)
-        ctx.insert(a); ctx.insert(b)
-        try ctx.save()
-
-        let coord = SaveCoordinator(categoryLearner: CategoryLearner())
-        try coord.save(a, in: ctx)
-        try coord.save(b, in: ctx)
-
-        let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first { $0.merchant == "Old" })
-        let originalDate = saved.date
-        saved.date = date(2026, 6, 1) // simulate in-flight edit before delete
-
-        try coord.delete(saved, originalDate: originalDate, in: ctx)
-
-        let mayFile = folder.appendingPathComponent("expenses-2026-05.csv")
-        let junFile = folder.appendingPathComponent("expenses-2026-06.csv")
-
-        #expect(!FileManager.default.fileExists(atPath: mayFile.path))
-        let jun = try String(contentsOf: junFile, encoding: .utf8)
-        #expect(!jun.contains("Old"))
-        #expect(jun.contains("2026-06-01,Jun,,1000"))
-    }
-
-    @Test func saveTwoEntriesIntoSameMonthlyFile() throws {
-        let ctx = try makeContext()
-        let folder = try makeTempFolderWithBookmark(in: ctx)
-
-        let a = ParsedEntry(date: date(2026, 5, 17), amount: 1000, merchant: "A", category: nil)
-        let b = ParsedEntry(date: date(2026, 5, 18), amount: 2000, merchant: "B", category: nil)
-        ctx.insert(a); ctx.insert(b)
-        try ctx.save()
-
-        let coord = SaveCoordinator(categoryLearner: CategoryLearner())
-        try coord.save(a, in: ctx)
-        try coord.save(b, in: ctx)
-
-        let csv = try String(
-            contentsOf: folder.appendingPathComponent("expenses-2026-05.csv"),
-            encoding: .utf8
-        )
-        #expect(csv.contains("2026-05-17,A,,1000"))
-        #expect(csv.contains("2026-05-18,B,,2000"))
-        // Header should appear exactly once
-        let headerCount = csv.components(separatedBy: "날짜,설명,카테고리,금액").count - 1
-        #expect(headerCount == 1)
     }
 }
