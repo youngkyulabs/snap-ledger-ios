@@ -31,6 +31,14 @@ struct FileFingerprintTests {
         #expect(FileFingerprint.read(at: url) == .missing)
     }
 
+    @Test func nonUTF8FileIsUnreadableNotMissing() throws {
+        let dir = makeTempDir()
+        let url = dir.appendingPathComponent("bad.csv")
+        // 0xFF는 UTF-8 선행 바이트로 올 수 없음 → 디코딩 실패.
+        try Data([0xFF, 0xFE, 0x41]).write(to: url, options: .atomic)
+        #expect(FileFingerprint.read(at: url) == .unreadable)
+    }
+
     @Test func hashIsDeterministicAndContentSensitive() {
         let hashA = FileFingerprint.sha256Hex(Data("a".utf8))
         let hashA2 = FileFingerprint.sha256Hex(Data("a".utf8))

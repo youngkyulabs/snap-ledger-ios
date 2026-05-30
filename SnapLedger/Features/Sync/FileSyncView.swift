@@ -51,7 +51,7 @@ struct FileSyncView: View {
         }
         .navigationTitle("폴더 상태")
         .navigationBarTitleDisplayMode(.inline)
-        .task { reload() }
+        .task { await reload() }
         .sheet(isPresented: $showingPicker) {
             FolderPicker(onPick: handlePickedFolder)
                 .ignoresSafeArea()
@@ -139,7 +139,7 @@ struct FileSyncView: View {
             // 폴더가 바뀌면 이전 폴더 기준 지문이 무의미하므로 동기화 상태를 리셋한다.
             SyncCoordinator().resetSyncState(in: modelContext)
             folderError = nil
-            reload()
+            Task { await reload() }
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
         }
@@ -180,10 +180,10 @@ struct FileSyncView: View {
         }
     }
 
-    private func reload() {
+    private func reload() async {
         let sync = SyncCoordinator()
         folderReachable = sync.isFolderReachable(in: modelContext) ?? false
-        statuses = sync.monthStatuses(in: modelContext)
+        statuses = await sync.monthStatuses(in: modelContext)
     }
 
     private func runMonth(_ monthKey: String, importingFromFile: Bool) {
@@ -200,7 +200,7 @@ struct FileSyncView: View {
         } catch {
             resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
-        reload()
+        Task { await reload() }
     }
 
     private func monthLabel(_ key: String) -> String {

@@ -39,7 +39,7 @@ struct ContentView: View {
         }
         .task {
             await drainPending()
-            checkExternalChanges()
+            await checkExternalChanges()
         }
         .alert(
             "파일이 앱 밖에서 바뀌었어요",
@@ -73,7 +73,7 @@ struct ContentView: View {
             case .active:
                 Task {
                     await drainPending()
-                    checkExternalChanges()
+                    await checkExternalChanges()
                 }
             case .background:
                 BackgroundRefresh.schedule()
@@ -90,10 +90,10 @@ struct ContentView: View {
     }
 
     @MainActor
-    private func checkExternalChanges() {
+    private func checkExternalChanges() async {
         let sync = SyncCoordinator()
         sync.establishBaselineIfNeeded(in: modelContext)
-        let changes = sync.detectChanges(in: modelContext)
+        let changes = await sync.detectChanges(in: modelContext)
         if !changes.isEmpty {
             detectedChanges = changes
         }

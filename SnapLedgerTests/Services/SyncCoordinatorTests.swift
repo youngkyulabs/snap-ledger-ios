@@ -67,7 +67,7 @@ struct SyncCoordinatorTests {
         )
     }
 
-    @Test func exportThenDetectFindsNoChanges() throws {
+    @Test func exportThenDetectFindsNoChanges() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
@@ -76,10 +76,11 @@ struct SyncCoordinatorTests {
         try context.save()
 
         try sync.exportAll(in: context)
-        #expect(sync.detectChanges(in: context).isEmpty)
+        let changes = await sync.detectChanges(in: context)
+        #expect(changes.isEmpty)
     }
 
-    @Test func detectsExternalModification() throws {
+    @Test func detectsExternalModification() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
@@ -93,7 +94,7 @@ struct SyncCoordinatorTests {
             "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-17,스타벅스,카페,9999,\n"
         )
 
-        let changes = sync.detectChanges(in: context)
+        let changes = await sync.detectChanges(in: context)
         #expect(changes.count == 1)
         #expect(changes.first?.monthKey == "2026-05")
         #expect(changes.first?.kind == .modified)
@@ -142,7 +143,7 @@ struct SyncCoordinatorTests {
         )
     }
 
-    @Test func baselineAbsorbsExistingFilesThenDetectsNewOnes() throws {
+    @Test func baselineAbsorbsExistingFilesThenDetectsNewOnes() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
@@ -153,13 +154,14 @@ struct SyncCoordinatorTests {
             "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-01,A,,100,\n"
         )
         sync.establishBaselineIfNeeded(in: context)
-        #expect(sync.detectChanges(in: context).isEmpty)
+        let baselineChanges = await sync.detectChanges(in: context)
+        #expect(baselineChanges.isEmpty)
 
         try writeCSV(
             dir, "expenses-2026-06.csv",
             "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-06-01,B,,200,\n"
         )
-        let changes = sync.detectChanges(in: context)
+        let changes = await sync.detectChanges(in: context)
         #expect(changes.count == 1)
         #expect(changes.first?.kind == .externalNew)
         #expect(changes.first?.monthKey == "2026-06")
@@ -178,6 +180,28 @@ struct SyncCoordinatorTests {
         let summary = try sync.importMonths(["2026-05"], in: context)
         #expect(summary.totalRows == 1)
         #expect(summary.skippedRows == 1)
+    }
+
+    @Test func importSkipsUnreadableMonthWithoutWiping() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        insertEntry(context, day: 1, amount: 100, merchant: "기존")
+        try context.save()
+
+        // 비-UTF8 파일 → 읽기 불가. "빈 파일"로 오판해 그 달을 비우면 안 된다.
+        try Data([0xFF, 0xFE, 0x41]).write(
+            to: dir.appendingPathComponent("expenses-2026-05.csv"), options: .atomic
+        )
+
+        let summary = try sync.importMonths(["2026-05"], in: context)
+        #expect(summary.unreadableMonths == ["2026-05"])
+        #expect(summary.importedMonths.isEmpty)
+
+        let saved = try context.fetch(FetchDescriptor<SavedEntry>())
+        #expect(saved.count == 1)
+        #expect(saved.first?.merchant == "기존")
     }
 
     @Test func exportImportRoundTripPreservesValues() throws {
@@ -205,7 +229,7 @@ struct SyncCoordinatorTests {
         #expect(saved.first?.amount == 4200)
     }
 
-    @Test func monthStatusesReflectsEachState() throws {
+    @Test func monthStatusesReflectsEachState() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
@@ -240,22 +264,24 @@ struct SyncCoordinatorTests {
             "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-01,S,,9999,\n"
         )
 
+        let statuses = await sync.monthStatuses(in: context)
         let byKey = Dictionary(
-            uniqueKeysWithValues: sync.monthStatuses(in: context).map { ($0.monthKey, $0.state) }
+            uniqueKeysWithValues: statuses.map { ($0.monthKey, $0.state) }
         )
         #expect(byKey["2026-05"] == .externalModified)
         #expect(byKey["2026-06"] == .fileOnly)
         #expect(byKey["2026-07"] == .appOnly)
     }
 
-    @Test func folderSyncSummaryEmptyWhenNoData() throws {
+    @Test func folderSyncSummaryEmptyWhenNoData() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
-        #expect(SyncCoordinator().folderSyncSummary(in: context) == .empty)
+        let summary = await SyncCoordinator().folderSyncSummary(in: context)
+        #expect(summary == .empty)
     }
 
-    @Test func folderSyncSummarySyncedAfterExport() throws {
+    @Test func folderSyncSummarySyncedAfterExport() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
@@ -263,10 +289,11 @@ struct SyncCoordinatorTests {
         insertEntry(context, day: 1, amount: 100, merchant: "S")
         try context.save()
         try sync.exportAll(in: context)
-        #expect(sync.folderSyncSummary(in: context) == .synced)
+        let summary = await sync.folderSyncSummary(in: context)
+        #expect(summary == .synced)
     }
 
-    @Test func folderSyncSummaryNeedsSyncOnExternalChange() throws {
+    @Test func folderSyncSummaryNeedsSyncOnExternalChange() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
@@ -279,10 +306,11 @@ struct SyncCoordinatorTests {
             dir, "expenses-2026-05.csv",
             "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-01,S,,9999,\n"
         )
-        #expect(sync.folderSyncSummary(in: context) == .needsSync(count: 1))
+        let summary = await sync.folderSyncSummary(in: context)
+        #expect(summary == .needsSync(count: 1))
     }
 
-    @Test func folderMissingWhenFolderDeleted() throws {
+    @Test func folderMissingWhenFolderDeleted() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
         try configureFolder(dir, in: context)
@@ -290,12 +318,14 @@ struct SyncCoordinatorTests {
         insertEntry(context, day: 1, amount: 100, merchant: "S")
         try context.save()
         try sync.exportAll(in: context)
-        #expect(sync.folderSyncSummary(in: context) == .synced)
+        let syncedSummary = await sync.folderSyncSummary(in: context)
+        #expect(syncedSummary == .synced)
         #expect(sync.isFolderReachable(in: context) == true)
 
         try FileManager.default.removeItem(at: dir)
         #expect(sync.isFolderReachable(in: context) == false)
-        #expect(sync.folderSyncSummary(in: context) == .folderMissing)
+        let missingSummary = await sync.folderSyncSummary(in: context)
+        #expect(missingSummary == .folderMissing)
     }
 
     @Test func isFolderReachableNilWhenNoBookmark() throws {

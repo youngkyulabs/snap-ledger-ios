@@ -78,6 +78,8 @@ struct SyncCoordinator {
         var skippedRows: Int = 0
         /// iCloud에서 아직 안 받아져 이번에 건너뛴 달 (다운로드는 트리거됨).
         var notReadyMonths: [String] = []
+        /// 파일을 읽지 못해(권한·잠금·비-UTF8 등) 건너뛴 달 — 앱 데이터는 건드리지 않음.
+        var unreadableMonths: [String] = []
 
         /// 사용자에게 보여줄 결과 요약 문구.
         var userMessage: String {
@@ -90,7 +92,20 @@ struct SyncCoordinator {
                     "\(notReadyMonths.joined(separator: ", "))은(는) 아직 내려받는 중이라 잠시 후 다시 시도해 주세요."
                 )
             }
+            if !unreadableMonths.isEmpty {
+                parts.append(
+                    "\(unreadableMonths.joined(separator: ", "))은(는) 파일을 읽지 못해 건너뛰었어요."
+                )
+            }
             return parts.joined(separator: " ")
+        }
+
+        /// 건너뛴 행/달이 있을 때만 사용자에게 보여줄 안내. 깨끗하면 nil (조용히 진행).
+        var skipNotice: String? {
+            guard skippedRows > 0 || !notReadyMonths.isEmpty || !unreadableMonths.isEmpty else {
+                return nil
+            }
+            return userMessage
         }
     }
 
@@ -103,13 +118,15 @@ struct SyncCoordinator {
 
     // MARK: - 변경 감지 (자동, 비블로킹)
 
-    /// 폴더의 월별 CSV를 스캔해 외부 변경된 달을 찾는다. 다운로드 안 된 파일은 건너뛴다.
-    func detectChanges(in context: ModelContext) -> [DetectedChange] {
-        (try? withFolder(in: context) { folderURL, ctx in
-            let states = fileStatesByName(in: ctx)
+    /// 폴더의 월별 CSV를 스캔해 외부 변경된 달을 찾는다. 다운로드 안 된/읽지 못한 파일은 건너뛴다.
+    /// 파일 해시 계산은 메인 액터 밖에서 수행한다 (런치/포그라운드 프레임을 막지 않도록).
+    func detectChanges(in context: ModelContext) async -> [DetectedChange] {
+        (try? await withFolderAsync(in: context) { folderURL in
+            let readiness = await Self.scanReadiness(in: folderURL)
+            let states = fileStatesByName(in: context)
             var changes: [DetectedChange] = []
-            for (key, url) in monthCSVFiles(in: folderURL) {
-                guard case .ready(let content) = FileFingerprint.read(at: url) else { continue }
+            for (key, reading) in readiness {
+                guard case .ready(let content) = reading else { continue }
                 let name = CSVWriter.filename(forMonthKey: key)
                 if let state = states[name] {
                     if state.lastSyncedHash != content.hash {
@@ -124,22 +141,21 @@ struct SyncCoordinator {
     }
 
     /// 파일 동기화 화면용 — 앱에 있는 달 ∪ 폴더에 있는 달 각각의 동기화 상태.
-    func monthStatuses(in context: ModelContext) -> [MonthSyncStatus] {
-        (try? withFolder(in: context) { folderURL, ctx in
-            let states = fileStatesByName(in: ctx)
-            let allSaved = (try? ctx.fetch(FetchDescriptor<SavedEntry>())) ?? []
+    func monthStatuses(in context: ModelContext) async -> [MonthSyncStatus] {
+        (try? await withFolderAsync(in: context) { folderURL in
+            let readiness = await Self.scanReadiness(in: folderURL)
+            let states = fileStatesByName(in: context)
+            let allSaved = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
             let appMonths = Set(allSaved.map { CSVWriter.monthKey(for: $0.date) })
-            let files = monthCSVFiles(in: folderURL)
-            let urlByKey = Dictionary(files.map { ($0.key, $0.url) }) { first, _ in first }
 
-            let allKeys = appMonths.union(files.map(\.key))
+            let allKeys = appMonths.union(readiness.keys)
             return allKeys
                 .map { key in
                     MonthSyncStatus(
                         monthKey: key,
                         state: monthState(
                             key: key,
-                            url: urlByKey[key],
+                            readiness: readiness[key],
                             hasApp: appMonths.contains(key),
                             states: states
                         )
@@ -150,14 +166,14 @@ struct SyncCoordinator {
     }
 
     /// 저장 폴더 섹션 배지용 — 전체 동기화 상태 요약.
-    func folderSyncSummary(in context: ModelContext) -> FolderSyncSummary {
+    func folderSyncSummary(in context: ModelContext) async -> FolderSyncSummary {
         switch isFolderReachable(in: context) {
         case .none:
             return .empty
         case .some(false):
             return .folderMissing
         case .some(true):
-            let statuses = monthStatuses(in: context)
+            let statuses = await monthStatuses(in: context)
             if statuses.isEmpty { return .empty }
             let pending = statuses.filter { $0.state != .synced }
             return pending.isEmpty ? .synced : .needsSync(count: pending.count)
@@ -182,13 +198,14 @@ struct SyncCoordinator {
 
     private func monthState(
         key: String,
-        url: URL?,
+        readiness: FileFingerprint.Readiness?,
         hasApp: Bool,
         states: [String: CSVFileState]
     ) -> MonthSyncStatus.State {
-        guard let url else { return .appOnly } // 파일 없음 + 앱에만 있음
-        switch FileFingerprint.read(at: url) {
-        case .notDownloaded:
+        guard let readiness else { return .appOnly } // 파일 없음 + 앱에만 있음
+        switch readiness {
+        case .notDownloaded, .unreadable:
+            // 내려받는 중이거나 읽지 못한 파일 — 상태를 확신할 수 없어 액션을 막는다.
             return .notReady
         case .missing:
             return hasApp ? .appOnly : .fileOnly
@@ -210,7 +227,7 @@ struct SyncCoordinator {
         guard let settings, !settings.hasSyncBaseline else { return }
         do {
             try withFolder(in: context) { folderURL, ctx in
-                for (key, url) in monthCSVFiles(in: folderURL) {
+                for (key, url) in Self.monthCSVFiles(in: folderURL) {
                     guard case .ready(let content) = FileFingerprint.read(at: url) else { continue }
                     upsertFileState(
                         filename: CSVWriter.filename(forMonthKey: key),
@@ -251,6 +268,9 @@ struct SyncCoordinator {
                     summary.skippedRows += parsed.skipped
                 case .notDownloaded:
                     summary.notReadyMonths.append(key)
+                case .unreadable:
+                    // 읽기 실패를 "빈 파일"로 오판해 그 달을 비우면 데이터 손실이므로 건너뛴다.
+                    summary.unreadableMonths.append(key)
                 case .missing:
                     // 파일이 없으면 그 달을 비운다 (외부에서 비워졌다고 보고 앱도 맞춤).
                     replaceMonthEntries(monthKey: key, rows: [], in: ctx)
@@ -266,7 +286,7 @@ struct SyncCoordinator {
     @discardableResult
     func importAll(in context: ModelContext) throws -> ImportSummary {
         let keys = try withFolder(in: context) { folderURL, _ in
-            monthCSVFiles(in: folderURL).map(\.key)
+            Self.monthCSVFiles(in: folderURL).map(\.key)
         }
         return try importMonths(keys, in: context)
     }
@@ -323,7 +343,8 @@ struct SyncCoordinator {
             let name = CSVWriter.filename(forMonthKey: key)
             let url = folderURL.appendingPathComponent(name)
             switch FileFingerprint.read(at: url) {
-            case .notDownloaded:
+            case .notDownloaded, .unreadable:
+                // 읽지 못한 파일은 변경 여부를 확신할 수 없으므로 쓰기를 막고 재시도를 유도한다.
                 notReady.append(key)
             case .missing:
                 continue
@@ -344,10 +365,15 @@ struct SyncCoordinator {
     func refreshFileState(monthKey key: String, folderURL: URL, in context: ModelContext) {
         let name = CSVWriter.filename(forMonthKey: key)
         let url = folderURL.appendingPathComponent(name)
-        if case .ready(let content) = FileFingerprint.read(at: url) {
+        switch FileFingerprint.read(at: url) {
+        case .ready(let content):
             upsertFileState(filename: name, hash: content.hash, modified: content.modified, in: context)
-        } else {
+        case .missing:
+            // 행이 비어 파일을 지운 경우 — 지문도 제거.
             removeFileState(filename: name, in: context)
+        case .notDownloaded, .unreadable:
+            // 방금 쓴 파일을 일시적으로 못 읽은 경우 — 기존 지문을 유지한다 (잘못된 변경 감지 방지).
+            break
         }
     }
 
@@ -360,9 +386,11 @@ struct SyncCoordinator {
         }
         try? context.save()
     }
+}
 
-    // MARK: - 내부 헬퍼
+// MARK: - 내부 헬퍼
 
+extension SyncCoordinator {
     private func replaceMonthEntries(monthKey key: String, rows: [SavedRow], in context: ModelContext) {
         let filename = CSVWriter.filename(forMonthKey: key)
         let all = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
@@ -416,7 +444,8 @@ struct SyncCoordinator {
         }
     }
 
-    private func monthCSVFiles(in folderURL: URL) -> [(key: String, url: URL)] {
+    /// 폴더의 월별 CSV 파일 목록. 파일 I/O라 메인 액터 밖에서도 쓸 수 있게 `nonisolated`.
+    nonisolated static func monthCSVFiles(in folderURL: URL) -> [(key: String, url: URL)] {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: folderURL,
             includingPropertiesForKeys: nil,
@@ -425,12 +454,22 @@ struct SyncCoordinator {
             return []
         }
         return entries.compactMap { url in
-            Self.monthKey(fromFilename: url.lastPathComponent).map { ($0, url) }
+            monthKey(fromFilename: url.lastPathComponent).map { ($0, url) }
         }
     }
 
+    /// 폴더의 월별 CSV를 스캔해 `monthKey → Readiness` 맵을 만든다.
+    /// `nonisolated async` 라 메인 액터에서 `await` 호출 시 파일 해시 계산이 백그라운드에서 돈다.
+    nonisolated static func scanReadiness(in folderURL: URL) async -> [String: FileFingerprint.Readiness] {
+        var out: [String: FileFingerprint.Readiness] = [:]
+        for (key, url) in monthCSVFiles(in: folderURL) {
+            out[key] = FileFingerprint.read(at: url)
+        }
+        return out
+    }
+
     /// `expenses-2026-05.csv` → `2026-05`. 패턴이 안 맞으면 nil.
-    static func monthKey(fromFilename name: String) -> String? {
+    nonisolated static func monthKey(fromFilename name: String) -> String? {
         guard name.hasPrefix("expenses-"), name.hasSuffix(".csv") else { return nil }
         let mid = String(name.dropFirst("expenses-".count).dropLast(".csv".count))
         let parts = mid.split(separator: "-")
@@ -465,6 +504,39 @@ struct SyncCoordinator {
         }
 
         let result = try body(folderURL, context)
+
+        if resolved.isStale, let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
+            settings.csvFolderBookmark = refreshed
+            try? context.save()
+        }
+        return result
+    }
+
+    /// `withFolder`의 async 버전. body 안에서 `await`(예: 백그라운드 파일 스캔)할 수 있다.
+    /// security-scoped 접근은 프로세스 전역이라 await 동안에도 유지된다 (defer로 종료).
+    private func withFolderAsync<T>(
+        in context: ModelContext,
+        _ body: (URL) async throws -> T
+    ) async throws -> T {
+        let settings = try fetchOrCreateSettings(in: context)
+        guard let bookmark = settings.csvFolderBookmark else {
+            throw SyncError.noCSVFolder
+        }
+        let resolved: (url: URL, isStale: Bool)
+        do {
+            resolved = try BookmarkStore.resolve(bookmark)
+        } catch {
+            throw SyncError.bookmarkResolveFailed(underlying: error)
+        }
+        let folderURL = resolved.url
+        let didStart = folderURL.startAccessingSecurityScopedResource()
+        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
+
+        guard BookmarkStore.isReachableDirectory(folderURL) else {
+            throw SyncError.folderUnavailable
+        }
+
+        let result = try await body(folderURL)
 
         if resolved.isStale, let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
             settings.csvFolderBookmark = refreshed

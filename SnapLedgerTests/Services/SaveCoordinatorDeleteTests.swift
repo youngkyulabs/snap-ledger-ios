@@ -34,6 +34,9 @@ struct SaveCoordinatorDeleteTests {
         return Calendar(identifier: .gregorian).date(from: c)!
     }
 
+    @Test func deleteOfOnlyEntryDeletesCSVFile() throws {
+        let ctx = try makeContext()
+        let folder = try makeTempFolderWithBookmark(in: ctx)
 
         let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스", category: "카페")
         ctx.insert(entry)
@@ -100,5 +103,4 @@ struct SaveCoordinatorDeleteTests {
         let headerCount = csv.components(separatedBy: "날짜,설명,카테고리,금액").count - 1
         #expect(headerCount == 1)
     }
-}
 }

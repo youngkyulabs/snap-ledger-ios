@@ -52,8 +52,8 @@ struct SettingsView: View {
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .navigationTitle("설정")
-            .task { refreshSyncSummary() }
-            .onChange(of: syncSignal) { _, _ in refreshSyncSummary() }
+            .task { await refreshSyncSummary() }
+            .onChange(of: syncSignal) { _, _ in Task { await refreshSyncSummary() } }
             .alert(
                 "폴더 등록 실패",
                 isPresented: Binding(
@@ -151,12 +151,12 @@ struct SettingsView: View {
     }
 
     @MainActor
-    private func refreshSyncSummary() {
+    private func refreshSyncSummary() async {
         guard settings.csvFolderBookmark != nil else {
             syncSummary = .empty
             return
         }
-        syncSummary = SyncCoordinator().folderSyncSummary(in: modelContext)
+        syncSummary = await SyncCoordinator().folderSyncSummary(in: modelContext)
     }
 
     private var reminderSection: some View {
@@ -313,7 +313,7 @@ struct SettingsView: View {
             // 폴더가 바뀌면 이전 폴더 기준 지문이 무의미하므로 동기화 상태를 리셋한다.
             SyncCoordinator().resetSyncState(in: modelContext)
             folderError = nil
-            refreshSyncSummary()
+            Task { await refreshSyncSummary() }
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
         }

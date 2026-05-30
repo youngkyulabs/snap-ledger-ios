@@ -212,7 +212,8 @@ struct SavedEntryEditorView: View {
                 .update(entry, originalDate: originalDate, ignoringConflict: ignoringConflict, in: modelContext)
             dismiss()
         } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
-            saveConflict = SyncConflict(months: months) { mode in
+            // 가져오면 편집 중이던 항목이 파일 내용으로 대체되므로 importDiscardsEdit=true.
+            saveConflict = SyncConflict(months: months, importDiscardsEdit: true) { mode in
                 switch mode {
                 case .afterImport: dismiss()
                 case .overwrite: performUpdate(ignoringConflict: true)
@@ -234,7 +235,8 @@ struct SavedEntryEditorView: View {
                 .delete(entry, originalDate: originalDate, ignoringConflict: ignoringConflict, in: modelContext)
             dismiss()
         } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
-            saveConflict = SyncConflict(months: months) { mode in
+            // 가져오면 삭제하려던 항목이 파일 기준으로 되돌아오므로 importDiscardsEdit=true.
+            saveConflict = SyncConflict(months: months, importDiscardsEdit: true) { mode in
                 switch mode {
                 case .afterImport: dismiss()
                 case .overwrite: performDelete(ignoringConflict: true)

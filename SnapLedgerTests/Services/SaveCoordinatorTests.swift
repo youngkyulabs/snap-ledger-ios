@@ -222,8 +222,4 @@ struct SaveCoordinatorTests {
         #expect(!csv.contains("스타벅스"))
         #expect(csv.contains("2026-05-18,GS25,편의점,3000"))
     }
-
-    @Test func deleteOfOnlyEntryDeletesCSVFile() throws {
-        let ctx = try makeContext()
-        let folder = try makeTempFolderWithBookmark(in: ctx)
 }
