@@ -7,11 +7,15 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
+    // 동기화 배지를 앱 측 변경(저장·수정·삭제·수동 동기화)에 반응시키기 위한 신호원.
+    @Query private var savedEntries: [SavedEntry]
+    @Query private var fileStates: [CSVFileState]
     @State private var showingPicker = false
     @State private var folderError: String?
     @State private var showingMailComposer = false
     @State private var feedbackFallbackShown = false
     @State private var notificationPermissionDeniedAlert = false
+    @State private var syncSummary: FolderSyncSummary = .empty
 
     private static let feedbackEmail = "youngkyulabs@gmail.com"
 
@@ -48,6 +52,8 @@ struct SettingsView: View {
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .navigationTitle("설정")
+            .task { refreshSyncSummary() }
+            .onChange(of: syncSignal) { _, _ in refreshSyncSummary() }
             .alert(
                 "폴더 등록 실패",
                 isPresented: Binding(
@@ -99,9 +105,52 @@ struct SettingsView: View {
                         .foregroundStyle(.primary)
                 }
             }
+            if settings.csvFolderBookmark != nil {
+                syncStatusRow
+            }
         } footer: {
             Text("월별 CSV 파일이 이 폴더에 저장돼요.")
         }
+    }
+
+    @ViewBuilder
+    private var syncStatusRow: some View {
+        switch syncSummary {
+        case .empty:
+            EmptyView()
+        case .synced:
+            LabeledContent {
+                Label("동기화됨", systemImage: "checkmark.circle.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+            } label: {
+                Label("파일 동기화", systemImage: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.primary)
+            }
+        case .needsSync(let count):
+            NavigationLink {
+                FileSyncView()
+            } label: {
+                Label("동기화", systemImage: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.primary)
+            }
+            .badge(count)
+        }
+    }
+
+    private var syncSignal: String {
+        let latest = fileStates.map(\.lastSyncedAt).max()?.timeIntervalSince1970 ?? 0
+        return "\(fileStates.count)-\(savedEntries.count)-\(latest)"
+    }
+
+    @MainActor
+    private func refreshSyncSummary() {
+        guard settings.csvFolderBookmark != nil else {
+            syncSummary = .empty
+            return
+        }
+        syncSummary = SyncCoordinator().folderSyncSummary(in: modelContext)
     }
 
     private var reminderSection: some View {
@@ -258,6 +307,7 @@ struct SettingsView: View {
             // 폴더가 바뀌면 이전 폴더 기준 지문이 무의미하므로 동기화 상태를 리셋한다.
             SyncCoordinator().resetSyncState(in: modelContext)
             folderError = nil
+            refreshSyncSummary()
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
         }

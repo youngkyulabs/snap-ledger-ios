@@ -28,7 +28,6 @@ struct AdvancedSettingsView: View {
             Form {
                 categoriesSection
                 extractionGuideSection
-                fileSyncSection
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)

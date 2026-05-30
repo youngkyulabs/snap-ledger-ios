@@ -247,4 +247,38 @@ struct SyncCoordinatorTests {
         #expect(byKey["2026-06"] == .fileOnly)
         #expect(byKey["2026-07"] == .appOnly)
     }
+
+    @Test func folderSyncSummaryEmptyWhenNoData() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        #expect(SyncCoordinator().folderSyncSummary(in: context) == .empty)
+    }
+
+    @Test func folderSyncSummarySyncedAfterExport() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        insertEntry(context, day: 1, amount: 100, merchant: "S")
+        try context.save()
+        try sync.exportAll(in: context)
+        #expect(sync.folderSyncSummary(in: context) == .synced)
+    }
+
+    @Test func folderSyncSummaryNeedsSyncOnExternalChange() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        insertEntry(context, day: 1, amount: 100, merchant: "S")
+        try context.save()
+        try sync.exportAll(in: context)
+
+        try writeCSV(
+            dir, "expenses-2026-05.csv",
+            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-01,S,,9999,\n"
+        )
+        #expect(sync.folderSyncSummary(in: context) == .needsSync(count: 1))
+    }
 }

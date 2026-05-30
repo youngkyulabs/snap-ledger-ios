@@ -28,7 +28,7 @@ private struct SyncConflictAlertModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .confirmationDialog(
-                "파일이 앱 밖에서 변경됐어요",
+                "파일이 앱 밖에서 바뀌었어요",
                 isPresented: Binding(
                     get: { conflict != nil },
                     set: { if !$0 { conflict = nil } }
@@ -45,7 +45,7 @@ private struct SyncConflictAlertModifier: ViewModifier {
                 }
                 Button("취소", role: .cancel) { self.conflict = nil }
             } message: { conflict in
-                Text("\(conflict.months.joined(separator: ", ")) 파일이 다른 곳에서 수정됐어요. 어떻게 할까요?")
+                Text("\(conflict.months.joined(separator: ", ")) 파일이 앱 밖에서 바뀌었어요. 어떻게 할까요?")
             }
             .alert(
                 "가져오기 실패",

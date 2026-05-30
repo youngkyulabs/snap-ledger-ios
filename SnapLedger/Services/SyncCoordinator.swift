@@ -41,6 +41,13 @@ struct MonthSyncStatus: Identifiable, Equatable {
     }
 }
 
+/// 저장 폴더 섹션에 요약해 보여줄 전체 동기화 상태.
+enum FolderSyncSummary: Equatable {
+    case empty                  // 아직 동기화할 데이터가 없음 → 행 숨김
+    case synced                 // 모든 달이 최신
+    case needsSync(count: Int)  // 맞춰야 할 달이 있음
+}
+
 /// 월별 CSV 파일과 SwiftData(`SavedEntry`) 사이의 양방향 동기화를 오케스트레이션한다.
 ///
 /// CSV 행에는 안정적 ID가 없으므로 동기화 단위는 **월 단위 통째 교체**다.
@@ -70,13 +77,13 @@ struct SyncCoordinator {
 
         /// 사용자에게 보여줄 결과 요약 문구.
         var userMessage: String {
-            var parts = ["\(importedMonths.count)개 월, \(totalRows)건 가져왔어요."]
+            var parts = ["\(importedMonths.count)개월, \(totalRows)건을 가져왔어요."]
             if skippedRows > 0 {
-                parts.append("형식이 맞지 않는 \(skippedRows)행은 건너뛰었어요.")
+                parts.append("형식이 맞지 않는 \(skippedRows)줄은 건너뛰었어요.")
             }
             if !notReadyMonths.isEmpty {
                 parts.append(
-                    "\(notReadyMonths.joined(separator: ", "))은(는) 아직 받아오는 중이라 잠시 후 다시 시도해 주세요."
+                    "\(notReadyMonths.joined(separator: ", "))은(는) 아직 내려받는 중이라 잠시 후 다시 시도해 주세요."
                 )
             }
             return parts.joined(separator: " ")
@@ -136,6 +143,14 @@ struct SyncCoordinator {
                 }
                 .sorted { $0.monthKey > $1.monthKey }
         }) ?? []
+    }
+
+    /// 저장 폴더 섹션 배지용 — 전체 동기화 상태 요약.
+    func folderSyncSummary(in context: ModelContext) -> FolderSyncSummary {
+        let statuses = monthStatuses(in: context)
+        if statuses.isEmpty { return .empty }
+        let pending = statuses.filter { $0.state != .synced }
+        return pending.isEmpty ? .synced : .needsSync(count: pending.count)
     }
 
     private func monthState(

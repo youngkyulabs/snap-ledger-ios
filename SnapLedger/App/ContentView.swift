@@ -42,19 +42,19 @@ struct ContentView: View {
             checkExternalChanges()
         }
         .alert(
-            "파일이 외부에서 변경됐어요",
+            "파일이 앱 밖에서 바뀌었어요",
             isPresented: Binding(
                 get: { !detectedChanges.isEmpty },
                 set: { if !$0 { detectedChanges = [] } }
             )
         ) {
-            Button("파일 → 앱 가져오기") { importDetectedChanges() }
+            Button("파일 내용 가져오기") { importDetectedChanges() }
             Button("나중에", role: .cancel) { detectedChanges = [] }
         } message: {
             Text(detectedChangesMessage)
         }
         .alert(
-            "동기화",
+            "파일 동기화",
             isPresented: Binding(
                 get: { syncResultMessage != nil },
                 set: { if !$0 { syncResultMessage = nil } }
@@ -101,8 +101,8 @@ struct ContentView: View {
 
     private var detectedChangesMessage: String {
         let months = detectedChanges.map(\.monthKey).joined(separator: ", ")
-        return "\(months) 파일이 앱 밖에서 변경됐어요. 가져오면 해당 월 기록이 파일 내용으로 교체돼요. "
-            + "(내 기록을 유지하려면 설정 → 파일 동기화의 ‘앱 → 파일 다시 쓰기’를 사용하세요.)"
+        return "\(months) 파일이 앱 밖에서 바뀌었어요. 가져오면 그 달 기록이 파일 내용으로 바뀌어요. "
+            + "앱 내용을 그대로 두려면 ‘나중에’를 누르고, 설정 → 저장 폴더의 동기화에서 맞춰주세요."
     }
 
     @MainActor
