@@ -12,6 +12,35 @@ struct DetectedChange: Equatable, Identifiable {
     var id: String { monthKey }
 }
 
+/// 파일 동기화 화면에서 보여줄 월별 상태.
+struct MonthSyncStatus: Identifiable, Equatable {
+    enum State: Equatable {
+        case synced            // 앱·파일 일치
+        case externalModified  // 앱·파일 둘 다 있는데 파일이 다름
+        case fileOnly          // 파일에만 있음 (앱으로 가져오기 후보)
+        case appOnly           // 앱에만 있음 (파일로 내보내기 후보)
+        case notReady          // iCloud 다운로드 중
+    }
+
+    let monthKey: String
+    let state: State
+    var id: String { monthKey }
+
+    var allowsImport: Bool {
+        switch state {
+        case .synced, .externalModified, .fileOnly: true
+        case .appOnly, .notReady: false
+        }
+    }
+
+    var allowsExport: Bool {
+        switch state {
+        case .synced, .externalModified, .appOnly: true
+        case .fileOnly, .notReady: false
+        }
+    }
+}
+
 /// 월별 CSV 파일과 SwiftData(`SavedEntry`) 사이의 양방향 동기화를 오케스트레이션한다.
 ///
 /// CSV 행에는 안정적 ID가 없으므로 동기화 단위는 **월 단위 통째 교체**다.
@@ -81,6 +110,53 @@ struct SyncCoordinator {
             }
             return changes.sorted { $0.monthKey > $1.monthKey }
         }) ?? []
+    }
+
+    /// 파일 동기화 화면용 — 앱에 있는 달 ∪ 폴더에 있는 달 각각의 동기화 상태.
+    func monthStatuses(in context: ModelContext) -> [MonthSyncStatus] {
+        (try? withFolder(in: context) { folderURL, ctx in
+            let states = fileStatesByName(in: ctx)
+            let allSaved = (try? ctx.fetch(FetchDescriptor<SavedEntry>())) ?? []
+            let appMonths = Set(allSaved.map { CSVWriter.monthKey(for: $0.date) })
+            let files = monthCSVFiles(in: folderURL)
+            let urlByKey = Dictionary(files.map { ($0.key, $0.url) }) { first, _ in first }
+
+            let allKeys = appMonths.union(files.map(\.key))
+            return allKeys
+                .map { key in
+                    MonthSyncStatus(
+                        monthKey: key,
+                        state: monthState(
+                            key: key,
+                            url: urlByKey[key],
+                            hasApp: appMonths.contains(key),
+                            states: states
+                        )
+                    )
+                }
+                .sorted { $0.monthKey > $1.monthKey }
+        }) ?? []
+    }
+
+    private func monthState(
+        key: String,
+        url: URL?,
+        hasApp: Bool,
+        states: [String: CSVFileState]
+    ) -> MonthSyncStatus.State {
+        guard let url else { return .appOnly } // 파일 없음 + 앱에만 있음
+        switch FileFingerprint.read(at: url) {
+        case .notDownloaded:
+            return .notReady
+        case .missing:
+            return hasApp ? .appOnly : .fileOnly
+        case .ready(let content):
+            let stateHash = states[CSVWriter.filename(forMonthKey: key)]?.lastSyncedHash
+            if stateHash == content.hash {
+                return hasApp ? .synced : .fileOnly
+            }
+            return hasApp ? .externalModified : .fileOnly
+        }
     }
 
     // MARK: - 기존 사용자 마이그레이션

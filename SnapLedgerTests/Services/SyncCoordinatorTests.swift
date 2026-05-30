@@ -204,4 +204,47 @@ struct SyncCoordinatorTests {
         #expect(saved.first?.note == "라떼")
         #expect(saved.first?.amount == 4200)
     }
+
+    @Test func monthStatusesReflectsEachState() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+
+        // 2026-05: 앱 저장 후 export → 일치
+        insertEntry(context, day: 1, amount: 100, merchant: "S")
+        try context.save()
+        try sync.exportAll(in: context)
+
+        // 2026-06: 파일만 존재 → baseline으로 흡수
+        try writeCSV(
+            dir, "expenses-2026-06.csv",
+            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-06-01,F,,200,\n"
+        )
+        sync.establishBaselineIfNeeded(in: context)
+
+        // 2026-07: 앱에만 (파일 없음)
+        context.insert(
+            SavedEntry(
+                date: makeDate(year: 2026, month: 7, day: 1),
+                amount: 300,
+                merchant: "A",
+                csvFile: "expenses-2026-07.csv"
+            )
+        )
+        try context.save()
+
+        // 2026-05 파일을 외부에서 변경
+        try writeCSV(
+            dir, "expenses-2026-05.csv",
+            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-01,S,,9999,\n"
+        )
+
+        let byKey = Dictionary(
+            uniqueKeysWithValues: sync.monthStatuses(in: context).map { ($0.monthKey, $0.state) }
+        )
+        #expect(byKey["2026-05"] == .externalModified)
+        #expect(byKey["2026-06"] == .fileOnly)
+        #expect(byKey["2026-07"] == .appOnly)
+    }
 }
