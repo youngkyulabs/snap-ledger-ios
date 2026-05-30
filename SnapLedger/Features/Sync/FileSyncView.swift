@@ -111,8 +111,6 @@ struct FileSyncView: View {
                         .disabled(status.state == .notReady)
                     }
                 }
-            } header: {
-                Text("월별")
             } footer: {
                 Text("달을 눌러 그 달의 앱 기록과 파일 내용을 맞춰요. "
                     + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요.")
