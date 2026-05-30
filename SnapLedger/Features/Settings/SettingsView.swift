@@ -94,48 +94,45 @@ struct SettingsView: View {
 
     private var csvFolderSection: some View {
         Section {
-            Button {
-                showingPicker = true
-            } label: {
-                LabeledContent {
-                    Text(currentFolderName() ?? "선택 안 됨")
-                        .foregroundStyle(currentFolderName() == nil ? .secondary : .primary)
+            if let folderName = currentFolderName() {
+                NavigationLink {
+                    FileSyncView()
                 } label: {
-                    Label("저장 폴더", systemImage: "folder.fill")
+                    LabeledContent {
+                        folderStatusIcon
+                    } label: {
+                        Label(folderName, systemImage: "folder.fill")
+                            .foregroundStyle(.primary)
+                    }
+                }
+            } else {
+                Button {
+                    showingPicker = true
+                } label: {
+                    Label("폴더 선택", systemImage: "folder.badge.plus")
                         .foregroundStyle(.primary)
                 }
             }
-            if settings.csvFolderBookmark != nil {
-                syncStatusRow
-            }
+        } header: {
+            Text("저장 폴더")
         } footer: {
-            Text("월별 CSV 파일이 이 폴더에 저장돼요.")
+            Text("월별 CSV 파일이 이 폴더에 저장돼요. 폴더 이름을 누르면 동기화 상태를 볼 수 있어요.")
         }
     }
 
     @ViewBuilder
-    private var syncStatusRow: some View {
+    private var folderStatusIcon: some View {
         switch syncSummary {
         case .empty:
             EmptyView()
         case .synced:
-            LabeledContent {
-                Label("동기화됨", systemImage: "checkmark.circle.fill")
-                    .labelStyle(.titleAndIcon)
-                    .font(.subheadline)
-                    .foregroundStyle(.green)
-            } label: {
-                Label("폴더 상태", systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.primary)
-            }
-        case .needsSync(let count):
-            NavigationLink {
-                FileSyncView()
-            } label: {
-                Label("폴더 상태", systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.primary)
-            }
-            .badge(count)
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityLabel("동기화됨")
+        case .needsSync:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .accessibilityLabel("맞출 변경 사항 있음")
         }
     }
 

@@ -9,6 +9,8 @@ struct FileSyncView: View {
     @State private var statuses: [MonthSyncStatus] = []
     @State private var prompt: SyncPrompt?
     @State private var resultMessage: String?
+    @State private var showingPicker = false
+    @State private var folderError: String?
 
     private enum SyncPrompt: Identifiable {
         case month(MonthSyncStatus)
@@ -39,13 +41,16 @@ struct FileSyncView: View {
         .navigationTitle("폴더 상태")
         .navigationBarTitleDisplayMode(.inline)
         .task { reload() }
-        .confirmationDialog(
-            "파일 동기화",
+        .sheet(isPresented: $showingPicker) {
+            FolderPicker(onPick: handlePickedFolder)
+                .ignoresSafeArea()
+        }
+        .alert(
+            "동기화",
             isPresented: Binding(
                 get: { prompt != nil },
                 set: { if !$0 { prompt = nil } }
             ),
-            titleVisibility: .visible,
             presenting: prompt
         ) { prompt in
             dialogActions(for: prompt)
@@ -61,6 +66,18 @@ struct FileSyncView: View {
             presenting: resultMessage
         ) { _ in
             Button("확인", role: .cancel) { resultMessage = nil }
+        } message: { message in
+            Text(message)
+        }
+        .alert(
+            "폴더 변경 실패",
+            isPresented: Binding(
+                get: { folderError != nil },
+                set: { if !$0 { folderError = nil } }
+            ),
+            presenting: folderError
+        ) { _ in
+            Button("확인", role: .cancel) { folderError = nil }
         } message: { message in
             Text(message)
         }
@@ -83,12 +100,38 @@ struct FileSyncView: View {
                         .disabled(status.state == .notReady)
                     }
                 }
+            } header: {
+                Text("월별")
             } footer: {
                 Text("달을 눌러 그 달의 앱 기록과 파일 내용을 맞춰요. "
                     + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요.")
             }
+
+            Section {
+                Button {
+                    showingPicker = true
+                } label: {
+                    Label("폴더 변경", systemImage: "folder.badge.gearshape")
+                        .foregroundStyle(.primary)
+                }
+            } footer: {
+                Text("다른 폴더를 고르면 그 폴더의 CSV를 기준으로 다시 맞춰요. 현재 앱 기록은 그대로 남아요.")
+            }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
+    }
+
+    private func handlePickedFolder(_ url: URL) {
+        guard let settings = settingsList.first else { return }
+        do {
+            try FolderBookmarkHelper.apply(url: url, to: settings, context: modelContext)
+            // 폴더가 바뀌면 이전 폴더 기준 지문이 무의미하므로 동기화 상태를 리셋한다.
+            SyncCoordinator().resetSyncState(in: modelContext)
+            folderError = nil
+            reload()
+        } catch {
+            folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
+        }
     }
 
     @ViewBuilder
