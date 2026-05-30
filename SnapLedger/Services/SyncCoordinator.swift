@@ -39,6 +39,15 @@ struct MonthSyncStatus: Identifiable, Equatable {
         case .fileOnly, .notReady: false
         }
     }
+
+    /// 맞출 차이가 있어 사용자 액션이 의미 있는 상태인지.
+    /// 최신(`synced`)·다운로드 중(`notReady`)은 맞출 게 없으므로 false.
+    var needsResolution: Bool {
+        switch state {
+        case .externalModified, .fileOnly, .appOnly: true
+        case .synced, .notReady: false
+        }
+    }
 }
 
 /// 저장 폴더 섹션에 요약해 보여줄 전체 동기화 상태.

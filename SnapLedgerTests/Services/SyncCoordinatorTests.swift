@@ -273,6 +273,19 @@ struct SyncCoordinatorTests {
         #expect(byKey["2026-07"] == .appOnly)
     }
 
+    @Test func needsResolutionOnlyForDifferences() {
+        func status(_ state: MonthSyncStatus.State) -> MonthSyncStatus {
+            MonthSyncStatus(monthKey: "2026-05", state: state)
+        }
+        // 맞출 게 없는 상태 — 폴더 상태 화면에서 탭 액션을 주지 않는다.
+        #expect(status(.synced).needsResolution == false)
+        #expect(status(.notReady).needsResolution == false)
+        // 차이가 있는 상태 — 가져오기/저장 액션이 의미 있다.
+        #expect(status(.externalModified).needsResolution == true)
+        #expect(status(.fileOnly).needsResolution == true)
+        #expect(status(.appOnly).needsResolution == true)
+    }
+
     @Test func folderSyncSummaryEmptyWhenNoData() async throws {
         let dir = makeTempDir()
         let context = try makeContext()

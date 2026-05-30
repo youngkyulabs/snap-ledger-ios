@@ -102,17 +102,21 @@ struct FileSyncView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(statuses) { status in
-                        Button {
-                            prompt = .month(status)
-                        } label: {
+                        if status.needsResolution {
+                            Button {
+                                prompt = .month(status)
+                            } label: {
+                                MonthSyncRow(label: monthLabel(status.monthKey), state: status.state)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            // 최신·내려받는 중 — 맞출 게 없어 상태만 표시 (탭 액션 없음)
                             MonthSyncRow(label: monthLabel(status.monthKey), state: status.state)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(status.state == .notReady)
                     }
                 }
             } footer: {
-                Text("달을 눌러 그 달의 앱 기록과 파일 내용을 맞춰요. "
+                Text("차이가 있는 달을 눌러 그 달의 앱 기록과 파일 내용을 맞춰요. "
                     + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요.")
             }
 
@@ -170,7 +174,7 @@ struct FileSyncView: View {
 
     private func monthMessage(for state: MonthSyncStatus.State) -> String {
         switch state {
-        case .synced: "앱과 파일 내용이 같아요. 그래도 다시 맞출 수 있어요."
+        case .synced: "앱과 파일 내용이 같아요."
         case .externalModified: "이 달 파일이 앱 밖에서 바뀌었어요. 어느 쪽 내용으로 맞출까요?"
         case .fileOnly: "이 달은 파일에만 있어요. 앱으로 가져올 수 있어요."
         case .appOnly: "이 달은 앱에만 있어요. 파일로 저장할 수 있어요."
