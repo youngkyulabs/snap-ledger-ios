@@ -175,11 +175,16 @@ struct SettingsView: View {
 
     @MainActor
     private func refreshSyncSummary() async {
-        guard settings.csvFolderBookmark != nil else {
-            syncSummary = .empty
-            return
+        let newSummary: FolderSyncSummary
+        if settings.csvFolderBookmark == nil {
+            newSummary = .empty
+        } else {
+            newSummary = await SyncCoordinator().folderSyncSummary(in: modelContext)
         }
-        syncSummary = await SyncCoordinator().folderSyncSummary(in: modelContext)
+        // 상태 아이콘 등장/변경, 행 전환(링크↔피커 버튼)을 부드럽게.
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            syncSummary = newSummary
+        }
     }
 
     private var reminderSection: some View {
