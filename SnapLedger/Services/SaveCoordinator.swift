@@ -18,9 +18,9 @@ struct SaveCoordinator {
             case .noCSVFolder: "CSV 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 골라주세요."
             case .bookmarkResolveFailed(let err): "폴더 권한을 복구하지 못했어요: \(err.localizedDescription)"
             case .externalConflict(let months):
-                "\(months.joined(separator: ", ")) 파일이 앱 밖에서 변경됐어요. 먼저 가져오거나 덮어쓸지 선택해 주세요."
+                "\(CSVWriter.monthLabels(months)) 파일이 앱 밖에서 변경됐어요. 먼저 가져오거나 덮어쓸지 선택해 주세요."
             case .fileNotReady(let months):
-                "\(months.joined(separator: ", ")) 파일을 아직 받아오는 중이에요. 잠시 후 다시 시도해 주세요."
+                "\(CSVWriter.monthLabels(months)) 파일을 아직 받아오는 중이에요. 잠시 후 다시 시도해 주세요."
             case .folderUnavailable:
                 "저장 폴더를 찾을 수 없어요. 폴더가 삭제됐거나 이동했을 수 있어요. 설정 → 저장 폴더에서 다시 선택해 주세요."
             }

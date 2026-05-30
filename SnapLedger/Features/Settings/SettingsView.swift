@@ -55,7 +55,7 @@ struct SettingsView: View {
             .task { await refreshSyncSummary() }
             .onChange(of: syncSignal) { _, _ in Task { await refreshSyncSummary() } }
             .alert(
-                "폴더 등록 실패",
+                "폴더 변경 실패",
                 isPresented: Binding(
                     get: { folderError != nil },
                     set: { if !$0 { folderError = nil } }

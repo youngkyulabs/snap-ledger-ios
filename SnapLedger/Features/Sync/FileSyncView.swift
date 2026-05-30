@@ -57,7 +57,7 @@ struct FileSyncView: View {
                 .ignoresSafeArea()
         }
         .alert(
-            "동기화",
+            "파일 동기화",
             isPresented: Binding(
                 get: { prompt != nil },
                 set: { if !$0 { prompt = nil } }
@@ -202,11 +202,7 @@ struct FileSyncView: View {
     }
 
     private func monthLabel(_ key: String) -> String {
-        let parts = key.split(separator: "-")
-        guard parts.count == 2, let year = Int(parts[0]), let month = Int(parts[1]) else {
-            return key
-        }
-        return "\(year)년 \(month)월"
+        CSVWriter.monthLabel(forMonthKey: key)
     }
 }
 

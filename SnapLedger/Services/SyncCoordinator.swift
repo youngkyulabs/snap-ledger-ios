@@ -83,18 +83,23 @@ struct SyncCoordinator {
 
         /// 사용자에게 보여줄 결과 요약 문구.
         var userMessage: String {
-            var parts = ["\(importedMonths.count)개월, \(totalRows)건을 가져왔어요."]
+            var parts: [String] = []
+            if importedMonths.isEmpty {
+                parts.append("가져온 내용이 없어요.")
+            } else {
+                parts.append("\(CSVWriter.monthLabels(importedMonths)) \(totalRows)건을 가져왔어요.")
+            }
             if skippedRows > 0 {
                 parts.append("형식이 맞지 않는 \(skippedRows)줄은 건너뛰었어요.")
             }
             if !notReadyMonths.isEmpty {
                 parts.append(
-                    "\(notReadyMonths.joined(separator: ", "))은(는) 아직 내려받는 중이라 잠시 후 다시 시도해 주세요."
+                    "아직 내려받는 중이라 건너뛴 달이 있어요: \(CSVWriter.monthLabels(notReadyMonths)). 잠시 후 다시 시도해 주세요."
                 )
             }
             if !unreadableMonths.isEmpty {
                 parts.append(
-                    "\(unreadableMonths.joined(separator: ", "))은(는) 파일을 읽지 못해 건너뛰었어요."
+                    "파일을 읽지 못해 건너뛴 달이 있어요: \(CSVWriter.monthLabels(unreadableMonths))."
                 )
             }
             return parts.joined(separator: " ")

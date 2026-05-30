@@ -100,9 +100,9 @@ struct ContentView: View {
     }
 
     private var detectedChangesMessage: String {
-        let months = detectedChanges.map(\.monthKey).joined(separator: ", ")
+        let months = CSVWriter.monthLabels(detectedChanges.map(\.monthKey))
         return "\(months) 파일이 앱 밖에서 바뀌었어요. 가져오면 그 달 기록이 파일 내용으로 바뀌어요. "
-            + "앱 내용을 그대로 두려면 ‘나중에’를 누르고, 설정 → 저장 폴더의 동기화에서 맞춰주세요."
+            + "앱 내용을 그대로 두려면 ‘나중에’를 누르고, 설정 → 저장 폴더 → 폴더 상태에서 맞춰주세요."
     }
 
     @MainActor

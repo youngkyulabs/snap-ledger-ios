@@ -77,7 +77,7 @@ private struct SyncConflictAlertModifier: ViewModifier {
     }
 
     private func dialogMessage(for conflict: SyncConflict) -> String {
-        let months = conflict.months.joined(separator: ", ")
+        let months = CSVWriter.monthLabels(conflict.months)
         if conflict.importDiscardsEdit {
             return "\(months) 파일이 앱 밖에서 바뀌었어요. ‘파일 내용으로 맞추기’를 누르면 "
                 + "이번 변경은 취소되고 파일 내용으로 맞춰져요."
