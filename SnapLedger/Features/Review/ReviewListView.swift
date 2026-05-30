@@ -29,6 +29,10 @@ struct ReviewListView: View {
     @State private var isDropTargeted = false
     @State private var pendingToDelete: ParsedEntry?
     @State private var swipeError: String?
+    // 실패 이미지 시트/얼럿은 안정적인 NavigationStack 레벨에서 띄운다.
+    // Section 에 직접 붙이면 첫 표시에서 바로 닫히는 문제가 있다.
+    @State private var failedManual: FailedManualContext?
+    @State private var retryUnavailable = false
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -69,9 +73,13 @@ struct ReviewListView: View {
                             }
                         }
                         if !failedPending.isEmpty {
-                            Section {
-                                failedPendingRow
-                            }
+                            FailedImagesSection(
+                                failed: failedPending,
+                                onSelect: startFailedManualEntry,
+                                onDelete: deleteFailedPending,
+                                onRetry: { pending in Task { await retryFailed(pending) } },
+                                onClearAll: clearFailedPending
+                            )
                         }
                         if !pendingEntries.isEmpty {
                             Section {
@@ -136,6 +144,11 @@ struct ReviewListView: View {
         }
         .sheet(item: $manualEntry) { entry in
             EntryEditorView(entry: entry, insertOnSave: true)
+        }
+        .sheet(item: $failedManual) { context in
+            EntryEditorView(entry: context.entry, insertOnSave: true) {
+                deleteFailedPending(context.pending)
+            }
         }
         .photosPicker(
             isPresented: $isPhotoPickerPresented,
@@ -203,6 +216,14 @@ struct ReviewListView: View {
             Button("확인", role: .cancel) { swipeError = nil }
         } message: { message in
             Text(message)
+        }
+        .alert(
+            "지금은 다시 시도할 수 없어요",
+            isPresented: $retryUnavailable
+        ) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text(aiStatus.reviewTabMessage)
         }
     }
 
@@ -303,42 +324,6 @@ struct ReviewListView: View {
                 .contentTransition(.numericText())
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private var failedPendingRow: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.circle.fill")
-                .font(.title3)
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("자동 처리되지 않은 이미지 \(failedPending.count)건")
-                    .font(.subheadline.weight(.semibold))
-                    .contentTransition(.numericText())
-                Text("결제 정보를 찾지 못한 이미지예요. 영수증·결제 알림 스크린샷이 맞는지 확인해 주세요.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            Button("정리") {
-                withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
-                    clearFailedPending()
-                }
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-        }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func clearFailedPending() {
-        for pending in failedPending {
-            let url = AppGroup.inboxURL.appendingPathComponent(pending.filename)
-            try? FileManager.default.removeItem(at: url)
-            modelContext.delete(pending)
-        }
-        try? modelContext.save()
     }
 
     private func handleSwipeSave(entry: ParsedEntry) {
@@ -453,6 +438,44 @@ extension ReviewListView {
     @MainActor
     fileprivate func drain() async {
         await PendingProcessor.make(in: modelContext).drain(in: modelContext)
+    }
+
+    fileprivate func startFailedManualEntry(_ pending: PendingImage) {
+        failedManual = FailedManualContext(
+            pending: pending,
+            entry: ParsedEntry(
+                date: .now,
+                amount: 0,
+                merchant: "",
+                sourceImagePath: pending.filename,
+                confidence: 1.0
+            )
+        )
+    }
+
+    fileprivate func deleteFailedPending(_ pending: PendingImage) {
+        let url = AppGroup.inboxURL.appendingPathComponent(pending.filename)
+        try? FileManager.default.removeItem(at: url)
+        modelContext.delete(pending)
+        try? modelContext.save()
+    }
+
+    fileprivate func clearFailedPending() {
+        for pending in failedPending {
+            deleteFailedPending(pending)
+        }
+    }
+
+    @MainActor
+    fileprivate func retryFailed(_ pending: PendingImage) async {
+        guard isFMAvailable else {
+            retryUnavailable = true
+            return
+        }
+        pending.state = .queued
+        pending.failureMessage = nil
+        try? modelContext.save()
+        await drain()
     }
 }
 

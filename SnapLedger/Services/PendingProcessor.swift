@@ -39,6 +39,38 @@ struct PendingProcessor {
         for pending in all where pending.state == .queued {
             await process(pending, in: context)
         }
+        cleanupResolvedImages(in: context)
+    }
+
+    /// 검토가 끝난 이미지를 회수한다. pending 상태의 ParsedEntry 가 더는 참조하지
+    /// 않는 `.done` 이미지의 inbox 파일과 PendingImage row 를 삭제. 검토 중이거나
+    /// 실패/대기 중인 이미지는 보관한다. (한 이미지가 여러 거래로 쪼개진 경우
+    /// 참조가 하나라도 남아 있으면 보관됨.)
+    func cleanupResolvedImages(in context: ModelContext) {
+        let parsedEntries: [ParsedEntry]
+        let dones: [PendingImage]
+        do {
+            parsedEntries = try context.fetch(FetchDescriptor<ParsedEntry>())
+            dones = try context.fetch(FetchDescriptor<PendingImage>()).filter { $0.state == .done }
+        } catch {
+            log.error("cleanup fetch failed: \(String(describing: error))")
+            return
+        }
+        let referenced = Set(
+            parsedEntries
+                .filter { $0.status == .pending }
+                .compactMap(\.sourceImagePath)
+        )
+        var changed = false
+        for done in dones where !referenced.contains(done.filename) {
+            let url = inboxURL.appendingPathComponent(done.filename)
+            try? FileManager.default.removeItem(at: url)
+            context.delete(done)
+            changed = true
+        }
+        if changed {
+            try? context.save()
+        }
     }
 
     func reconcileInbox(in context: ModelContext) {
@@ -77,15 +109,10 @@ struct PendingProcessor {
         try? context.save()
 
         let imageURL = inboxURL.appendingPathComponent(pending.filename)
-        // 실패한 이미지는 사용자가 나중에 확인할 수 있도록 보관한다.
-        // success 일 때만 inbox 파일을 삭제.
-        var keepImageFile = false
-        defer {
-            if !keepImageFile {
-                try? FileManager.default.removeItem(at: imageURL)
-            }
-        }
-
+        // 원본 이미지는 검토가 끝날 때까지 보관한다 — 검토 편집 화면에서 영수증·결제
+        // 화면을 보면서 값을 고칠 수 있게. 검토 항목이 모두 저장/삭제되면
+        // cleanupResolvedImages 가 파일과 .done row 를 회수한다. (실패 이미지는
+        // 사용자가 검토 탭에서 직접 정리할 때까지 그대로 보관.)
         do {
             let ocrText = try await ocrService.recognize(imageURL: imageURL)
             // 풍경 등 결제 신호가 전혀 없는 이미지는 LLM에 보내지 않고
@@ -104,7 +131,6 @@ struct PendingProcessor {
                 // 카운트로만 노출한다.
                 pending.state = .failed
                 pending.failureMessage = Self.noPaymentSignalReason
-                keepImageFile = true
                 try context.save()
                 return
             }
@@ -119,12 +145,18 @@ struct PendingProcessor {
         } catch {
             pending.state = .failed
             pending.failureMessage = String(describing: error)
-            keepImageFile = true
             try? context.save()
         }
     }
 
-    static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요."
+    nonisolated static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요."
+
+    /// 실패한 이미지를 다시 시도할 가치가 있는지 판단한다.
+    /// 결제 신호 없음(`noPaymentSignalReason`)은 OCR→휴리스틱이 결정적이라 재시도해도
+    /// 같은 결과가 나오므로 false. 그 외(OCR/FM 에러 등)는 일시적일 수 있어 재시도 허용.
+    nonisolated static func isRetryable(failureMessage: String?) -> Bool {
+        failureMessage != noPaymentSignalReason
+    }
 
     func makeEntries(
         from enriched: [EnrichedTransaction],
