@@ -1,8 +1,8 @@
 import SwiftData
 import SwiftUI
 
-/// 파일 동기화 화면 (설정 → 저장 폴더의 동기화 항목에서 진입). 월별 상태를
-/// 보여주고 각 월 또는 전체를 한 방향(파일→앱 / 앱→파일)으로 맞춘다.
+/// 폴더 상태 화면 (설정 → 저장 폴더의 "폴더 상태"에서 진입). 월별 동기화
+/// 상태를 보여주고 각 달을 한 방향(파일→앱 / 앱→파일)으로 맞춘다.
 struct FileSyncView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var settingsList: [AppSettings]
@@ -12,14 +12,10 @@ struct FileSyncView: View {
 
     private enum SyncPrompt: Identifiable {
         case month(MonthSyncStatus)
-        case exportAll
-        case importAll
 
         var id: String {
             switch self {
             case .month(let status): "month-\(status.monthKey)"
-            case .exportAll: "export-all"
-            case .importAll: "import-all"
             }
         }
     }
@@ -40,7 +36,7 @@ struct FileSyncView: View {
                 )
             }
         }
-        .navigationTitle("파일 동기화")
+        .navigationTitle("폴더 상태")
         .navigationBarTitleDisplayMode(.inline)
         .task { reload() }
         .confirmationDialog(
@@ -73,23 +69,6 @@ struct FileSyncView: View {
     private var listContent: some View {
         List {
             Section {
-                Button {
-                    prompt = .importAll
-                } label: {
-                    Label("파일에서 전체 가져오기", systemImage: "arrow.down.doc")
-                        .foregroundStyle(.primary)
-                }
-                Button {
-                    prompt = .exportAll
-                } label: {
-                    Label("앱 내용으로 전체 저장", systemImage: "arrow.up.doc")
-                        .foregroundStyle(.primary)
-                }
-            } footer: {
-                Text("‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요. 달을 눌러 그 달만 맞출 수도 있어요.")
-            }
-
-            Section("월별") {
                 if statuses.isEmpty {
                     Text("맞출 달이 없어요.")
                         .foregroundStyle(.secondary)
@@ -104,6 +83,9 @@ struct FileSyncView: View {
                         .disabled(status.state == .notReady)
                     }
                 }
+            } footer: {
+                Text("달을 눌러 그 달의 앱 기록과 파일 내용을 맞춰요. "
+                    + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요.")
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
@@ -124,12 +106,6 @@ struct FileSyncView: View {
                 }
             }
             Button("취소", role: .cancel) { self.prompt = nil }
-        case .exportAll:
-            Button("전체 저장", role: .destructive) { runBulk(importingFromFile: false) }
-            Button("취소", role: .cancel) { self.prompt = nil }
-        case .importAll:
-            Button("전체 가져오기", role: .destructive) { runBulk(importingFromFile: true) }
-            Button("취소", role: .cancel) { self.prompt = nil }
         }
     }
 
@@ -137,10 +113,6 @@ struct FileSyncView: View {
         switch prompt {
         case .month(let status):
             "\(monthLabel(status.monthKey)) — \(monthMessage(for: status.state))"
-        case .exportAll:
-            "앱의 모든 기록으로 폴더의 CSV를 다시 써요. 파일에만 있던 변경은 사라져요."
-        case .importAll:
-            "폴더의 모든 CSV 내용으로 앱 기록을 바꿔요. 앱에만 있던 변경은 사라져요."
         }
     }
 
@@ -168,23 +140,6 @@ struct FileSyncView: View {
             } else {
                 try sync.exportMonths([monthKey], in: modelContext)
                 resultMessage = "\(monthLabel(monthKey)) 파일을 앱 내용으로 저장했어요."
-            }
-        } catch {
-            resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        }
-        reload()
-    }
-
-    private func runBulk(importingFromFile: Bool) {
-        prompt = nil
-        let sync = SyncCoordinator()
-        do {
-            if importingFromFile {
-                let summary = try sync.importAll(in: modelContext)
-                resultMessage = summary.userMessage
-            } else {
-                try sync.exportAll(in: modelContext)
-                resultMessage = "앱 내용으로 모든 파일을 저장했어요."
             }
         } catch {
             resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

@@ -125,14 +125,14 @@ struct SettingsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.green)
             } label: {
-                Label("파일 동기화", systemImage: "arrow.triangle.2.circlepath")
+                Label("폴더 상태", systemImage: "arrow.triangle.2.circlepath")
                     .foregroundStyle(.primary)
             }
         case .needsSync(let count):
             NavigationLink {
                 FileSyncView()
             } label: {
-                Label("동기화", systemImage: "arrow.triangle.2.circlepath")
+                Label("폴더 상태", systemImage: "arrow.triangle.2.circlepath")
                     .foregroundStyle(.primary)
             }
             .badge(count)
