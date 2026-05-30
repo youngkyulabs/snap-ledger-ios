@@ -96,27 +96,39 @@ struct SettingsView: View {
         Section {
             // 폴더 설정 여부는 북마크 존재로 판단한다. 폴더가 삭제/이동돼 이름을
             // resolve하지 못해도 "폴더 미설정"으로 떨어지지 않게(=폴더 없음 경고 유지).
-            if hasFolder {
-                NavigationLink {
-                    FileSyncView()
-                } label: {
-                    LabeledContent {
-                        folderStatusIcon
-                    } label: {
-                        Label(currentFolderName() ?? "저장 폴더", systemImage: folderRowIcon)
-                    }
-                }
-            } else {
+            if !hasFolder {
                 Button {
                     showingPicker = true
                 } label: {
                     Label("폴더 선택", systemImage: "folder.badge.plus")
+                }
+            } else if syncSummary == .folderMissing {
+                // 폴더가 사라졌을 땐 폴더 상태 화면(어차피 "폴더 변경"뿐)을 거치지 않고
+                // 행을 누르면 바로 피커를 연다.
+                Button {
+                    showingPicker = true
+                } label: {
+                    folderRowLabel.foregroundStyle(.primary)
+                }
+            } else {
+                NavigationLink {
+                    FileSyncView()
+                } label: {
+                    folderRowLabel
                 }
             }
         } header: {
             Text("저장 폴더")
         } footer: {
             Text(folderFooterText)
+        }
+    }
+
+    private var folderRowLabel: some View {
+        LabeledContent {
+            folderStatusIcon
+        } label: {
+            Label(currentFolderName() ?? "저장 폴더", systemImage: folderRowIcon)
         }
     }
 
