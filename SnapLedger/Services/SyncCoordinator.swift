@@ -197,7 +197,7 @@ struct SyncCoordinator {
     /// 저장 폴더에 실제 접근 가능한지. bookmark는 있으나 폴더가 삭제/이동된 경우 false.
     /// 폴더 미설정이면 nil.
     func isFolderReachable(in context: ModelContext) -> Bool? {
-        guard let settings = try? fetchOrCreateSettings(in: context),
+        guard let settings = try? CSVFolderAccess.fetchOrCreateSettings(in: context),
               let bookmark = settings.csvFolderBookmark else {
             return nil
         }
@@ -237,7 +237,7 @@ struct SyncCoordinator {
     /// 동기화 기능 도입 전부터 있던 파일들을 "외부 새 파일"로 오인하지 않도록
     /// 현재 지문을 baseline으로 한 번 기록한다. 이미 했으면 아무것도 안 한다.
     func establishBaselineIfNeeded(in context: ModelContext) {
-        let settings = try? fetchOrCreateSettings(in: context)
+        let settings = try? CSVFolderAccess.fetchOrCreateSettings(in: context)
         guard let settings, !settings.hasSyncBaseline else { return }
         do {
             try withFolder(in: context) { folderURL, ctx in
@@ -395,7 +395,7 @@ struct SyncCoordinator {
     func resetSyncState(in context: ModelContext) {
         let states = (try? context.fetch(FetchDescriptor<CSVFileState>())) ?? []
         for state in states { context.delete(state) }
-        if let settings = try? fetchOrCreateSettings(in: context) {
+        if let settings = try? CSVFolderAccess.fetchOrCreateSettings(in: context) {
             settings.hasSyncBaseline = false
         }
         try? context.save()
@@ -495,76 +495,37 @@ extension SyncCoordinator {
         return mid
     }
 
+    /// 폴더 접근(resolve·scope·도달성·stale 갱신)은 `CSVFolderAccess`에 위임하고,
+    /// 그 중립 에러를 사용자 노출용 `SyncError`로 매핑한다.
     private func withFolder<T>(
         in context: ModelContext,
         _ body: (URL, ModelContext) throws -> T
     ) throws -> T {
-        let settings = try fetchOrCreateSettings(in: context)
-        guard let bookmark = settings.csvFolderBookmark else {
-            throw SyncError.noCSVFolder
-        }
-        let resolved: (url: URL, isStale: Bool)
         do {
-            resolved = try BookmarkStore.resolve(bookmark)
-        } catch {
-            throw SyncError.bookmarkResolveFailed(underlying: error)
+            return try CSVFolderAccess.withFolder(in: context) { folderURL in
+                try body(folderURL, context)
+            }
+        } catch let error as CSVFolderAccess.AccessError {
+            throw Self.map(error)
         }
-        let folderURL = resolved.url
-        let didStart = folderURL.startAccessingSecurityScopedResource()
-        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
-
-        guard BookmarkStore.isReachableDirectory(folderURL) else {
-            throw SyncError.folderUnavailable
-        }
-
-        let result = try body(folderURL, context)
-
-        if resolved.isStale, let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
-            settings.csvFolderBookmark = refreshed
-            try? context.save()
-        }
-        return result
     }
 
-    /// `withFolder`의 async 버전. body 안에서 `await`(예: 백그라운드 파일 스캔)할 수 있다.
-    /// security-scoped 접근은 프로세스 전역이라 await 동안에도 유지된다 (defer로 종료).
     private func withFolderAsync<T>(
         in context: ModelContext,
         _ body: (URL) async throws -> T
     ) async throws -> T {
-        let settings = try fetchOrCreateSettings(in: context)
-        guard let bookmark = settings.csvFolderBookmark else {
-            throw SyncError.noCSVFolder
-        }
-        let resolved: (url: URL, isStale: Bool)
         do {
-            resolved = try BookmarkStore.resolve(bookmark)
-        } catch {
-            throw SyncError.bookmarkResolveFailed(underlying: error)
+            return try await CSVFolderAccess.withFolderAsync(in: context, body)
+        } catch let error as CSVFolderAccess.AccessError {
+            throw Self.map(error)
         }
-        let folderURL = resolved.url
-        let didStart = folderURL.startAccessingSecurityScopedResource()
-        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
-
-        guard BookmarkStore.isReachableDirectory(folderURL) else {
-            throw SyncError.folderUnavailable
-        }
-
-        let result = try await body(folderURL)
-
-        if resolved.isStale, let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
-            settings.csvFolderBookmark = refreshed
-            try? context.save()
-        }
-        return result
     }
 
-    private func fetchOrCreateSettings(in context: ModelContext) throws -> AppSettings {
-        let existing = try context.fetch(FetchDescriptor<AppSettings>())
-        if let first = existing.first { return first }
-        let new = AppSettings()
-        context.insert(new)
-        try context.save()
-        return new
+    private static func map(_ error: CSVFolderAccess.AccessError) -> SyncError {
+        switch error {
+        case .noCSVFolder: .noCSVFolder
+        case .bookmarkResolveFailed(let underlying): .bookmarkResolveFailed(underlying: underlying)
+        case .folderUnavailable: .folderUnavailable
+        }
     }
 }

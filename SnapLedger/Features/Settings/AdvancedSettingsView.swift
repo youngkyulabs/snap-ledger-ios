@@ -141,20 +141,6 @@ struct AdvancedSettingsView: View {
         }
     }
 
-    private var fileSyncSection: some View {
-        Section {
-            NavigationLink {
-                FileSyncView()
-            } label: {
-                Label("파일 동기화", systemImage: "arrow.triangle.2.circlepath")
-            }
-        } header: {
-            Text("파일 동기화")
-        } footer: {
-            Text("앱 기록과 폴더의 CSV를 월 단위로 맞춰요. 외부에서 파일을 직접 고쳤을 때 사용하세요.")
-        }
-    }
-
     private var extractionGuideBinding: Binding<String> {
         Binding(
             get: { settings.customExtractionGuide },

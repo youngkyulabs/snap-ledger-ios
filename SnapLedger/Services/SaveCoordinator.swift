@@ -1,6 +1,16 @@
 import Foundation
 import SwiftData
 
+/// 저장된 항목 편집 결과. 모델(`SavedEntry`)은 쓰기가 성공할 때만 바뀌도록,
+/// 편집 값을 먼저 이 값으로 넘기고 `update`가 가드 통과 후 대입한다.
+struct SavedEntryEdit: Equatable {
+    var date: Date
+    var merchant: String
+    var amount: Int
+    var category: String?
+    var note: String?
+}
+
 @MainActor
 struct SaveCoordinator {
     let categoryLearner: CategoryLearner
@@ -54,7 +64,7 @@ struct SaveCoordinator {
                     merchant: entry.merchant,
                     category: entry.category,
                     note: entry.note,
-                    csvFile: Self.csvFilename(for: entry.date)
+                    csvFile: CSVWriter.filename(forMonthKey: monthKey)
                 )
             )
 
@@ -66,20 +76,30 @@ struct SaveCoordinator {
         }
     }
 
+    /// 편집 값을 `edit`으로 받아, 충돌 가드를 통과한 뒤에만 `entry`에 대입한다.
+    /// 쓰기가 실패하면 `entry`는 더티로 남지 않아 앱↔파일이 어긋나지 않는다.
     func update(
         _ entry: SavedEntry,
-        originalDate: Date,
+        to edit: SavedEntryEdit,
         ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         try withFolder(in: context) { folderURL in
-            let newKey = CSVWriter.monthKey(for: entry.date)
-            let affectedKeys = Array(Set([CSVWriter.monthKey(for: originalDate), newKey]))
+            // entry는 아직 안 바꿨으므로 현재 date가 곧 원래 달.
+            let oldKey = CSVWriter.monthKey(for: entry.date)
+            let newKey = CSVWriter.monthKey(for: edit.date)
+            let affectedKeys = Array(Set([oldKey, newKey]))
 
             if !ignoringConflict {
                 try ensureNoConflict(monthKeys: affectedKeys, folderURL: folderURL, in: context)
             }
 
+            // 가드 통과 후에만 모델을 변경한다.
+            entry.date = edit.date
+            entry.merchant = edit.merchant
+            entry.amount = edit.amount
+            entry.category = edit.category
+            entry.note = edit.note
             entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
             try context.save()
 
@@ -112,38 +132,24 @@ struct SaveCoordinator {
         }
     }
 
-    /// settings 조회 → bookmark resolve → security scope 시작 → 폴더 존재 확인 →
-    /// body 실행 → stale bookmark 갱신을 한곳에서 처리한다. save/update/delete 공통.
+    /// 폴더 접근(resolve·scope·도달성·stale 갱신)은 `CSVFolderAccess`에 위임하고,
+    /// 그 중립 에러를 사용자 노출용 `CoordinatorError`로 매핑한다. save/update/delete 공통.
     private func withFolder(
         in context: ModelContext,
         _ body: (URL) throws -> Void
     ) throws {
-        let settings = try fetchOrCreateSettings(in: context)
-        guard let bookmark = settings.csvFolderBookmark else {
-            throw CoordinatorError.noCSVFolder
-        }
-
-        let resolved: (url: URL, isStale: Bool)
         do {
-            resolved = try BookmarkStore.resolve(bookmark)
-        } catch {
-            throw CoordinatorError.bookmarkResolveFailed(underlying: error)
+            try CSVFolderAccess.withFolder(in: context, body)
+        } catch let error as CSVFolderAccess.AccessError {
+            throw Self.map(error)
         }
-        let folderURL = resolved.url
+    }
 
-        let didStart = folderURL.startAccessingSecurityScopedResource()
-        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
-
-        guard BookmarkStore.isReachableDirectory(folderURL) else {
-            throw CoordinatorError.folderUnavailable
-        }
-
-        try body(folderURL)
-
-        if resolved.isStale,
-           let refreshed = try? BookmarkStore.makeBookmark(for: folderURL) {
-            settings.csvFolderBookmark = refreshed
-            try? context.save()
+    private static func map(_ error: CSVFolderAccess.AccessError) -> CoordinatorError {
+        switch error {
+        case .noCSVFolder: .noCSVFolder
+        case .bookmarkResolveFailed(let underlying): .bookmarkResolveFailed(underlying: underlying)
+        case .folderUnavailable: .folderUnavailable
         }
     }
 
@@ -170,25 +176,5 @@ struct SaveCoordinator {
         case .conflict(let keys):
             throw CoordinatorError.externalConflict(months: keys)
         }
-    }
-
-    private func fetchOrCreateSettings(in context: ModelContext) throws -> AppSettings {
-        let existing = try context.fetch(FetchDescriptor<AppSettings>())
-        if let first = existing.first { return first }
-        let new = AppSettings()
-        context.insert(new)
-        try context.save()
-        return new
-    }
-
-    private static let monthFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM"
-        return f
-    }()
-
-    private static func csvFilename(for date: Date) -> String {
-        "expenses-\(monthFormatter.string(from: date)).csv"
     }
 }

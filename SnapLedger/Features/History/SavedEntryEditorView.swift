@@ -198,25 +198,28 @@ struct SavedEntryEditorView: View {
     }
 
     private func save() {
-        entry.date = date
-        entry.merchant = merchant
-        entry.amount = amount
-        entry.category = category.isEmpty ? nil : category
-        entry.note = note.isEmpty ? nil : note
-        performUpdate(ignoringConflict: false)
+        // entry는 여기서 바꾸지 않는다 — update가 쓰기 성공 시에만 대입한다 (실패 시 더티 방지).
+        let edit = SavedEntryEdit(
+            date: date,
+            merchant: merchant,
+            amount: amount,
+            category: category.isEmpty ? nil : category,
+            note: note.isEmpty ? nil : note
+        )
+        performUpdate(edit, ignoringConflict: false)
     }
 
-    private func performUpdate(ignoringConflict: Bool) {
+    private func performUpdate(_ edit: SavedEntryEdit, ignoringConflict: Bool) {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
-                .update(entry, originalDate: originalDate, ignoringConflict: ignoringConflict, in: modelContext)
+                .update(entry, to: edit, ignoringConflict: ignoringConflict, in: modelContext)
             dismiss()
         } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
             // 가져오면 편집 중이던 항목이 파일 내용으로 대체되므로 importDiscardsEdit=true.
             saveConflict = SyncConflict(months: months, importDiscardsEdit: true) { mode in
                 switch mode {
                 case .afterImport: dismiss()
-                case .overwrite: performUpdate(ignoringConflict: true)
+                case .overwrite: performUpdate(edit, ignoringConflict: true)
                 }
             }
         } catch {

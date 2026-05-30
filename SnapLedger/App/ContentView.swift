@@ -9,6 +9,8 @@ struct ContentView: View {
     @Query private var allSettings: [AppSettings]
     @State private var detectedChanges: [DetectedChange] = []
     @State private var syncResultMessage: String?
+    /// "나중에"로 미룬 달 — 이번 세션 동안 같은 달을 매 포그라운드마다 다시 묻지 않도록.
+    @State private var snoozedMonths: Set<String> = []
 
     private var pendingReviewCount: Int {
         allParsedEntries.filter { $0.status == .pending }.count
@@ -49,7 +51,10 @@ struct ContentView: View {
             )
         ) {
             Button("파일 내용 가져오기") { importDetectedChanges() }
-            Button("나중에", role: .cancel) { detectedChanges = [] }
+            Button("나중에", role: .cancel) {
+                snoozedMonths.formUnion(detectedChanges.map(\.monthKey))
+                detectedChanges = []
+            }
         } message: {
             Text(detectedChangesMessage)
         }
@@ -94,6 +99,7 @@ struct ContentView: View {
         let sync = SyncCoordinator()
         sync.establishBaselineIfNeeded(in: modelContext)
         let changes = await sync.detectChanges(in: modelContext)
+            .filter { !snoozedMonths.contains($0.monthKey) }
         if !changes.isEmpty {
             detectedChanges = changes
         }
