@@ -4,7 +4,8 @@ import SwiftData
 @Model
 final class AppSettings {
     var csvFolderBookmark: Data?
-    var reminderEnabled: Bool = true
+    /// 알림은 명시적 opt-in. 사용자가 직접 켜고 권한을 허용해야만 true가 된다 (App Store 4.5.4).
+    var reminderEnabled: Bool = false
     var reminderHour: Int
     var reminderMinute: Int
     var categoryPresets: [String]
@@ -16,7 +17,7 @@ final class AppSettings {
 
     init(
         csvFolderBookmark: Data? = nil,
-        reminderEnabled: Bool = true,
+        reminderEnabled: Bool = false,
         reminderHour: Int = 21,
         reminderMinute: Int = 0,
         categoryPresets: [String] = AppSettings.defaultPresets,

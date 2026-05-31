@@ -56,6 +56,7 @@ struct OnboardingSetupPage: View {
         ))
         .onChange(of: isVisible, initial: true) { _, newValue in
             guard newValue, step == 0 else { return }
+            notificationToggle = settings.reminderEnabled
             Task { await OnboardingAppearStep.run(reduceMotion: reduceMotion) { step = $0 } }
         }
     }
@@ -167,6 +168,7 @@ struct OnboardingSetupPage: View {
                         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                             notificationToggle = false
                         }
+                        persistReminderEnabled(false)
                     }
                 }
             ))
@@ -195,13 +197,22 @@ struct OnboardingSetupPage: View {
             withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                 notificationToggle = granted
             }
+            persistReminderEnabled(granted)
         case .openSystemSettings:
             showingDeniedAlert = true
+            persistReminderEnabled(false)
         case .keepOn:
             withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                 notificationToggle = true
             }
+            persistReminderEnabled(true)
         }
+    }
+
+    /// 온보딩에서의 알림 선택을 모델에 반영 — 켜짐은 사용자가 직접 켜고 권한을 허용한 경우에만.
+    private func persistReminderEnabled(_ value: Bool) {
+        settings.reminderEnabled = value
+        try? modelContext.save()
     }
 
     private func openSystemSettings() {
