@@ -42,7 +42,7 @@ SwiftLint는 `brew install swiftlint`로 사전 설치. 미설치 시 빌드 페
 | 폴더 | 무엇이 들어가나 | 무엇이 들어가면 안 되나 |
 |---|---|---|
 | `App/` | 앱 진입점·셸·App Group 상수 | 비즈니스 로직, 도메인 모델 |
-| `Models/` | SwiftData `@Model` 5종 | 비-SwiftData DTO (그건 `Services/`) |
+| `Models/` | SwiftData `@Model` 6종 | 비-SwiftData DTO (그건 `Services/`) |
 | `Services/` | 비즈니스 로직 (OCR·추출·저장 오케스트레이션·도메인 헬퍼) | UI, 파일·시스템 IO |
 | `Storage/` | 파일/클립보드/북마크 IO | 비즈니스 결정 (어떤 데이터를 저장할지는 `Services/`) |
 | `Features/` | UI 탭 화면 + 온보딩 (SwiftUI) | 시스템 통합(BGTask/Intent/Notification) → `System/` |
@@ -73,6 +73,9 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     SaveCoordinator.swift            # 검토 확정 → CSV append + SavedEntry 생성 + 학습
     CategoryLearner.swift            # 가맹점 → 카테고리 학습/조회
     ImageImporter.swift              # + 메뉴에서 사진/클립보드/파일/드롭 → inbox 정규화
+    SyncCoordinator.swift            # 월 단위 동기화 오케스트레이션 (감지·충돌·import/export, monthStatuses·folderSyncSummary)
+    CSVFolderAccess.swift            # 저장 폴더 bookmark 해소 + 도달성 확인 래퍼
+    CSVRowParser.swift               # CSV 한 행 ↔ 도메인 필드 파싱 (저장·동기화 공용)
 
   Storage/                           # 파일·클립보드·북마크 IO
     CSVWriter.swift                  # NSFileCoordinator 기반 월별 CSV (BOM + 헤더 + escape)
@@ -80,14 +83,16 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     BookmarkStore.swift              # security-scoped bookmark 생성/해소
     FolderBookmarkHelper.swift       # BookmarkStore 래퍼 — URL → AppSettings.csvFolderBookmark 적용
     ClipboardExporter.swift          # 검토/기록 항목을 TSV(+HTML) 페이로드로 (Numbers paste용)
+    FileFingerprint.swift            # 파일 내용 SHA-256 + mtime 지문 (외부 변경 감지·iCloud 다운로드 게이트)
 
   Features/                          # UI 화면
-    Review/                          # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row)
+    Review/                          # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row), FailedImagesSection·InboxImage
     History/                         # HistoryView (@Query SavedEntry, 일별 섹션), SavedEntryEditorView,
                                      # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping (pure)
     Statistics/                      # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure)
     Settings/                        # SettingsView (저장폴더 행=폴더이름+동기화 상태아이콘→폴더상태 / reminder / FM 상태),
                                      # AdvancedSettingsView (카테고리 / 추출 가이드), FolderPicker, FeedbackMail (pure), MailComposeSheet
+    Sync/                            # FileSyncView (폴더 상태=월별 최신/변경/단방향 + 폴더 변경), SyncConflictAlert (가져오기/덮어쓰기)
     Onboarding/                      # OnboardingView + ValuePage/SetupPage + AppearStep/PermissionAction (pure)
 
   System/                            # 시스템 통합 (화면 아님)
