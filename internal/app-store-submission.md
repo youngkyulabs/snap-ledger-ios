@@ -1,6 +1,6 @@
 # App Store 제출 메타데이터
 
-찰칵가계부 1.0 (build 1) App Store Connect 제출용 메타데이터.
+찰칵가계부 1.0 App Store Connect 제출용 메타데이터.
 업데이트 시 이 문서를 single source of truth로 유지한다.
 
 ---
@@ -16,7 +16,6 @@
 | SKU | `snapledger-001` |
 | Primary Language | Korean |
 | Version | 1.0 |
-| Build | 1 |
 | Copyright | `2026 YOUNGKYU SEO` (©는 시스템이 자동 부착) |
 | Primary Category | Finance |
 | Secondary Category | Productivity |
@@ -150,4 +149,4 @@ There is no account, no purchase, no advertising.
 
 | 버전 | 날짜 | 비고 |
 |---|---|---|
-| 1.0 (b1) | 2026-05-24 작성 | 첫 제출 |
+| 1.0 | 2026-05-24 작성 | 첫 제출 |

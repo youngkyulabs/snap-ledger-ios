@@ -49,6 +49,13 @@ struct SettingsView: View {
                     }
                 }
                 feedbackSection
+                Section {
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Label("정보", systemImage: "info.circle")
+                    }
+                }
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .navigationTitle("설정")
