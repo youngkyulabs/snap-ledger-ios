@@ -106,11 +106,9 @@ private struct SafariView: UIViewControllerRepresentable {
     let url: URL
 
     func makeUIViewController(context: Context) -> SFSafariViewController {
-        let controller = SFSafariViewController(url: url)
-        if let tint = UIColor(named: "AccentColor") {
-            controller.preferredControlTintColor = tint
-        }
-        return controller
+        // iOS 26부터 컨트롤 색상은 시스템(Liquid Glass)이 관리한다.
+        // preferredControlTintColor는 deprecated이고 1:1 대체 API가 없어 커스터마이징을 두지 않는다.
+        SFSafariViewController(url: url)
     }
 
     func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
