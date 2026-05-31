@@ -213,4 +213,29 @@ struct StatisticsAggregationTests {
         #expect(trend[0].deltaFromPrevious == nil)
         #expect(trend[0].ratioFromPrevious == nil)
     }
+
+    @Test func colorIndexUsesPresetOrder() {
+        let presets = ["식비", "카페", "교통"]
+        #expect(StatisticsAggregation.colorIndex(for: "식비", presets: presets, paletteCount: 12) == 0)
+        #expect(StatisticsAggregation.colorIndex(for: "카페", presets: presets, paletteCount: 12) == 1)
+        #expect(StatisticsAggregation.colorIndex(for: "교통", presets: presets, paletteCount: 12) == 2)
+    }
+
+    @Test func colorIndexIsDeterministicForUnregisteredCategory() {
+        // presets 에 없는 카테고리도 같은 이름이면 항상 같은 인덱스 — String.hashValue 와 달리
+        // 호출/실행 간 흔들리지 않아야 한다 (앱 재시작마다 색이 바뀌던 버그의 회귀 방지).
+        let presets = ["식비", "카페"]
+        let first = StatisticsAggregation.colorIndex(for: "학원", presets: presets, paletteCount: 12)
+        let second = StatisticsAggregation.colorIndex(for: "학원", presets: presets, paletteCount: 12)
+        #expect(first == second)
+    }
+
+    @Test func colorIndexAlwaysInPaletteBounds() {
+        let presets = ["식비", "카페", "교통", "쇼핑"]
+        let names = ["식비", "학원", "마사지", "취미용품", "병원", "", "🍕맛집"]
+        for name in names {
+            let index = StatisticsAggregation.colorIndex(for: name, presets: presets, paletteCount: 12)
+            #expect((0..<12).contains(index))
+        }
+    }
 }
