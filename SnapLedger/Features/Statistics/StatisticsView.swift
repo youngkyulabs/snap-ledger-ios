@@ -194,11 +194,12 @@ private struct CategoryDonutChart: View {
         if category == StatisticsAggregation.uncategorizedLabel {
             return Color(.systemGray3)
         }
-        // 사용자가 편집/재배치할 수 있는 presets 의 인덱스를 기준으로 색을 정한다.
-        // 같은 카테고리는 항상 같은 색이면서, 등록 순서가 다르면 색도 spread 된다.
-        // 등록 안 된 카테고리(학습된 가맹점 카테고리 등)는 문자열 해시로 fallback.
-        let index: Int = presets.firstIndex(of: category) ?? (presets.count + abs(category.hashValue) % Self.palette.count)
-        return Self.palette[index % Self.palette.count]
+        // presets 인덱스 기반 + 미등록 카테고리는 이름의 결정적 해시로 색을 정한다.
+        // (String.hashValue 는 실행마다 시드가 바뀌어 쓰지 않는다 — colorIndex 주석 참고.)
+        let index = StatisticsAggregation.colorIndex(
+            for: category, presets: presets, paletteCount: Self.palette.count
+        )
+        return Self.palette[index]
     }
 
     // 시인성 좋게 잘 구분되는 12색 팔레트.

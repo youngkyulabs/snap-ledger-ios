@@ -23,12 +23,26 @@ struct PendingProcessor {
         )
     }
 
+    /// drain 재진입 가드. drain 은 여러 진입점(앱 시작·포그라운드·이미지 추가·BGTask)에서
+    /// 호출돼 겹칠 수 있다. 동시에 두 drain 이 돌면 (1) 같은 항목을 중복 처리하거나
+    /// (2) 아래 stale-`.processing` 복구가, 다른 drain 이 실제로 처리 중인 항목을 `.queued`
+    /// 로 되돌려 중복 ParsedEntry 를 만들 수 있다. 한 번에 하나만 실행되도록 막는다.
+    private static var isDraining = false
+
     func drain(in context: ModelContext) async {
         guard extractionService.isAvailable else {
             log.info("drain skipped: extraction service unavailable")
             return
         }
+        guard !Self.isDraining else {
+            log.info("drain skipped: already running")
+            return
+        }
+        Self.isDraining = true
+        defer { Self.isDraining = false }
+
         reconcileInbox(in: context)
+        requeueStaleProcessing(in: context)
         let all: [PendingImage]
         do {
             all = try context.fetch(FetchDescriptor<PendingImage>())
@@ -40,6 +54,28 @@ struct PendingProcessor {
             await process(pending, in: context)
         }
         cleanupResolvedImages(in: context)
+    }
+
+    /// 이전 drain 이 처리 도중 중단되면(앱 크래시·강제 종료·BGTask 시간 초과) PendingImage 가
+    /// `.processing` 상태로 남아 검토 탭에 "처리 중"으로 영구 표시된다. drain 은 재진입을
+    /// 막으므로(`isDraining`) 이 시점의 `.processing` 은 모두 중단된 이전 실행의 잔재다 —
+    /// `.queued` 로 되돌려 같은 drain 의 처리 루프에서 재시도한다. (원본 파일이 사라졌다면
+    /// 재처리 중 OCR 단계에서 실패해 `.failed` 로 전이되어 사용자가 검토 탭에서 정리 가능.)
+    func requeueStaleProcessing(in context: ModelContext) {
+        let stale: [PendingImage]
+        do {
+            stale = try context.fetch(FetchDescriptor<PendingImage>())
+                .filter { $0.state == .processing }
+        } catch {
+            log.error("requeue fetch failed: \(String(describing: error))")
+            return
+        }
+        guard !stale.isEmpty else { return }
+        for pending in stale {
+            pending.state = .queued
+            pending.failureMessage = nil
+        }
+        try? context.save()
     }
 
     /// 검토가 끝난 이미지를 회수한다. pending 상태의 ParsedEntry 가 더는 참조하지

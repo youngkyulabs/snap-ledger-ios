@@ -180,4 +180,29 @@ enum StatisticsAggregation {
         let trimmed = category?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? uncategorizedLabel : trimmed
     }
+
+    /// 카테고리에 매길 색 팔레트 인덱스(0..<paletteCount)를 정한다.
+    /// presets 에 등록된 카테고리는 그 순서(인덱스)로 — 같은 카테고리는 항상 같은 색이면서
+    /// 등록 순서가 다르면 색도 퍼진다. 등록 안 된 카테고리(가져온 CSV의 임의 카테고리,
+    /// 학습된 가맹점 카테고리 등)는 이름의 결정적 해시로 fallback 한다.
+    ///
+    /// `String.hashValue` 는 쓰지 않는다 — Swift 는 해시 DoS 방어로 프로세스 실행마다
+    /// 랜덤 시드를 적용해, 같은 이름이라도 앱을 재시작할 때마다 값이 바뀐다. 그러면
+    /// presets 에 없는 카테고리의 색이 실행마다 달라진다. UTF8 바이트 기반 djb2 해시는
+    /// 프로세스 간 안정적이라 색이 고정된다.
+    static func colorIndex(for category: String, presets: [String], paletteCount: Int) -> Int {
+        guard paletteCount > 0 else { return 0 }
+        if let preset = presets.firstIndex(of: category) {
+            return preset % paletteCount
+        }
+        return (presets.count + stableBucket(category, modulo: paletteCount)) % paletteCount
+    }
+
+    private static func stableBucket(_ string: String, modulo: Int) -> Int {
+        var hash: UInt64 = 5381
+        for byte in string.utf8 {
+            hash = (hash &* 33) &+ UInt64(byte)
+        }
+        return Int(hash % UInt64(modulo))
+    }
 }
