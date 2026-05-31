@@ -18,9 +18,6 @@ struct SettingsView: View {
     @State private var syncSummary: FolderSyncSummary = .empty
 
     private static let feedbackEmail = "youngkyulabs@gmail.com"
-    private static let appStoreURL = "https://apps.apple.com/app/id6772852897"
-    private static let privacyPolicyURL = "https://youngkyulabs.github.io/snap-ledger-ios/privacy-policy.html"
-    private static let supportURL = "https://youngkyulabs.github.io/snap-ledger-ios/support.html"
 
     private static let appDisplayName: String = {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
@@ -52,7 +49,13 @@ struct SettingsView: View {
                     }
                 }
                 feedbackSection
-                infoSection
+                Section {
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Label("정보", systemImage: "info.circle")
+                    }
+                }
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .navigationTitle("설정")
@@ -323,43 +326,6 @@ struct SettingsView: View {
         } else {
             feedbackFallbackShown = true
         }
-    }
-
-    private var infoSection: some View {
-        Section {
-            Button {
-                open(Self.appStoreURL)
-            } label: {
-                LabeledContent {
-                    Text(appVersionText).foregroundStyle(.secondary)
-                } label: {
-                    Label("앱 버전", systemImage: "info.circle").foregroundStyle(.primary)
-                }
-            }
-            Button {
-                open(Self.privacyPolicyURL)
-            } label: {
-                Label("개인정보 처리방침", systemImage: "hand.raised.fill").foregroundStyle(.primary)
-            }
-            Button {
-                open(Self.supportURL)
-            } label: {
-                Label("지원", systemImage: "questionmark.circle").foregroundStyle(.primary)
-            }
-        } header: {
-            Text("정보")
-        }
-    }
-
-    private var appVersionText: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        if let version, !version.isEmpty { return version }
-        return "?"
-    }
-
-    private func open(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        UIApplication.shared.open(url)
     }
 
     private var feedbackBody: String {
