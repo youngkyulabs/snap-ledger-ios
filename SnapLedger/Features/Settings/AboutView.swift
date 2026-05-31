@@ -10,12 +10,7 @@ struct AboutView: View {
         Form {
             Section {
                 VStack(spacing: 12) {
-                    Image("LaunchLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 84, height: 84)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .accessibilityHidden(true)
+                    brandIcon
                     VStack(spacing: 4) {
                         Text("찰칵가계부").font(.title3.weight(.semibold))
                         Text("버전 \(appVersionText)")
@@ -55,6 +50,26 @@ struct AboutView: View {
         }
         .navigationTitle("정보")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // 앱 아이콘과 같은 모양을 재현: 브랜드 배경 타일(LaunchBackground = 아이콘 배경색) 위에
+    // 코랄 글리프(LaunchLogo)를 얹는다. 글리프 원본은 캔버스의 ~26%(세로)뿐이라 확대해 채운다.
+    private var brandIcon: some View {
+        ZStack {
+            Color("LaunchBackground")
+            Image("LaunchLogo")
+                .resizable()
+                .scaledToFit()
+                .scaleEffect(2.0)
+        }
+        .frame(width: 88, height: 88)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(.primary.opacity(0.06), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        .accessibilityHidden(true)
     }
 
     private var appVersionText: String {
