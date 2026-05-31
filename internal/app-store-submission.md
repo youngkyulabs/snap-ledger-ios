@@ -108,10 +108,10 @@ App Store Connect "App Privacy" 섹션:
 
 ### Privacy Manifest (`PrivacyInfo.xcprivacy`)
 
-메인 앱(`SnapLedger/PrivacyInfo.xcprivacy`)과 익스텐션(`SnapLedgerShareExtension/PrivacyInfo.xcprivacy`) 둘 다 번들에 포함됨. 공통:
+메인 앱(`SnapLedger/PrivacyInfo.xcprivacy`)과 익스텐션(`SnapLedgerShareExtension/PrivacyInfo.xcprivacy`) 둘 다 번들에 포함됨. 주요 항목:
 
 - `NSPrivacyTracking = false`, `NSPrivacyTrackingDomains = []`, `NSPrivacyCollectedDataTypes = []`
-- Required Reason API: `NSPrivacyAccessedAPICategoryFileTimestamp` (reasons `C617.1`, `3B52.1` — CSV append 시 mtime 비교용)
+- Required Reason API: `NSPrivacyAccessedAPICategoryFileTimestamp` (메인 앱 reasons `C617.1`·`3B52.1`, 익스텐션 reason `C617.1` — CSV append 시 mtime 비교용)
 
 새 시스템 API를 도입할 때 (예: UserDefaults, DiskSpace) 양쪽 `.xcprivacy`에 동시 추가 필요.
 
