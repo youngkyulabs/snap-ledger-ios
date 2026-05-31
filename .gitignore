@@ -33,3 +33,6 @@ docs/plans/
 
 # Claude Code local-only settings (project .claude/settings.json may be committed)
 .claude/settings.local.json
+
+# Claude Code scheduler runtime lock (do not commit)
+.claude/scheduled_tasks.lock
