@@ -149,6 +149,8 @@ struct ModelsTests {
         try ctx.save()
 
         let fetched = try ctx.fetch(FetchDescriptor<AppSettings>())
+        // 알림은 명시적 opt-in — 동의 전에는 꺼져 있어야 한다 (App Store 4.5.4).
+        #expect(fetched.first?.reminderEnabled == false)
         #expect(fetched.first?.reminderHour == 21)
         #expect(fetched.first?.reminderMinute == 0)
         #expect(fetched.first?.csvFolderBookmark == nil)
