@@ -114,9 +114,16 @@ struct AdvancedSettingsView: View {
     }
 
     private func deleteCategoryPresets(at offsets: IndexSet) {
+        let removed = offsets.map { settings.categoryPresets[$0] }
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             settings.categoryPresets.remove(atOffsets: offsets)
             try? modelContext.save()
+        }
+        // 삭제된 카테고리의 예산은 이번 달부터 해제(과거 한도는 보존).
+        let month = CategoryBudgetStore.monthKey(from: Date())
+        let store = CategoryBudgetStore()
+        for category in removed {
+            try? store.endBudget(for: category, asOf: month, in: modelContext)
         }
     }
 
