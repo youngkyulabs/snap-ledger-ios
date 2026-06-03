@@ -171,7 +171,7 @@ struct BudgetView: View {
                             .frame(width: 8, height: 8)
                         Text(category)
                         Spacer()
-                        TextField("0", value: limitBinding(for: category), format: .number)
+                        TextField("0", text: limitText(for: category))
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 140)
@@ -181,7 +181,7 @@ struct BudgetView: View {
             } header: {
                 Text("\(Self.monthLabel(currentMonthKey)) 한도").textCase(nil)
             } footer: {
-                Text("이번 달부터 적용돼요. 0으로 두면 한도가 없어요. 과거 달 한도는 그대로 유지돼요.")
+                Text("이번 달부터 적용돼요. 비워두면 한도가 없어요. 과거 달 한도는 그대로 유지돼요.")
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
@@ -190,11 +190,17 @@ struct BudgetView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func limitBinding(for category: String) -> Binding<Int> {
+    private func limitText(for category: String) -> Binding<String> {
         Binding(
-            get: { CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: currentMonthKey) ?? 0 },
+            get: {
+                guard let limit = CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: currentMonthKey) else {
+                    return ""
+                }
+                return String(limit)
+            },
             set: { newValue in
-                try? CategoryBudgetStore().setLimit(max(0, newValue), for: category, effectiveFrom: currentMonthKey, in: modelContext)
+                let amount = Int(newValue.filter(\.isNumber)) ?? 0
+                try? CategoryBudgetStore().setLimit(amount, for: category, effectiveFrom: currentMonthKey, in: modelContext)
             }
         )
     }
