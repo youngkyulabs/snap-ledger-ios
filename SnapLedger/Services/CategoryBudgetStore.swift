@@ -17,4 +17,30 @@ struct CategoryBudgetStore {
         guard let limit = effective?.monthlyLimit, limit > 0 else { return nil }
         return limit
     }
+
+    /// (카테고리, 월) 레코드를 upsert. limit 0은 tombstone(이 달부터 한도 해제).
+    @MainActor
+    func setLimit(_ limit: Int, for category: String, effectiveFrom month: Int, in context: ModelContext) throws {
+        let descriptor = FetchDescriptor<CategoryBudget>(
+            predicate: #Predicate { $0.category == category && $0.effectiveFrom == month }
+        )
+        if let existing = try context.fetch(descriptor).first {
+            existing.monthlyLimit = limit
+            existing.updatedAt = .now
+        } else {
+            context.insert(CategoryBudget(category: category, monthlyLimit: limit, effectiveFrom: month))
+        }
+        try context.save()
+    }
+
+    /// 이번 달부터 한도 해제(과거 보존). 현재 유효 한도가 있을 때만 tombstone을 남긴다.
+    @MainActor
+    func endBudget(for category: String, asOf month: Int, in context: ModelContext) throws {
+        let descriptor = FetchDescriptor<CategoryBudget>(
+            predicate: #Predicate { $0.category == category }
+        )
+        let records = try context.fetch(descriptor)
+        guard CategoryBudgetStore.resolveLimit(in: records, category: category, asOf: month) != nil else { return }
+        try setLimit(0, for: category, effectiveFrom: month, in: context)
+    }
 }
