@@ -9,7 +9,6 @@ struct BudgetView: View {
     @Query private var settingsList: [AppSettings]
 
     @State private var selectedMonthKey: Int?
-    @State private var isEditing = false
 
     private var currentMonthKey: Int { CategoryBudgetStore.monthKey(from: Date()) }
     private var effectiveMonthKey: Int { selectedMonthKey ?? currentMonthKey }
@@ -34,25 +33,13 @@ struct BudgetView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if isEditing {
-                    editList
-                } else if summary.lines.isEmpty && summary.unbudgeted.isEmpty {
+                if summary.lines.isEmpty && summary.unbudgeted.isEmpty {
                     emptyState
                 } else {
                     progressList
                 }
             }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: isEditing)
             .navigationTitle("예산")
-            .toolbar {
-                if isViewingCurrentMonth {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(isEditing ? "완료" : "편집") {
-                            withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) { isEditing.toggle() }
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -64,9 +51,20 @@ struct BudgetView: View {
             summarySection
             if !summary.lines.isEmpty { linesSection }
             if !summary.unbudgeted.isEmpty { unbudgetedSection }
+            if isViewingCurrentMonth { editEntrySection }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: effectiveMonthKey)
+    }
+
+    private var editEntrySection: some View {
+        Section {
+            NavigationLink {
+                editList
+            } label: {
+                Label("예산 편집", systemImage: "square.and.pencil")
+            }
+        }
     }
 
     private var monthPickerSection: some View {
@@ -140,7 +138,7 @@ struct BudgetView: View {
             Text("한도 미설정 지출").textCase(nil)
         } footer: {
             if isViewingCurrentMonth {
-                Text("'편집'에서 한도를 설정할 수 있어요.")
+                Text("아래 '예산 편집'에서 한도를 설정할 수 있어요.")
             }
         }
     }
@@ -152,8 +150,10 @@ struct BudgetView: View {
             Text("카테고리별 한도를 정하면 진행률을 보여드려요.")
         } actions: {
             if isViewingCurrentMonth {
-                Button("예산 설정") {
-                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) { isEditing = true }
+                NavigationLink {
+                    editList
+                } label: {
+                    Text("예산 설정")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -186,6 +186,8 @@ struct BudgetView: View {
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
+        .navigationTitle("예산 편집")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func limitBinding(for category: String) -> Binding<Int> {
