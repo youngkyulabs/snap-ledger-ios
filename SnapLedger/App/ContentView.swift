@@ -28,6 +28,9 @@ struct ContentView: View {
             Tab("통계", systemImage: "chart.pie") {
                 StatisticsView()
             }
+            Tab("예산", systemImage: "wonsign.circle") {
+                BudgetView()
+            }
             Tab("설정", systemImage: "gear") {
                 SettingsView()
             }
