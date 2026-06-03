@@ -191,22 +191,8 @@ private struct CategoryDonutChart: View {
     }
 
     private func color(for category: String) -> Color {
-        if category == StatisticsAggregation.uncategorizedLabel {
-            return Color(.systemGray3)
-        }
-        // presets 인덱스 기반 + 미등록 카테고리는 이름의 결정적 해시로 색을 정한다.
-        // (String.hashValue 는 실행마다 시드가 바뀌어 쓰지 않는다 — colorIndex 주석 참고.)
-        let index = StatisticsAggregation.colorIndex(
-            for: category, presets: presets, paletteCount: Self.palette.count
-        )
-        return Self.palette[index]
+        CategoryColor.color(for: category, presets: presets)
     }
-
-    // 시인성 좋게 잘 구분되는 12색 팔레트.
-    private static let palette: [Color] = [
-        .orange, .blue, .pink, .green, .purple, .teal,
-        .red, .indigo, .brown, .cyan, .mint, .yellow,
-    ]
 }
 
 private struct CategoryBreakdownRow: View {
