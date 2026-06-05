@@ -329,7 +329,7 @@ struct ReviewListView: View {
     }
 
     private func handleSwipeSave(entry: ParsedEntry) {
-        if entry.merchant.isEmpty || entry.amount <= 0 {
+        if !EntrySaveValidation.canSaveReview(merchant: entry.merchant, amount: entry.amount) {
             swipeError = "이 항목은 비어 있어요. 항목을 눌러 값을 채운 뒤 저장하세요."
             return
         }

@@ -107,7 +107,7 @@ struct SavedEntryEditorView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("저장", action: save)
-                        .disabled(merchant.isEmpty || amount <= 0)
+                        .disabled(!EntrySaveValidation.canSaveEdit(merchant: merchant, amount: amount))
                 }
             }
             .navigationTitle("편집")
