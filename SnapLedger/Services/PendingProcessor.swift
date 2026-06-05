@@ -219,11 +219,18 @@ struct PendingProcessor {
         let categoryForRow = learnedCategory ?? trimmedExtractionCategory
 
         if txn.items.isEmpty {
+            // 빈 칸은 후보로 자동 채움 — 설명은 첫 후보, 금액은 후보가 정확히 1개일 때만.
+            let filledMerchant = CandidateAutoFill.merchant(
+                current: txn.merchant, candidates: enriched.merchantCandidates
+            )
+            let filledAmount = CandidateAutoFill.amount(
+                current: txn.amount, candidates: enriched.amountCandidates
+            )
             return [
                 ParsedEntry(
                     date: parsedDate,
-                    amount: txn.amount,
-                    merchant: txn.merchant,
+                    amount: filledAmount,
+                    merchant: filledMerchant,
                     category: categoryForRow,
                     sourceImagePath: sourceFilename,
                     merchantCandidates: enriched.merchantCandidates,
