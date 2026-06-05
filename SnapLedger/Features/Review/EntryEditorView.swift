@@ -117,7 +117,7 @@ struct EntryEditorView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("저장", action: save)
-                        .disabled(entry.merchant.isEmpty || entry.amount <= 0)
+                        .disabled(!EntrySaveValidation.canSaveReview(merchant: entry.merchant, amount: entry.amount))
                 }
             }
             .navigationTitle("검토")
