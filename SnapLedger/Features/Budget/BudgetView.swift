@@ -115,7 +115,7 @@ struct BudgetView: View {
         Section {
             ForEach(summary.lines) { line in LineRow(line: line, presets: presets) }
         } header: {
-            Text("카테고리별 진행").textCase(nil)
+            Text("카테고리별 진행률").textCase(nil)
         }
     }
 
@@ -131,7 +131,7 @@ struct BudgetView: View {
                 }
             }
         } header: {
-            Text("한도 미설정 지출").textCase(nil)
+            Text("한도를 정하지 않은 지출").textCase(nil)
         } footer: {
             Text("아래 '예산·카테고리 편집'에서 한도를 설정할 수 있어요.")
         }
@@ -188,7 +188,7 @@ private func budgetRemainingLabel(remaining: Int) -> some View {
             .foregroundStyle(.secondary)
     } else {
         Text("\((-remaining).formatted(.number))원 초과")
-            .font(.subheadline.weight(.semibold).monospacedDigit())
+            .font(.subheadline.monospacedDigit())
             .foregroundStyle(.red)
     }
 }
@@ -215,9 +215,12 @@ private struct LineRow: View {
                 total: Double(max(line.limit, 1))
             )
             .tint(budgetStateColor(line.state))
-            HStack {
-                Spacer()
-                budgetRemainingLabel(remaining: line.remaining)
+            // 여유(under) 상태에선 "지출 / 한도"로 충분 — 임박·초과일 때만 남음/초과를 강조.
+            if line.state != .under {
+                HStack {
+                    Spacer()
+                    budgetRemainingLabel(remaining: line.remaining)
+                }
             }
         }
         .padding(.vertical, 2)
@@ -269,8 +272,6 @@ private struct BudgetEditView: View {
         Section {
             ForEach(presets, id: \.self) { category in
                 HStack {
-                    Circle().fill(CategoryColor.color(for: category, presets: presets))
-                        .frame(width: 8, height: 8)
                     Text(category)
                     Spacer()
                     TextField("0", text: limitText(for: category))
@@ -301,9 +302,9 @@ private struct BudgetEditView: View {
             Text("\(monthLabelText(month)) 한도").textCase(nil)
         } footer: {
             if isCurrentMonth {
-                Text("이번 달부터 적용돼요. 비워두면 한도가 없어요. 이후 달에도 자동 반복돼요.")
+                Text("이번 달부터 적용되고, 이후 달에도 자동으로 반복돼요. 비워두면 한도가 없어요.")
             } else {
-                Text("이 달에만 적용돼요. 이번 달과 다른 달 한도는 그대로 유지돼요. 왼쪽으로 밀어 카테고리를 삭제하거나 편집 모드에서 옮길 수 있어요.")
+                Text("이 달에만 적용돼요. 다른 달의 한도는 그대로 유지돼요.")
             }
         }
     }
@@ -314,7 +315,7 @@ private struct BudgetEditView: View {
                 guard let limit = CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: month) else {
                     return ""
                 }
-                return String(limit)
+                return limit.formatted(.number)
             },
             set: { newValue in
                 let amount = Int(newValue.filter(\.isNumber)) ?? 0
