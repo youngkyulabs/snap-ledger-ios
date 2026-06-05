@@ -12,7 +12,6 @@ struct BudgetView: View {
 
     private var currentMonthKey: Int { CategoryBudgetStore.monthKey(from: Date()) }
     private var effectiveMonthKey: Int { selectedMonthKey ?? currentMonthKey }
-    private var isViewingCurrentMonth: Bool { effectiveMonthKey == currentMonthKey }
 
     private var presets: [String] {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
@@ -51,7 +50,7 @@ struct BudgetView: View {
             summarySection
             if !summary.lines.isEmpty { linesSection }
             if !summary.unbudgeted.isEmpty { unbudgetedSection }
-            if isViewingCurrentMonth { editEntrySection }
+            editEntrySection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: effectiveMonthKey)
@@ -60,9 +59,9 @@ struct BudgetView: View {
     private var editEntrySection: some View {
         Section {
             NavigationLink {
-                editList
+                BudgetEditView(month: effectiveMonthKey, currentMonthKey: currentMonthKey)
             } label: {
-                Label("예산 편집", systemImage: "square.and.pencil")
+                Label("예산·카테고리 편집", systemImage: "square.and.pencil")
             }
         }
     }
@@ -105,9 +104,6 @@ struct BudgetView: View {
                     )
                     .tint(budgetStateColor(summary.overallState))
                 }
-                Text("한도 설정 \(summary.budgetedSpent.formatted(.number))원 · 미설정 \(summary.unbudgetedSpent.formatted(.number))원")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
         } header: {
@@ -137,9 +133,7 @@ struct BudgetView: View {
         } header: {
             Text("한도 미설정 지출").textCase(nil)
         } footer: {
-            if isViewingCurrentMonth {
-                Text("아래 '예산 편집'에서 한도를 설정할 수 있어요.")
-            }
+            Text("아래 '예산·카테고리 편집'에서 한도를 설정할 수 있어요.")
         }
     }
 
@@ -149,79 +143,34 @@ struct BudgetView: View {
         } description: {
             Text("카테고리별 한도를 정하면 진행률을 보여드려요.")
         } actions: {
-            if isViewingCurrentMonth {
-                NavigationLink {
-                    editList
-                } label: {
-                    Text("예산 설정")
-                }
-                .buttonStyle(.borderedProminent)
+            NavigationLink {
+                BudgetEditView(month: effectiveMonthKey, currentMonthKey: currentMonthKey)
+            } label: {
+                Text("예산 설정")
             }
+            .buttonStyle(.borderedProminent)
         }
-    }
-
-    // MARK: Edit (이번 달 기준)
-
-    private var editList: some View {
-        List {
-            Section {
-                ForEach(presets, id: \.self) { category in
-                    HStack {
-                        Circle().fill(CategoryColor.color(for: category, presets: presets))
-                            .frame(width: 8, height: 8)
-                        Text(category)
-                        Spacer()
-                        TextField("0", text: limitText(for: category))
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 140)
-                        Text("원").foregroundStyle(.secondary)
-                    }
-                }
-            } header: {
-                Text("\(Self.monthLabel(currentMonthKey)) 한도").textCase(nil)
-            } footer: {
-                Text("이번 달부터 적용돼요. 비워두면 한도가 없어요. 과거 달 한도는 그대로 유지돼요.")
-            }
-        }
-        .contentMargins(.bottom, 24, for: .scrollContent)
-        .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("예산 편집")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func limitText(for category: String) -> Binding<String> {
-        Binding(
-            get: {
-                guard let limit = CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: currentMonthKey) else {
-                    return ""
-                }
-                return String(limit)
-            },
-            set: { newValue in
-                let amount = Int(newValue.filter(\.isNumber)) ?? 0
-                try? CategoryBudgetStore().setLimit(amount, for: category, effectiveFrom: currentMonthKey, in: modelContext)
-            }
-        )
     }
 
     // MARK: Helpers
 
-    private static func monthLabel(_ key: Int) -> String {
-        var comps = DateComponents()
-        comps.year = key / 100
-        comps.month = key % 100
-        let cal = Calendar.current
-        let date = cal.date(from: comps) ?? Date()
-        let formatter = DateFormatter()
-        formatter.calendar = cal
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "yyyy년 M월"
-        return formatter.string(from: date)
-    }
+    private static func monthLabel(_ key: Int) -> String { monthLabelText(key) }
 }
 
 // MARK: - File-private helpers
+
+private func monthLabelText(_ key: Int) -> String {
+    var comps = DateComponents()
+    comps.year = key / 100
+    comps.month = key % 100
+    let cal = Calendar.current
+    let date = cal.date(from: comps) ?? Date()
+    let formatter = DateFormatter()
+    formatter.calendar = cal
+    formatter.locale = Locale(identifier: "ko_KR")
+    formatter.dateFormat = "yyyy년 M월"
+    return formatter.string(from: date)
+}
 
 private func budgetStateColor(_ state: BudgetProgress.State) -> Color {
     switch state {
@@ -234,11 +183,11 @@ private func budgetStateColor(_ state: BudgetProgress.State) -> Color {
 @ViewBuilder
 private func budgetRemainingLabel(remaining: Int) -> some View {
     if remaining >= 0 {
-        Text("남은 \(remaining.formatted(.number))원")
+        Text("\(remaining.formatted(.number))원 남음")
             .font(.subheadline.monospacedDigit())
             .foregroundStyle(.secondary)
     } else {
-        Text("초과 \((-remaining).formatted(.number))원")
+        Text("\((-remaining).formatted(.number))원 초과")
             .font(.subheadline.weight(.semibold).monospacedDigit())
             .foregroundStyle(.red)
     }
@@ -257,7 +206,7 @@ private struct LineRow: View {
                     .frame(width: 8, height: 8)
                 Text(line.category).font(.body)
                 Spacer()
-                Text("\(line.spent.formatted(.number)) · \(line.limit.formatted(.number))원")
+                Text("\(line.spent.formatted(.number))원 / \(line.limit.formatted(.number))원")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -272,6 +221,151 @@ private struct LineRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Edit screen (예산 한도 + 카테고리)
+
+private struct BudgetEditView: View {
+    let month: Int
+    let currentMonthKey: Int
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Query private var settingsList: [AppSettings]
+    @Query private var budgets: [CategoryBudget]
+    @State private var newCategoryText = ""
+    @FocusState private var addFieldFocused: Bool
+
+    private var settings: AppSettings {
+        if let existing = settingsList.first {
+            return existing
+        }
+        let new = AppSettings()
+        modelContext.insert(new)
+        try? modelContext.save()
+        return new
+    }
+
+    private var presets: [String] { settings.categoryPresets }
+    private var isCurrentMonth: Bool { month >= currentMonthKey }
+
+    var body: some View {
+        List {
+            limitsSection
+        }
+        .contentMargins(.bottom, 24, for: .scrollContent)
+        .scrollDismissesKeyboard(.interactively)
+        .navigationTitle("예산·카테고리 편집")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !presets.isEmpty {
+                ToolbarItem(placement: .primaryAction) { EditButton() }
+            }
+        }
+    }
+
+    private var limitsSection: some View {
+        Section {
+            ForEach(presets, id: \.self) { category in
+                HStack {
+                    Circle().fill(CategoryColor.color(for: category, presets: presets))
+                        .frame(width: 8, height: 8)
+                    Text(category)
+                    Spacer()
+                    TextField("0", text: limitText(for: category))
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 140)
+                    Text("원").foregroundStyle(.secondary)
+                }
+            }
+            .onDelete(perform: deleteCategory)
+            .onMove(perform: moveCategory)
+
+            HStack {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(canAddCategory ? Color.accentColor : Color.secondary)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
+                TextField("새 카테고리 추가", text: $newCategoryText)
+                    .submitLabel(.done)
+                    .focused($addFieldFocused)
+                    .onSubmit(addCategory)
+                if canAddCategory {
+                    Button("추가", action: addCategory)
+                        .buttonStyle(.borderless)
+                }
+            }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
+        } header: {
+            Text("\(monthLabelText(month)) 한도").textCase(nil)
+        } footer: {
+            if isCurrentMonth {
+                Text("이번 달부터 적용돼요. 비워두면 한도가 없어요. 이후 달에도 자동 반복돼요.")
+            } else {
+                Text("이 달에만 적용돼요. 이번 달과 다른 달 한도는 그대로 유지돼요. 왼쪽으로 밀어 카테고리를 삭제하거나 편집 모드에서 옮길 수 있어요.")
+            }
+        }
+    }
+
+    private func limitText(for category: String) -> Binding<String> {
+        Binding(
+            get: {
+                guard let limit = CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: month) else {
+                    return ""
+                }
+                return String(limit)
+            },
+            set: { newValue in
+                let amount = Int(newValue.filter(\.isNumber)) ?? 0
+                let store = CategoryBudgetStore()
+                if month < currentMonthKey {
+                    // 과거 달: 그 달에만 적용 (이번 달·다른 달은 보존).
+                    try? store.setLimitForSingleMonth(amount, for: category, month: month, in: modelContext)
+                } else {
+                    // 이번 달(이후 자동 반복).
+                    try? store.setLimit(amount, for: category, effectiveFrom: month, in: modelContext)
+                }
+            }
+        )
+    }
+
+    private var canAddCategory: Bool {
+        let trimmed = newCategoryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && !presets.contains(trimmed)
+    }
+
+    private func addCategory() {
+        let trimmed = newCategoryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !settings.categoryPresets.contains(trimmed) else {
+            newCategoryText = ""
+            return
+        }
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            settings.categoryPresets.append(trimmed)
+            try? modelContext.save()
+            newCategoryText = ""
+        }
+    }
+
+    private func deleteCategory(at offsets: IndexSet) {
+        let removed = offsets.map { settings.categoryPresets[$0] }
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            settings.categoryPresets.remove(atOffsets: offsets)
+            try? modelContext.save()
+        }
+        // 삭제된 카테고리의 예산은 이번 달부터 해제(과거 한도는 보존).
+        let store = CategoryBudgetStore()
+        for category in removed {
+            try? store.endBudget(for: category, asOf: currentMonthKey, in: modelContext)
+        }
+    }
+
+    private func moveCategory(from source: IndexSet, to destination: Int) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            settings.categoryPresets.move(fromOffsets: source, toOffset: destination)
+            try? modelContext.save()
+        }
     }
 }
 
