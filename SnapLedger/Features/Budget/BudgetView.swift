@@ -85,23 +85,22 @@ struct BudgetView: View {
     private var summarySection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(summary.totalSpent.formatted(.number))원")
-                        .font(.title3.weight(.semibold).monospacedDigit())
-                        .contentTransition(.numericText())
-                    if summary.totalLimit > 0 {
+                // 1줄: 사용액(실지출) — 헤드라인 숫자
+                Text("\(summary.totalSpent.formatted(.number))원")
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .contentTransition(.numericText())
+                if summary.totalLimit > 0 {
+                    // 2줄: 예산(라벨) + 차액
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("예산 \(summary.totalLimit.formatted(.number))원")
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .contentTransition(.numericText())
                             .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    if summary.totalLimit > 0 {
+                        Spacer(minLength: 6)
                         budgetRemainingLabel(remaining: summary.totalLimit - summary.totalSpent)
                     }
-                }
-                if summary.totalLimit > 0 {
+                    // 3줄: 진행 바
                     ProgressView(
                         value: Double(min(summary.totalSpent, summary.totalLimit)),
                         total: Double(max(summary.totalLimit, 1))
