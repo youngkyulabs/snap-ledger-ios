@@ -9,6 +9,7 @@ struct BudgetView: View {
     @Query private var settingsList: [AppSettings]
 
     @State private var selectedMonthKey: Int?
+    @State private var showingLimitEditor = false
 
     private var currentMonthKey: Int { CategoryBudgetStore.monthKey(from: Date()) }
     private var effectiveMonthKey: Int { selectedMonthKey ?? currentMonthKey }
@@ -39,6 +40,18 @@ struct BudgetView: View {
                 }
             }
             .navigationTitle("예산")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingLimitEditor = true
+                    } label: {
+                        Label("한도 편집", systemImage: "square.and.pencil")
+                    }
+                }
+            }
+            .navigationDestination(isPresented: $showingLimitEditor) {
+                BudgetLimitEditView(month: effectiveMonthKey, currentMonthKey: currentMonthKey)
+            }
         }
     }
 
@@ -50,20 +63,9 @@ struct BudgetView: View {
             summarySection
             if !summary.lines.isEmpty { linesSection }
             if !summary.unbudgeted.isEmpty { unbudgetedSection }
-            editEntrySection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: effectiveMonthKey)
-    }
-
-    private var editEntrySection: some View {
-        Section {
-            NavigationLink {
-                BudgetEditView(month: effectiveMonthKey, currentMonthKey: currentMonthKey)
-            } label: {
-                Label("예산·카테고리 편집", systemImage: "square.and.pencil")
-            }
-        }
     }
 
     private var monthPickerSection: some View {
@@ -83,16 +85,18 @@ struct BudgetView: View {
     private var summarySection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("\(summary.totalSpent.formatted(.number))원")
                         .font(.title3.weight(.semibold).monospacedDigit())
                         .contentTransition(.numericText())
                     if summary.totalLimit > 0 {
-                        Text("/ \(summary.totalLimit.formatted(.number))원")
+                        Text("예산 \(summary.totalLimit.formatted(.number))원")
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
+                            .contentTransition(.numericText())
+                            .lineLimit(1)
                     }
-                    Spacer()
+                    Spacer(minLength: 8)
                     if summary.totalLimit > 0 {
                         budgetRemainingLabel(remaining: summary.totalLimit - summary.totalSpent)
                     }
@@ -133,7 +137,7 @@ struct BudgetView: View {
         } header: {
             Text("한도를 정하지 않은 지출").textCase(nil)
         } footer: {
-            Text("아래 '예산·카테고리 편집'에서 한도를 설정할 수 있어요.")
+            Text("오른쪽 위 '한도 편집'에서 한도를 설정할 수 있어요.")
         }
     }
 
@@ -143,12 +147,8 @@ struct BudgetView: View {
         } description: {
             Text("카테고리별 한도를 정하면 진행률을 보여드려요.")
         } actions: {
-            NavigationLink {
-                BudgetEditView(month: effectiveMonthKey, currentMonthKey: currentMonthKey)
-            } label: {
-                Text("예산 설정")
-            }
-            .buttonStyle(.borderedProminent)
+            Button("한도 정하기") { showingLimitEditor = true }
+                .buttonStyle(.borderedProminent)
         }
     }
 
@@ -200,113 +200,82 @@ private struct LineRow: View {
     let presets: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: 5) {
+            // 1줄: 카테고리 이름 + 실지출(강조)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Circle().fill(CategoryColor.color(for: line.category, presets: presets))
                     .frame(width: 8, height: 8)
-                Text(line.category).font(.body)
-                Spacer()
-                Text("\(line.spent.formatted(.number))원 / \(line.limit.formatted(.number))원")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                Text(line.category)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                Text("\(line.spent.formatted(.number))원")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .contentTransition(.numericText())
             }
+            // 2줄: 예산(라벨) + 차액(항상 노출, 초과면 빨강)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("예산 \(line.limit.formatted(.number))원")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                budgetRemainingLabel(remaining: line.remaining)
+            }
+            // 3줄: 상태색 진행 바
             ProgressView(
                 value: Double(min(line.spent, line.limit)),
                 total: Double(max(line.limit, 1))
             )
             .tint(budgetStateColor(line.state))
-            // 여유(under) 상태에선 "지출 / 한도"로 충분 — 임박·초과일 때만 남음/초과를 강조.
-            if line.state != .under {
-                HStack {
-                    Spacer()
-                    budgetRemainingLabel(remaining: line.remaining)
-                }
-            }
         }
         .padding(.vertical, 2)
     }
 }
 
-// MARK: - Edit screen (예산 한도 + 카테고리)
+// MARK: - Edit screen (예산 한도 전용)
 
-private struct BudgetEditView: View {
+private struct BudgetLimitEditView: View {
     let month: Int
     let currentMonthKey: Int
 
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
     @Query private var budgets: [CategoryBudget]
-    @State private var newCategoryText = ""
-    @FocusState private var addFieldFocused: Bool
 
-    private var settings: AppSettings {
-        if let existing = settingsList.first {
-            return existing
-        }
-        let new = AppSettings()
-        modelContext.insert(new)
-        try? modelContext.save()
-        return new
+    private var presets: [String] {
+        settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
-
-    private var presets: [String] { settings.categoryPresets }
     private var isCurrentMonth: Bool { month >= currentMonthKey }
 
     var body: some View {
         List {
-            limitsSection
+            Section {
+                ForEach(presets, id: \.self) { category in
+                    HStack {
+                        Text(category)
+                        Spacer()
+                        TextField("0", text: limitText(for: category))
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 140)
+                        Text("원").foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("\(monthLabelText(month)) 한도").textCase(nil)
+            } footer: {
+                if isCurrentMonth {
+                    Text("이번 달부터 적용되고, 이후 달에도 자동으로 반복돼요. 비워두면 한도가 없어요.")
+                } else {
+                    Text("이 달에만 적용돼요. 다른 달의 한도는 그대로 유지돼요.")
+                }
+            }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("예산·카테고리 편집")
+        .navigationTitle("한도 편집")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if !presets.isEmpty {
-                ToolbarItem(placement: .primaryAction) { EditButton() }
-            }
-        }
-    }
-
-    private var limitsSection: some View {
-        Section {
-            ForEach(presets, id: \.self) { category in
-                HStack {
-                    Text(category)
-                    Spacer()
-                    TextField("0", text: limitText(for: category))
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 140)
-                    Text("원").foregroundStyle(.secondary)
-                }
-            }
-            .onDelete(perform: deleteCategory)
-            .onMove(perform: moveCategory)
-
-            HStack {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(canAddCategory ? Color.accentColor : Color.secondary)
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
-                TextField("새 카테고리 추가", text: $newCategoryText)
-                    .submitLabel(.done)
-                    .focused($addFieldFocused)
-                    .onSubmit(addCategory)
-                if canAddCategory {
-                    Button("추가", action: addCategory)
-                        .buttonStyle(.borderless)
-                }
-            }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
-        } header: {
-            Text("\(monthLabelText(month)) 한도").textCase(nil)
-        } footer: {
-            if isCurrentMonth {
-                Text("이번 달부터 적용되고, 이후 달에도 자동으로 반복돼요. 비워두면 한도가 없어요.")
-            } else {
-                Text("이 달에만 적용돼요. 다른 달의 한도는 그대로 유지돼요.")
-            }
-        }
     }
 
     private func limitText(for category: String) -> Binding<String> {
@@ -329,44 +298,6 @@ private struct BudgetEditView: View {
                 }
             }
         )
-    }
-
-    private var canAddCategory: Bool {
-        let trimmed = newCategoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && !presets.contains(trimmed)
-    }
-
-    private func addCategory() {
-        let trimmed = newCategoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !settings.categoryPresets.contains(trimmed) else {
-            newCategoryText = ""
-            return
-        }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.append(trimmed)
-            try? modelContext.save()
-            newCategoryText = ""
-        }
-    }
-
-    private func deleteCategory(at offsets: IndexSet) {
-        let removed = offsets.map { settings.categoryPresets[$0] }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.remove(atOffsets: offsets)
-            try? modelContext.save()
-        }
-        // 삭제된 카테고리의 예산은 이번 달부터 해제(과거 한도는 보존).
-        let store = CategoryBudgetStore()
-        for category in removed {
-            try? store.endBudget(for: category, asOf: currentMonthKey, in: modelContext)
-        }
-    }
-
-    private func moveCategory(from source: IndexSet, to destination: Int) {
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.move(fromOffsets: source, toOffset: destination)
-            try? modelContext.save()
-        }
     }
 }
 
