@@ -43,6 +43,13 @@ struct SettingsView: View {
                 fmAvailabilitySection
                 Section {
                     NavigationLink {
+                        CategoryEditorView()
+                    } label: {
+                        Label("카테고리", systemImage: "tag")
+                    }
+                }
+                Section {
+                    NavigationLink {
                         AdvancedSettingsView()
                     } label: {
                         Label("고급 설정", systemImage: "slider.horizontal.3")

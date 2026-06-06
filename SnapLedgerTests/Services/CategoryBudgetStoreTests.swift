@@ -93,4 +93,70 @@ struct CategoryBudgetStoreTests {
         try store.endBudget(for: "식비", asOf: 202_606, in: ctx)
         #expect(try ctx.fetch(FetchDescriptor<CategoryBudget>()).isEmpty)
     }
+
+    @Test func nextMonthKeyRollsOverDecember() {
+        #expect(CategoryBudgetStore.nextMonthKey(202_603) == 202_604)
+        #expect(CategoryBudgetStore.nextMonthKey(202_612) == 202_701)
+        #expect(CategoryBudgetStore.nextMonthKey(202_601) == 202_602)
+    }
+
+    @Test func singleMonthEditConfinesToThatMonthLeavingCurrentUntouched() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        try store.setLimit(300_000, for: "식비", effectiveFrom: 202_601, in: ctx)
+        // 과거 달(3월)만 교정 — 이후 달(현재 6월 포함)은 영향 없어야 한다.
+        try store.setLimitForSingleMonth(200_000, for: "식비", month: 202_603, in: ctx)
+        let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_602) == 300_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_603) == 200_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_604) == 300_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_606) == 300_000)
+    }
+
+    @Test func singleMonthEditWithNoPriorBudgetRestoresNoBudgetAfter() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        // 한도가 전혀 없던 카테고리의 과거 한 달만 채운다.
+        try store.setLimitForSingleMonth(200_000, for: "식비", month: 202_603, in: ctx)
+        let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_602) == nil)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_603) == 200_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_604) == nil)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_606) == nil)
+    }
+
+    @Test func singleMonthReeditKeepsBoundaryStable() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        try store.setLimit(300_000, for: "식비", effectiveFrom: 202_601, in: ctx)
+        try store.setLimitForSingleMonth(200_000, for: "식비", month: 202_603, in: ctx)
+        try store.setLimitForSingleMonth(250_000, for: "식비", month: 202_603, in: ctx)
+        let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
+        #expect(all.count == 3) // 202601, 202603, 202604(경계)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_603) == 250_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_604) == 300_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_606) == 300_000)
+    }
+
+    @Test func singleMonthEditEqualToCarryWritesNoBoundary() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        try store.setLimit(300_000, for: "식비", effectiveFrom: 202_601, in: ctx)
+        try store.setLimitForSingleMonth(300_000, for: "식비", month: 202_603, in: ctx)
+        let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
+        #expect(!all.contains { $0.effectiveFrom == 202_604 })
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_606) == 300_000)
+    }
+
+    @Test func singleMonthEditDoesNotOverwriteExplicitNextRecord() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        try store.setLimit(300_000, for: "식비", effectiveFrom: 202_603, in: ctx)
+        try store.setLimit(500_000, for: "식비", effectiveFrom: 202_604, in: ctx)
+        try store.setLimitForSingleMonth(200_000, for: "식비", month: 202_603, in: ctx)
+        let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
+        #expect(all.count == 2)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_603) == 200_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_604) == 500_000)
+    }
 }

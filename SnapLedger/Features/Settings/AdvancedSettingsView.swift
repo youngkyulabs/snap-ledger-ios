@@ -2,16 +2,10 @@ import SwiftUI
 import SwiftData
 
 struct AdvancedSettingsView: View {
-    private enum Field: Hashable {
-        case newCategory
-        case extractionGuide
-    }
-
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
-    @State private var newCategoryText = ""
-    @FocusState private var focusedField: Field?
+    @FocusState private var guideFocused: Bool
 
     private var settings: AppSettings {
         if let existing = settingsList.first {
@@ -26,17 +20,16 @@ struct AdvancedSettingsView: View {
     var body: some View {
         ScrollViewReader { proxy in
             Form {
-                categoriesSection
                 extractionGuideSection
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
-                if focusedField != nil {
+                if guideFocused {
                     HStack {
                         Spacer()
                         Button {
-                            focusedField = nil
+                            guideFocused = false
                         } label: {
                             Image(systemName: "keyboard.chevron.compact.down")
                                 .padding(4)
@@ -49,88 +42,12 @@ struct AdvancedSettingsView: View {
                 }
             }
             .navigationTitle("고급 설정")
-            .toolbar {
-                if !settings.categoryPresets.isEmpty {
-                    ToolbarItem(placement: .primaryAction) {
-                        EditButton()
-                    }
-                }
-            }
-            .onChange(of: focusedField) { _, newValue in
-                guard let newValue else { return }
+            .onChange(of: guideFocused) { _, isFocused in
+                guard isFocused else { return }
                 Task { @MainActor in
-                    withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(newValue, anchor: .center) }
+                    withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("extractionGuide", anchor: .center) }
                 }
             }
-        }
-    }
-
-    private var categoriesSection: some View {
-        Section {
-            ForEach(settings.categoryPresets, id: \.self) { preset in
-                Text(preset)
-            }
-            .onDelete(perform: deleteCategoryPresets)
-            .onMove(perform: moveCategoryPresets)
-
-            HStack {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(canAddCategory ? Color.accentColor : Color.secondary)
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
-                TextField("새 카테고리 추가", text: $newCategoryText)
-                    .submitLabel(.done)
-                    .focused($focusedField, equals: .newCategory)
-                    .onSubmit(addCategoryPreset)
-                if canAddCategory {
-                    Button("추가", action: addCategoryPreset)
-                        .buttonStyle(.borderless)
-                }
-            }
-            .id(Field.newCategory)
-            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: canAddCategory)
-        } header: {
-            Text("카테고리")
-        } footer: {
-            Text("지출을 분류할 카테고리예요. 왼쪽으로 밀어 삭제하거나, 편집 모드에서 끌어 옮길 수 있어요.")
-        }
-    }
-
-    private var canAddCategory: Bool {
-        let trimmed = newCategoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && !settings.categoryPresets.contains(trimmed)
-    }
-
-    private func addCategoryPreset() {
-        let trimmed = newCategoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !settings.categoryPresets.contains(trimmed) else {
-            newCategoryText = ""
-            return
-        }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.append(trimmed)
-            try? modelContext.save()
-            newCategoryText = ""
-        }
-    }
-
-    private func deleteCategoryPresets(at offsets: IndexSet) {
-        let removed = offsets.map { settings.categoryPresets[$0] }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.remove(atOffsets: offsets)
-            try? modelContext.save()
-        }
-        // 삭제된 카테고리의 예산은 이번 달부터 해제(과거 한도는 보존).
-        let month = CategoryBudgetStore.monthKey(from: Date())
-        let store = CategoryBudgetStore()
-        for category in removed {
-            try? store.endBudget(for: category, asOf: month, in: modelContext)
-        }
-    }
-
-    private func moveCategoryPresets(from source: IndexSet, to destination: Int) {
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.move(fromOffsets: source, toOffset: destination)
-            try? modelContext.save()
         }
     }
 
@@ -139,8 +56,8 @@ struct AdvancedSettingsView: View {
             TextEditor(text: extractionGuideBinding)
                 .frame(minHeight: 100)
                 .font(.body)
-                .focused($focusedField, equals: .extractionGuide)
-                .id(Field.extractionGuide)
+                .focused($guideFocused)
+                .id("extractionGuide")
         } header: {
             Text("추출 가이드 (선택)")
         } footer: {
