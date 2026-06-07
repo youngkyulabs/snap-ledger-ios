@@ -7,6 +7,9 @@ struct BudgetView: View {
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
     @Query private var budgets: [CategoryBudget]
     @Query private var settingsList: [AppSettings]
+    @Query private var reconciliations: [MonthlyReconciliation]
+    @Query private var accountBalances: [AccountMonthlyBalance]
+    @Query private var cashAdjustments: [CashAdjustment]
 
     @State private var selectedMonthKey: Int?
     @State private var showingLimitEditor = false
@@ -30,15 +33,19 @@ struct BudgetView: View {
         BudgetProgress.compute(entries: entries, budgets: budgets, targetMonth: effectiveMonthKey)
     }
 
+    private var reconciliationSummary: ReconciliationSummary {
+        ReconciliationSummary.compute(
+            entries: entries,
+            reconciliation: reconciliations.first { $0.monthKey == effectiveMonthKey },
+            balances: accountBalances,
+            adjustments: cashAdjustments,
+            targetMonth: effectiveMonthKey
+        )
+    }
+
     var body: some View {
         NavigationStack {
-            Group {
-                if summary.lines.isEmpty && summary.unbudgeted.isEmpty {
-                    emptyState
-                } else {
-                    progressList
-                }
-            }
+            progressList
             .navigationTitle("예산")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -59,8 +66,13 @@ struct BudgetView: View {
 
     private var progressList: some View {
         List {
+            reconciliationSection
             monthPickerSection
-            summarySection
+            if summary.lines.isEmpty && summary.unbudgeted.isEmpty {
+                emptyBudgetSection
+            } else {
+                summarySection
+            }
             if !summary.lines.isEmpty { linesSection }
             if !summary.unbudgeted.isEmpty { unbudgetedSection }
         }
@@ -79,6 +91,18 @@ struct BudgetView: View {
                 }
             }
             .pickerStyle(.menu)
+        }
+    }
+
+    private var reconciliationSection: some View {
+        Section {
+            NavigationLink {
+                MonthlyReconciliationView(month: effectiveMonthKey)
+            } label: {
+                ReconciliationSummaryRow(summary: reconciliationSummary)
+            }
+        } header: {
+            Text("\(Self.monthLabel(effectiveMonthKey)) 정산").textCase(nil)
         }
     }
 
@@ -140,14 +164,15 @@ struct BudgetView: View {
         }
     }
 
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("예산이 없어요", systemImage: "wonsign.circle")
-        } description: {
-            Text("카테고리별 한도를 정하면 진행률을 보여드려요.")
-        } actions: {
-            Button("한도 정하기") { showingLimitEditor = true }
-                .buttonStyle(.borderedProminent)
+    private var emptyBudgetSection: some View {
+        Section {
+            Button {
+                showingLimitEditor = true
+            } label: {
+                Label("카테고리별 한도 정하기", systemImage: "wonsign.circle")
+            }
+        } footer: {
+            Text("한도를 정하면 예산 진행률을 보여드려요.")
         }
     }
 
@@ -232,6 +257,51 @@ private struct LineRow: View {
     }
 }
 
+private struct ReconciliationSummaryRow: View {
+    let summary: ReconciliationSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(summary.hasReconciliationData ? "이번 달 정산" : "이번 달 정산을 시작하세요")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                differenceLabel
+            }
+            HStack(spacing: 12) {
+                amountBlock(title: "실제 쓴 돈", amount: summary.actualSpending)
+                amountBlock(title: "기록한 돈", amount: summary.recordedSpending)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var differenceLabel: some View {
+        Group {
+            if summary.isBalanced {
+                Label("정상", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                Text("\(abs(summary.difference).formatted(.number))원 차이")
+                    .foregroundStyle(.orange)
+            }
+        }
+        .font(.caption.weight(.medium).monospacedDigit())
+    }
+
+    private func amountBlock(title: String, amount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("\(amount.formatted(.number))원")
+                .font(.subheadline.monospacedDigit())
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: - Edit screen (예산 한도 전용)
 
 private struct BudgetLimitEditView: View {
@@ -302,5 +372,15 @@ private struct BudgetLimitEditView: View {
 
 #Preview {
     BudgetView()
-        .modelContainer(for: [SavedEntry.self, CategoryBudget.self, AppSettings.self], inMemory: true)
+        .modelContainer(
+            for: [
+                SavedEntry.self,
+                CategoryBudget.self,
+                AppSettings.self,
+                MonthlyReconciliation.self,
+                AccountMonthlyBalance.self,
+                CashAdjustment.self,
+            ],
+            inMemory: true
+        )
 }

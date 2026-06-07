@@ -1,0 +1,182 @@
+// swiftlint:disable force_unwrapping
+
+import Foundation
+import Testing
+@testable import SnapLedger
+
+@MainActor
+struct ReconciliationSummaryTests {
+    let kst: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        cal.locale = Locale(identifier: "ko_KR")
+        return cal
+    }()
+
+    private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
+        var comps = DateComponents()
+        comps.year = y
+        comps.month = m
+        comps.day = d
+        comps.hour = 12
+        comps.timeZone = TimeZone(identifier: "Asia/Seoul")
+        return kst.date(from: comps)!
+    }
+
+    private func entry(_ y: Int, _ m: Int, _ d: Int, amount: Int) -> SavedEntry {
+        SavedEntry(
+            date: date(y, m, d),
+            amount: amount,
+            merchant: "가맹점",
+            savedAt: date(y, m, d),
+            csvFile: "expenses-\(y)-\(String(format: "%02d", m)).csv"
+        )
+    }
+
+    @Test func computesActualRecordedAndDifference() {
+        let reconciliation = MonthlyReconciliation(
+            monthKey: 202_606,
+            salaryAmount: 3_000_000,
+            creditCardAmount: 450_000,
+            savingsAmount: 500_000
+        )
+        let balances = [
+            AccountMonthlyBalance(
+                monthKey: 202_606,
+                accountName: "입출금",
+                openingBalance: 1_000_000,
+                closingBalance: 3_050_000,
+                interestAmount: 0
+            ),
+            AccountMonthlyBalance(
+                monthKey: 202_606,
+                accountName: "적금",
+                openingBalance: 2_000_000,
+                closingBalance: 2_500_000,
+                interestAmount: 10_000
+            ),
+        ]
+        let entries = [
+            entry(2026, 6, 1, amount: 250_000),
+            entry(2026, 6, 2, amount: 200_000),
+        ]
+
+        let summary = ReconciliationSummary.compute(
+            entries: entries,
+            reconciliation: reconciliation,
+            balances: balances,
+            adjustments: [],
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.actualSpending == 910_000)
+        #expect(summary.recordedSpending == 950_000)
+        #expect(summary.difference == -40_000)
+    }
+
+    @Test func cashAdjustmentWithdrawalsReduceActualSpendingBase() {
+        let reconciliation = MonthlyReconciliation(
+            monthKey: 202_606,
+            salaryAmount: 3_000_000,
+            creditCardAmount: 700_000,
+            savingsAmount: 0
+        )
+        let balances = [
+            AccountMonthlyBalance(
+                monthKey: 202_606,
+                accountName: "입출금",
+                openingBalance: 1_000_000,
+                closingBalance: 3_900_000
+            ),
+        ]
+        let adjustments = [
+            CashAdjustment(
+                monthKey: 202_606,
+                date: date(2026, 6, 25),
+                title: "전월 카드대금",
+                direction: .withdrawal,
+                amount: 400_000
+            ),
+        ]
+
+        let summary = ReconciliationSummary.compute(
+            entries: [entry(2026, 6, 3, amount: 400_000)],
+            reconciliation: reconciliation,
+            balances: balances,
+            adjustments: adjustments,
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.adjustmentNetAmount == -400_000)
+        #expect(summary.actualSpending == 400_000)
+        #expect(summary.recordedSpending == 400_000)
+        #expect(summary.difference == 0)
+    }
+
+    @Test func cashAdjustmentDepositsIncreaseActualSpendingBase() {
+        let reconciliation = MonthlyReconciliation(
+            monthKey: 202_606,
+            salaryAmount: 2_000_000,
+            creditCardAmount: 300_000,
+            savingsAmount: 100_000
+        )
+        let balances = [
+            AccountMonthlyBalance(
+                monthKey: 202_606,
+                accountName: "입출금",
+                openingBalance: 500_000,
+                closingBalance: 2_000_000
+            ),
+        ]
+        let adjustments = [
+            CashAdjustment(
+                monthKey: 202_606,
+                date: date(2026, 6, 10),
+                title: "환급",
+                direction: .deposit,
+                amount: 100_000
+            ),
+        ]
+
+        let summary = ReconciliationSummary.compute(
+            entries: [entry(2026, 6, 3, amount: 300_000)],
+            reconciliation: reconciliation,
+            balances: balances,
+            adjustments: adjustments,
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.adjustmentNetAmount == 100_000)
+        #expect(summary.actualSpending == 900_000)
+        #expect(summary.recordedSpending == 400_000)
+        #expect(summary.difference == 500_000)
+    }
+
+    @Test func excludesOtherMonths() {
+        let summary = ReconciliationSummary.compute(
+            entries: [
+                entry(2026, 5, 31, amount: 1_000),
+                entry(2026, 6, 1, amount: 2_000),
+            ],
+            reconciliation: MonthlyReconciliation(monthKey: 202_606, savingsAmount: 3_000),
+            balances: [
+                AccountMonthlyBalance(monthKey: 202_605, accountName: "5월", openingBalance: 1, closingBalance: 2),
+                AccountMonthlyBalance(monthKey: 202_606, accountName: "6월", openingBalance: 10, closingBalance: 10),
+            ],
+            adjustments: [
+                CashAdjustment(monthKey: 202_605, date: date(2026, 5, 1), title: "5월", direction: .deposit, amount: 999),
+                CashAdjustment(monthKey: 202_606, date: date(2026, 6, 1), title: "6월", direction: .deposit, amount: 100),
+            ],
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.recordedExpenseAmount == 2_000)
+        #expect(summary.recordedSpending == 5_000)
+        #expect(summary.openingBalanceTotal == 10)
+        #expect(summary.adjustmentNetAmount == 100)
+    }
+}

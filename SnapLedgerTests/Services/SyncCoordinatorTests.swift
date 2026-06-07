@@ -13,6 +13,9 @@ struct SyncCoordinatorTests {
             MerchantCategory.self,
             AppSettings.self,
             CSVFileState.self,
+            MonthlyReconciliation.self,
+            AccountMonthlyBalance.self,
+            CashAdjustment.self,
         ])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])

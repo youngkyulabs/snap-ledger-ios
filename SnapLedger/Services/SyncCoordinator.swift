@@ -23,8 +23,15 @@ struct MonthSyncStatus: Identifiable, Equatable {
     }
 
     let monthKey: String
+    let kind: SyncFileKind
     let state: State
-    var id: String { monthKey }
+    var id: String { "\(kind.rawValue)-\(monthKey)" }
+
+    init(monthKey: String, kind: SyncFileKind = .expenses, state: State) {
+        self.monthKey = monthKey
+        self.kind = kind
+        self.state = state
+    }
 
     var allowsImport: Bool {
         switch state {
@@ -134,14 +141,15 @@ struct SyncCoordinator {
 
     /// 폴더의 월별 CSV를 스캔해 외부 변경된 달을 찾는다. 다운로드 안 된/읽지 못한 파일은 건너뛴다.
     /// 파일 해시 계산은 메인 액터 밖에서 수행한다 (런치/포그라운드 프레임을 막지 않도록).
+    /// 자동 변경 감지는 기존 지출 CSV에만 적용한다. 정산 CSV는 폴더 상태 화면에서 수동으로 맞춘다.
     func detectChanges(in context: ModelContext) async -> [DetectedChange] {
         (try? await withFolderAsync(in: context) { folderURL in
-            let readiness = await Self.scanReadiness(in: folderURL)
+            let readiness = await Self.scanReadiness(in: folderURL, kind: .expenses)
             let states = fileStatesByName(in: context)
             var changes: [DetectedChange] = []
             for (key, reading) in readiness {
                 guard case .ready(let content) = reading else { continue }
-                let name = CSVWriter.filename(forMonthKey: key)
+                let name = SyncFileKind.expenses.filename(forMonthKey: key)
                 if let state = states[name] {
                     if state.lastSyncedHash != content.hash {
                         changes.append(DetectedChange(monthKey: key, kind: .modified))
@@ -157,25 +165,50 @@ struct SyncCoordinator {
     /// 파일 동기화 화면용 — 앱에 있는 달 ∪ 폴더에 있는 달 각각의 동기화 상태.
     func monthStatuses(in context: ModelContext) async -> [MonthSyncStatus] {
         (try? await withFolderAsync(in: context) { folderURL in
-            let readiness = await Self.scanReadiness(in: folderURL)
+            let readiness = await Self.scanAllReadiness(in: folderURL)
             let states = fileStatesByName(in: context)
             let allSaved = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
-            let appMonths = Set(allSaved.map { CSVWriter.monthKey(for: $0.date) })
+            let expenseAppMonths = Set(allSaved.map { CSVWriter.monthKey(for: $0.date) })
+            let reconciliationAppMonths = reconciliationMonthKeys(in: context)
 
-            let allKeys = appMonths.union(readiness.keys)
-            return allKeys
-                .map { key in
-                    MonthSyncStatus(
-                        monthKey: key,
-                        state: monthState(
-                            key: key,
-                            readiness: readiness[key],
-                            hasApp: appMonths.contains(key),
-                            states: states
-                        )
+            let expenseKeys = expenseAppMonths.union(
+                readiness.keys.compactMap { Self.identity($0, matches: .expenses) }
+            )
+            let reconciliationKeys = reconciliationAppMonths.union(
+                readiness.keys.compactMap { Self.identity($0, matches: .reconciliation) }
+            )
+
+            let expenseStatuses = expenseKeys.map { key in
+                MonthSyncStatus(
+                    monthKey: key,
+                    kind: .expenses,
+                    state: monthState(
+                        key: key,
+                        kind: .expenses,
+                        readiness: readiness[Self.identity(kind: .expenses, monthKey: key)],
+                        hasApp: expenseAppMonths.contains(key),
+                        states: states
                     )
+                )
+            }
+            let reconciliationStatuses = reconciliationKeys.map { key in
+                MonthSyncStatus(
+                    monthKey: key,
+                    kind: .reconciliation,
+                    state: monthState(
+                        key: key,
+                        kind: .reconciliation,
+                        readiness: readiness[Self.identity(kind: .reconciliation, monthKey: key)],
+                        hasApp: reconciliationAppMonths.contains(key),
+                        states: states
+                    )
+                )
+            }
+            return (expenseStatuses + reconciliationStatuses)
+                .sorted {
+                    if $0.monthKey != $1.monthKey { return $0.monthKey > $1.monthKey }
+                    return $0.kind.sortOrder < $1.kind.sortOrder
                 }
-                .sorted { $0.monthKey > $1.monthKey }
         }) ?? []
     }
 
@@ -212,6 +245,7 @@ struct SyncCoordinator {
 
     private func monthState(
         key: String,
+        kind: SyncFileKind,
         readiness: FileFingerprint.Readiness?,
         hasApp: Bool,
         states: [String: CSVFileState]
@@ -224,7 +258,7 @@ struct SyncCoordinator {
         case .missing:
             return hasApp ? .appOnly : .fileOnly
         case .ready(let content):
-            let stateHash = states[CSVWriter.filename(forMonthKey: key)]?.lastSyncedHash
+            let stateHash = states[kind.filename(forMonthKey: key)]?.lastSyncedHash
             if stateHash == content.hash {
                 return hasApp ? .synced : .fileOnly
             }
@@ -241,10 +275,11 @@ struct SyncCoordinator {
         guard let settings, !settings.hasSyncBaseline else { return }
         do {
             try withFolder(in: context) { folderURL, ctx in
-                for (key, url) in Self.monthCSVFiles(in: folderURL) {
-                    guard case .ready(let content) = FileFingerprint.read(at: url) else { continue }
+                for file in Self.syncCSVFiles(in: folderURL) {
+                    guard let match = Self.identityParts(file.identity),
+                          case .ready(let content) = FileFingerprint.read(at: file.url) else { continue }
                     upsertFileState(
-                        filename: CSVWriter.filename(forMonthKey: key),
+                        filename: match.kind.filename(forMonthKey: match.monthKey),
                         hash: content.hash,
                         modified: content.modified,
                         in: ctx
@@ -263,22 +298,22 @@ struct SyncCoordinator {
 
     @discardableResult
     func importMonths(_ keys: [String], in context: ModelContext) throws -> ImportSummary {
+        try importMonths(keys, kind: .expenses, in: context)
+    }
+
+    @discardableResult
+    func importMonths(_ keys: [String], kind: SyncFileKind, in context: ModelContext) throws -> ImportSummary {
         try withFolder(in: context) { folderURL, ctx in
             var summary = ImportSummary()
             for key in keys {
-                let url = folderURL.appendingPathComponent(CSVWriter.filename(forMonthKey: key))
+                let filename = kind.filename(forMonthKey: key)
+                let url = folderURL.appendingPathComponent(filename)
                 switch FileFingerprint.read(at: url) {
                 case .ready(let content):
-                    let parsed = CSVRowParser.parse(content.text)
-                    replaceMonthEntries(monthKey: key, rows: parsed.rows, in: ctx)
-                    upsertFileState(
-                        filename: CSVWriter.filename(forMonthKey: key),
-                        hash: content.hash,
-                        modified: content.modified,
-                        in: ctx
-                    )
+                    let parsed = replaceMonthFromCSV(kind: kind, monthKey: key, text: content.text, in: ctx)
+                    upsertFileState(filename: filename, hash: content.hash, modified: content.modified, in: ctx)
                     summary.importedMonths.append(key)
-                    summary.totalRows += parsed.rows.count
+                    summary.totalRows += parsed.imported
                     summary.skippedRows += parsed.skipped
                 case .notDownloaded:
                     summary.notReadyMonths.append(key)
@@ -287,8 +322,8 @@ struct SyncCoordinator {
                     summary.unreadableMonths.append(key)
                 case .missing:
                     // 파일이 없으면 그 달을 비운다 (외부에서 비워졌다고 보고 앱도 맞춤).
-                    replaceMonthEntries(monthKey: key, rows: [], in: ctx)
-                    removeFileState(filename: CSVWriter.filename(forMonthKey: key), in: ctx)
+                    replaceMonthWithEmptyData(kind: kind, monthKey: key, in: ctx)
+                    removeFileState(filename: filename, in: ctx)
                     summary.importedMonths.append(key)
                 }
             }
@@ -308,8 +343,17 @@ struct SyncCoordinator {
     // MARK: - Export (앱 → 파일)
 
     func exportMonths(_ keys: [String], in context: ModelContext) throws {
+        try exportMonths(keys, kind: .expenses, in: context)
+    }
+
+    func exportMonths(_ keys: [String], kind: SyncFileKind, in context: ModelContext) throws {
         try withFolder(in: context) { folderURL, ctx in
-            try exportMonths(keys, folderURL: folderURL, in: ctx)
+            switch kind {
+            case .expenses:
+                try exportMonths(keys, folderURL: folderURL, in: ctx)
+            case .reconciliation:
+                try exportReconciliationMonths(keys, folderURL: folderURL, in: ctx)
+            }
             try ctx.save()
         }
     }
@@ -338,7 +382,7 @@ struct SyncCoordinator {
                     )
                 }
             try writer.replaceMonth(monthKey: key, rows: rows)
-            refreshFileState(monthKey: key, folderURL: folderURL, in: context)
+            refreshFileState(monthKey: key, kind: .expenses, folderURL: folderURL, in: context)
         }
     }
 
@@ -347,6 +391,7 @@ struct SyncCoordinator {
     /// 폴더를 이미 연 호출자(`SaveCoordinator`)용. 대상 달들에 외부 변경이 있는지 본다.
     func checkWriteGuard(
         monthKeys: [String],
+        kind: SyncFileKind = .expenses,
         folderURL: URL,
         in context: ModelContext
     ) -> WriteGuard {
@@ -354,7 +399,7 @@ struct SyncCoordinator {
         var conflicts: [String] = []
         var notReady: [String] = []
         for key in monthKeys {
-            let name = CSVWriter.filename(forMonthKey: key)
+            let name = kind.filename(forMonthKey: key)
             let url = folderURL.appendingPathComponent(name)
             switch FileFingerprint.read(at: url) {
             case .notDownloaded, .unreadable:
@@ -377,7 +422,12 @@ struct SyncCoordinator {
 
     /// 폴더를 이미 연 호출자(`SaveCoordinator`)용. 쓰기 후 지문 갱신.
     func refreshFileState(monthKey key: String, folderURL: URL, in context: ModelContext) {
-        let name = CSVWriter.filename(forMonthKey: key)
+        refreshFileState(monthKey: key, kind: .expenses, folderURL: folderURL, in: context)
+    }
+
+    /// 폴더를 이미 연 호출자용. 쓰기 후 지문 갱신.
+    func refreshFileState(monthKey key: String, kind: SyncFileKind, folderURL: URL, in context: ModelContext) {
+        let name = kind.filename(forMonthKey: key)
         let url = folderURL.appendingPathComponent(name)
         switch FileFingerprint.read(at: url) {
         case .ready(let content):
@@ -405,6 +455,38 @@ struct SyncCoordinator {
 // MARK: - 내부 헬퍼
 
 extension SyncCoordinator {
+    private struct ParsedSyncRows {
+        let imported: Int
+        let skipped: Int
+    }
+
+    private func replaceMonthFromCSV(
+        kind: SyncFileKind,
+        monthKey key: String,
+        text: String,
+        in context: ModelContext
+    ) -> ParsedSyncRows {
+        switch kind {
+        case .expenses:
+            let parsed = CSVRowParser.parse(text)
+            replaceMonthEntries(monthKey: key, rows: parsed.rows, in: context)
+            return ParsedSyncRows(imported: parsed.rows.count, skipped: parsed.skipped)
+        case .reconciliation:
+            let parsed = ReconciliationCSVParser.parse(text)
+            replaceReconciliationMonth(monthKey: key, rows: parsed.rows, in: context)
+            return ParsedSyncRows(imported: parsed.rows.count, skipped: parsed.skipped)
+        }
+    }
+
+    private func replaceMonthWithEmptyData(kind: SyncFileKind, monthKey key: String, in context: ModelContext) {
+        switch kind {
+        case .expenses:
+            replaceMonthEntries(monthKey: key, rows: [], in: context)
+        case .reconciliation:
+            replaceReconciliationMonth(monthKey: key, rows: [], in: context)
+        }
+    }
+
     private func replaceMonthEntries(monthKey key: String, rows: [SavedRow], in context: ModelContext) {
         let filename = CSVWriter.filename(forMonthKey: key)
         let all = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
@@ -456,43 +538,6 @@ extension SyncCoordinator {
         for state in states where state.filename == filename {
             context.delete(state)
         }
-    }
-
-    /// 폴더의 월별 CSV 파일 목록. 파일 I/O라 메인 액터 밖에서도 쓸 수 있게 `nonisolated`.
-    nonisolated static func monthCSVFiles(in folderURL: URL) -> [(key: String, url: URL)] {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: folderURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-        ) else {
-            return []
-        }
-        return entries.compactMap { url in
-            monthKey(fromFilename: url.lastPathComponent).map { ($0, url) }
-        }
-    }
-
-    /// 폴더의 월별 CSV를 스캔해 `monthKey → Readiness` 맵을 만든다.
-    /// `nonisolated async` 라 메인 액터에서 `await` 호출 시 파일 해시 계산이 백그라운드에서 돈다.
-    nonisolated static func scanReadiness(in folderURL: URL) async -> [String: FileFingerprint.Readiness] {
-        var out: [String: FileFingerprint.Readiness] = [:]
-        for (key, url) in monthCSVFiles(in: folderURL) {
-            out[key] = FileFingerprint.read(at: url)
-        }
-        return out
-    }
-
-    /// `expenses-2026-05.csv` → `2026-05`. 패턴이 안 맞으면 nil.
-    nonisolated static func monthKey(fromFilename name: String) -> String? {
-        guard name.hasPrefix("expenses-"), name.hasSuffix(".csv") else { return nil }
-        let mid = String(name.dropFirst("expenses-".count).dropLast(".csv".count))
-        let parts = mid.split(separator: "-")
-        guard parts.count == 2,
-              parts[0].count == 4, Int(parts[0]) != nil,
-              parts[1].count == 2, Int(parts[1]) != nil else {
-            return nil
-        }
-        return mid
     }
 
     /// 폴더 접근(resolve·scope·도달성·stale 갱신)은 `CSVFolderAccess`에 위임하고,
