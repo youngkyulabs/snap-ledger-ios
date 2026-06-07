@@ -16,6 +16,7 @@ struct SyncCoordinatorReconciliationTests {
             MonthlyReconciliation.self,
             AccountMonthlyBalance.self,
             CashAdjustment.self,
+            SavingsItem.self,
         ])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
@@ -79,10 +80,10 @@ struct SyncCoordinatorReconciliationTests {
             MonthlyReconciliation(
                 monthKey: 202_605,
                 salaryAmount: 3_000_000,
-                creditCardAmount: 450_000,
-                savingsAmount: 500_000
+                creditCardAmount: 450_000
             )
         )
+        context.insert(SavingsItem(monthKey: 202_605, title: "저축액", amount: 500_000))
         context.insert(
             AccountMonthlyBalance(
                 monthKey: 202_605,
@@ -100,6 +101,7 @@ struct SyncCoordinatorReconciliationTests {
             encoding: .utf8
         )
         #expect(content.contains("월급,,,월급,,3000000,"))
+        #expect(content.contains("저축액,,,저축액,,500000,"))
         #expect(content.contains("기초잔액,,입출금,,,1000000,"))
 
         let statuses = await sync.monthStatuses(in: context)
@@ -117,6 +119,7 @@ struct SyncCoordinatorReconciliationTests {
 
         context.insert(MonthlyReconciliation(monthKey: 202_605, salaryAmount: 1))
         context.insert(AccountMonthlyBalance(monthKey: 202_605, accountName: "기존", openingBalance: 1))
+        context.insert(SavingsItem(monthKey: 202_605, title: "기존저축", amount: 1))
         context.insert(
             CashAdjustment(
                 monthKey: 202_605,
@@ -134,7 +137,8 @@ struct SyncCoordinatorReconciliationTests {
             \u{FEFF}종류,날짜,계좌,항목,방향,금액,메모
             월급,,,월급,,3000000,
             카드사용액,,,카드 사용액,,450000,
-            저축액,,,저축액,,500000,
+            저축액,,,적금,,300000,
+            저축액,,,펀드,,200000,
             기초잔액,,입출금,,,1000000,
             기말잔액,,입출금,,,2000000,
             이자,,입출금,,,1200,
@@ -143,7 +147,7 @@ struct SyncCoordinatorReconciliationTests {
         )
 
         let summary = try sync.importMonths(["2026-05"], kind: .reconciliation, in: context)
-        #expect(summary.totalRows == 7)
+        #expect(summary.totalRows == 8)
         #expect(summary.skippedRows == 0)
 
         let reconciliation = try #require(
@@ -151,7 +155,12 @@ struct SyncCoordinatorReconciliationTests {
         )
         #expect(reconciliation.salaryAmount == 3_000_000)
         #expect(reconciliation.creditCardAmount == 450_000)
-        #expect(reconciliation.savingsAmount == 500_000)
+
+        let savings = try context.fetch(FetchDescriptor<SavingsItem>())
+            .filter { $0.monthKey == 202_605 }
+            .sorted { $0.sortOrder < $1.sortOrder }
+        #expect(savings.map(\.title) == ["적금", "펀드"])
+        #expect(savings.map(\.amount) == [300_000, 200_000])
 
         let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
         #expect(balances.count == 1)

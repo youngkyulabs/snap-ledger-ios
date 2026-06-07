@@ -37,8 +37,7 @@ struct ReconciliationSummaryTests {
         let reconciliation = MonthlyReconciliation(
             monthKey: 202_606,
             salaryAmount: 3_000_000,
-            creditCardAmount: 450_000,
-            savingsAmount: 500_000
+            creditCardAmount: 450_000
         )
         let balances = [
             AccountMonthlyBalance(
@@ -63,9 +62,13 @@ struct ReconciliationSummaryTests {
 
         let summary = ReconciliationSummary.compute(
             entries: entries,
-            reconciliation: reconciliation,
-            balances: balances,
-            adjustments: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: reconciliation,
+                balances: balances,
+                savingsItems: [
+                    SavingsItem(monthKey: 202_606, title: "저축", amount: 500_000),
+                ]
+            ),
             targetMonth: 202_606,
             calendar: kst
         )
@@ -79,8 +82,7 @@ struct ReconciliationSummaryTests {
         let reconciliation = MonthlyReconciliation(
             monthKey: 202_606,
             salaryAmount: 3_000_000,
-            creditCardAmount: 700_000,
-            savingsAmount: 0
+            creditCardAmount: 700_000
         )
         let balances = [
             AccountMonthlyBalance(
@@ -102,9 +104,11 @@ struct ReconciliationSummaryTests {
 
         let summary = ReconciliationSummary.compute(
             entries: [entry(2026, 6, 3, amount: 400_000)],
-            reconciliation: reconciliation,
-            balances: balances,
-            adjustments: adjustments,
+            input: ReconciliationSummaryInput(
+                reconciliation: reconciliation,
+                balances: balances,
+                adjustments: adjustments
+            ),
             targetMonth: 202_606,
             calendar: kst
         )
@@ -119,8 +123,7 @@ struct ReconciliationSummaryTests {
         let reconciliation = MonthlyReconciliation(
             monthKey: 202_606,
             salaryAmount: 2_000_000,
-            creditCardAmount: 300_000,
-            savingsAmount: 100_000
+            creditCardAmount: 300_000
         )
         let balances = [
             AccountMonthlyBalance(
@@ -142,9 +145,14 @@ struct ReconciliationSummaryTests {
 
         let summary = ReconciliationSummary.compute(
             entries: [entry(2026, 6, 3, amount: 300_000)],
-            reconciliation: reconciliation,
-            balances: balances,
-            adjustments: adjustments,
+            input: ReconciliationSummaryInput(
+                reconciliation: reconciliation,
+                balances: balances,
+                adjustments: adjustments,
+                savingsItems: [
+                    SavingsItem(monthKey: 202_606, title: "저축", amount: 100_000),
+                ]
+            ),
             targetMonth: 202_606,
             calendar: kst
         )
@@ -161,15 +169,33 @@ struct ReconciliationSummaryTests {
                 entry(2026, 5, 31, amount: 1_000),
                 entry(2026, 6, 1, amount: 2_000),
             ],
-            reconciliation: MonthlyReconciliation(monthKey: 202_606, savingsAmount: 3_000),
-            balances: [
-                AccountMonthlyBalance(monthKey: 202_605, accountName: "5월", openingBalance: 1, closingBalance: 2),
-                AccountMonthlyBalance(monthKey: 202_606, accountName: "6월", openingBalance: 10, closingBalance: 10),
-            ],
-            adjustments: [
-                CashAdjustment(monthKey: 202_605, date: date(2026, 5, 1), title: "5월", direction: .deposit, amount: 999),
-                CashAdjustment(monthKey: 202_606, date: date(2026, 6, 1), title: "6월", direction: .deposit, amount: 100),
-            ],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                balances: [
+                    AccountMonthlyBalance(monthKey: 202_605, accountName: "5월", openingBalance: 1, closingBalance: 2),
+                    AccountMonthlyBalance(monthKey: 202_606, accountName: "6월", openingBalance: 10, closingBalance: 10),
+                ],
+                adjustments: [
+                    CashAdjustment(
+                        monthKey: 202_605,
+                        date: date(2026, 5, 1),
+                        title: "5월",
+                        direction: .deposit,
+                        amount: 999
+                    ),
+                    CashAdjustment(
+                        monthKey: 202_606,
+                        date: date(2026, 6, 1),
+                        title: "6월",
+                        direction: .deposit,
+                        amount: 100
+                    ),
+                ],
+                savingsItems: [
+                    SavingsItem(monthKey: 202_606, title: "6월저축", amount: 3_000),
+                    SavingsItem(monthKey: 202_605, title: "5월저축", amount: 999_999),
+                ]
+            ),
             targetMonth: 202_606,
             calendar: kst
         )
@@ -178,5 +204,24 @@ struct ReconciliationSummaryTests {
         #expect(summary.recordedSpending == 5_000)
         #expect(summary.openingBalanceTotal == 10)
         #expect(summary.adjustmentNetAmount == 100)
+    }
+
+    @Test func sumsSavingsItems() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                savingsItems: [
+                    SavingsItem(monthKey: 202_606, title: "적금", amount: 300_000),
+                    SavingsItem(monthKey: 202_606, title: "펀드", amount: 200_000),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.savingsAmount == 500_000)
+        #expect(summary.recordedSpending == 500_000)
+        #expect(summary.hasReconciliationData == true)
     }
 }

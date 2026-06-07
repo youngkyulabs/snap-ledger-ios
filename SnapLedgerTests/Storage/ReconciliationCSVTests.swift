@@ -69,7 +69,8 @@ struct ReconciliationCSVTests {
         let rows = [
             ReconciliationCSVRow(kind: .salary, date: nil, account: nil, title: "월급", direction: nil, amount: 3_000_000),
             ReconciliationCSVRow(kind: .creditCard, date: nil, account: nil, title: "카드", direction: nil, amount: 450_000),
-            ReconciliationCSVRow(kind: .savings, date: nil, account: nil, title: "저축", direction: nil, amount: 500_000),
+            ReconciliationCSVRow(kind: .savings, date: nil, account: nil, title: "적금", direction: nil, amount: 300_000),
+            ReconciliationCSVRow(kind: .savings, date: nil, account: nil, title: "펀드", direction: nil, amount: 200_000),
             ReconciliationCSVRow(kind: .interest, date: nil, account: "적금", title: nil, direction: nil, amount: 10_000),
             ReconciliationCSVRow(
                 kind: .cashAdjustment,

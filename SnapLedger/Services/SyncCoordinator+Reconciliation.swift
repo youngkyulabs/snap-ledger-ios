@@ -28,9 +28,22 @@ extension SyncCoordinator {
 
         let reconciliation = MonthlyReconciliation(monthKey: month)
         var balanceState = BalanceImportState()
+        var savingsOrder = 0
 
         for row in rows {
-            apply(row, to: reconciliation, month: month, balanceState: &balanceState, in: context)
+            if row.kind == .savings {
+                context.insert(
+                    SavingsItem(
+                        monthKey: month,
+                        title: row.title ?? ReconciliationCSVKind.savings.rawValue,
+                        amount: row.amount,
+                        sortOrder: savingsOrder
+                    )
+                )
+                savingsOrder += 1
+            } else {
+                apply(row, to: reconciliation, month: month, balanceState: &balanceState, in: context)
+            }
         }
 
         context.insert(reconciliation)
@@ -48,7 +61,9 @@ extension SyncCoordinator {
             .map { Self.monthKeyString(from: $0.monthKey) }
         let adjustmentKeys = ((try? context.fetch(FetchDescriptor<CashAdjustment>())) ?? [])
             .map { Self.monthKeyString(from: $0.monthKey) }
-        return Set(reconciliationKeys + balanceKeys + adjustmentKeys)
+        let savingsKeys = ((try? context.fetch(FetchDescriptor<SavingsItem>())) ?? [])
+            .map { Self.monthKeyString(from: $0.monthKey) }
+        return Set(reconciliationKeys + balanceKeys + adjustmentKeys + savingsKeys)
     }
 
     private func apply(
@@ -65,7 +80,7 @@ extension SyncCoordinator {
         case .creditCard:
             reconciliation.creditCardAmount = row.amount
         case .savings:
-            reconciliation.savingsAmount = row.amount
+            break
         case .openingBalance, .closingBalance, .interest:
             applyBalanceRow(row, month: month, balanceState: &balanceState)
         case .cashAdjustment:

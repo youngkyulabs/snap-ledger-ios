@@ -11,7 +11,10 @@ struct MonthlyReconciliationView: View {
     @State private var didLoad = false
     @State private var newAccountName = ""
     @State private var showingAccountPrompt = false
+    @State private var newSavingsName = ""
+    @State private var showingSavingsPrompt = false
     @State private var showingAdjustmentEditor = false
+    @State private var salaryRevealed = false
     @State private var conflict: SyncConflict?
     @State private var resultMessage: String?
 
@@ -23,6 +26,7 @@ struct MonthlyReconciliationView: View {
         List {
             summarySection
             monthlyInputSection
+            savingsSection
             accountsSection
             adjustmentsSection
             explanationSection
@@ -51,6 +55,13 @@ struct MonthlyReconciliationView: View {
             Button("취소", role: .cancel) { newAccountName = "" }
         } message: {
             Text("정산에 포함할 통장 이름을 입력하세요.")
+        }
+        .alert("저축 항목 추가", isPresented: $showingSavingsPrompt) {
+            TextField("항목명", text: $newSavingsName)
+            Button("추가") { addSavings() }
+            Button("취소", role: .cancel) { newSavingsName = "" }
+        } message: {
+            Text("적금·펀드 등 저축 항목 이름을 입력하세요.")
         }
         .sheet(isPresented: $showingAdjustmentEditor) {
             NavigationStack {
@@ -107,12 +118,63 @@ struct MonthlyReconciliationView: View {
 
     private var monthlyInputSection: some View {
         Section {
-            moneyField("월급", value: $draft.salary)
+            salaryRow
             moneyField("카드 사용액", value: $draft.creditCard)
-            moneyField("저축액", value: $draft.savings)
             TextField("메모", text: $draft.note)
         } header: {
             Text("월 요약").textCase(nil)
+        }
+    }
+
+    private var salaryRow: some View {
+        HStack {
+            Text("월급")
+            Spacer()
+            if salaryRevealed {
+                TextField("0", text: amountText($draft.salary))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 150)
+                Text("원")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("••••")
+                    .foregroundStyle(.secondary)
+            }
+            Button {
+                salaryRevealed.toggle()
+            } label: {
+                Image(systemName: salaryRevealed ? "eye" : "eye.slash")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(salaryRevealed ? "월급 가리기" : "월급 보기")
+        }
+    }
+
+    private var savingsSection: some View {
+        Section {
+            ForEach($draft.savings) { $item in
+                HStack {
+                    TextField("항목", text: $item.title)
+                    Spacer()
+                    TextField("0", text: amountText($item.amount))
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 130)
+                    Text("원")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onDelete { draft.savings.remove(atOffsets: $0) }
+            Button {
+                showingSavingsPrompt = true
+            } label: {
+                Label("저축 항목 추가", systemImage: "plus.circle")
+            }
+        } header: {
+            Text("저축").textCase(nil)
+        } footer: {
+            Text("적금·펀드처럼 이번 달에 모은 돈을 항목별로 입력하세요.")
         }
     }
 
@@ -219,6 +281,14 @@ struct MonthlyReconciliationView: View {
         let nextOrder = (draft.balances.map(\.sortOrder).max() ?? -1) + 1
         draft.balances.append(BalanceDraft(accountName: trimmed, sortOrder: nextOrder))
         newAccountName = ""
+    }
+
+    private func addSavings() {
+        let trimmed = newSavingsName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let nextOrder = (draft.savings.map(\.sortOrder).max() ?? -1) + 1
+        draft.savings.append(SavingsItemDraft(title: trimmed, amount: 0, sortOrder: nextOrder))
+        newSavingsName = ""
     }
 
     private func save(ignoringConflict: Bool = false) {
@@ -343,6 +413,7 @@ private func reconciliationMonthLabel(_ key: Int) -> String {
             MonthlyReconciliation.self,
             AccountMonthlyBalance.self,
             CashAdjustment.self,
+            SavingsItem.self,
             AppSettings.self,
         ],
         inMemory: true

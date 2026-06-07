@@ -10,6 +10,7 @@ struct BudgetView: View {
     @Query private var reconciliations: [MonthlyReconciliation]
     @Query private var accountBalances: [AccountMonthlyBalance]
     @Query private var cashAdjustments: [CashAdjustment]
+    @Query private var savingsItems: [SavingsItem]
 
     @State private var selectedMonthKey: Int?
     @State private var showingLimitEditor = false
@@ -36,9 +37,12 @@ struct BudgetView: View {
     private var reconciliationSummary: ReconciliationSummary {
         ReconciliationSummary.compute(
             entries: entries,
-            reconciliation: reconciliations.first { $0.monthKey == effectiveMonthKey },
-            balances: accountBalances,
-            adjustments: cashAdjustments,
+            input: ReconciliationSummaryInput(
+                reconciliation: reconciliations.first { $0.monthKey == effectiveMonthKey },
+                balances: accountBalances,
+                adjustments: cashAdjustments,
+                savingsItems: savingsItems
+            ),
             targetMonth: effectiveMonthKey
         )
     }
@@ -66,8 +70,8 @@ struct BudgetView: View {
 
     private var progressList: some View {
         List {
-            reconciliationSection
             monthPickerSection
+            reconciliationSection
             if summary.lines.isEmpty && summary.unbudgeted.isEmpty {
                 emptyBudgetSection
             } else {
@@ -380,6 +384,7 @@ private struct BudgetLimitEditView: View {
                 MonthlyReconciliation.self,
                 AccountMonthlyBalance.self,
                 CashAdjustment.self,
+                SavingsItem.self,
             ],
             inMemory: true
         )

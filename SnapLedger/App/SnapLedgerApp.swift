@@ -17,6 +17,7 @@ struct SnapLedgerApp: App {
             MonthlyReconciliation.self,
             AccountMonthlyBalance.self,
             CashAdjustment.self,
+            SavingsItem.self,
         ])
         let configuration = ModelConfiguration(
             schema: schema,

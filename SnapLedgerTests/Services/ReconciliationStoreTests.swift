@@ -7,7 +7,7 @@ import Testing
 struct ReconciliationStoreTests {
     private func makeContext() throws -> ModelContext {
         let container = try ModelContainer(
-            for: MonthlyReconciliation.self, AccountMonthlyBalance.self, CashAdjustment.self, AppSettings.self,
+            for: MonthlyReconciliation.self, AccountMonthlyBalance.self, CashAdjustment.self, SavingsItem.self, AppSettings.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         return ModelContext(container)
@@ -19,10 +19,10 @@ struct ReconciliationStoreTests {
             MonthlyReconciliation(
                 monthKey: 202_605,
                 salaryAmount: 3_000_000,
-                creditCardAmount: 450_000,
-                savingsAmount: 500_000
+                creditCardAmount: 450_000
             )
         )
+        context.insert(SavingsItem(monthKey: 202_605, title: "적금", amount: 500_000))
         context.insert(
             AccountMonthlyBalance(
                 monthKey: 202_605,
@@ -39,7 +39,8 @@ struct ReconciliationStoreTests {
 
         #expect(draft.salary == 3_000_000)
         #expect(draft.creditCard == 450_000)
-        #expect(draft.savings == 500_000)
+        #expect(draft.savings.map(\.amount).reduce(0, +) == 500_000)
+        #expect(draft.savings.first?.title == "적금")
         #expect(draft.balances.count == 1)
         #expect(draft.balances.first?.accountName == "입출금")
         // 전월 기말이 이번 달 기초로 이월되고, 이자는 0으로 초기화된다.
@@ -52,6 +53,8 @@ struct ReconciliationStoreTests {
         #expect(!reconciliations.contains { $0.monthKey == 202_606 })
         let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
         #expect(!balances.contains { $0.monthKey == 202_606 })
+        let savings = try context.fetch(FetchDescriptor<SavingsItem>())
+        #expect(!savings.contains { $0.monthKey == 202_606 })
     }
 
     @Test func loadDraftReadsExistingMonth() throws {
@@ -71,6 +74,7 @@ struct ReconciliationStoreTests {
         let context = try makeContext()
         var draft = ReconciliationDraft()
         draft.salary = 2_000_000
+        draft.savings = [SavingsItemDraft(title: "청약", amount: 300_000)]
         draft.balances = [BalanceDraft(accountName: "통장", opening: 100, closing: 200)]
 
         let exported = try ReconciliationStore().save(draft, month: 202_606, in: context)
@@ -80,12 +84,16 @@ struct ReconciliationStoreTests {
         #expect(reconciliations.first { $0.monthKey == 202_606 }?.salaryAmount == 2_000_000)
         let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
         #expect(balances.first { $0.monthKey == 202_606 }?.closingBalance == 200)
+        let savings = try context.fetch(FetchDescriptor<SavingsItem>())
+        #expect(savings.first { $0.monthKey == 202_606 }?.title == "청약")
+        #expect(savings.first { $0.monthKey == 202_606 }?.amount == 300_000)
     }
 
     @Test func saveEmptyDraftClearsExistingMonth() throws {
         let context = try makeContext()
         context.insert(MonthlyReconciliation(monthKey: 202_606, salaryAmount: 5))
         context.insert(AccountMonthlyBalance(monthKey: 202_606, accountName: "통장"))
+        context.insert(SavingsItem(monthKey: 202_606, title: "적금", amount: 100))
         try context.save()
 
         try ReconciliationStore().save(ReconciliationDraft(), month: 202_606, in: context)
@@ -94,5 +102,7 @@ struct ReconciliationStoreTests {
         #expect(!reconciliations.contains { $0.monthKey == 202_606 })
         let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
         #expect(!balances.contains { $0.monthKey == 202_606 })
+        let savings = try context.fetch(FetchDescriptor<SavingsItem>())
+        #expect(!savings.contains { $0.monthKey == 202_606 })
     }
 }
