@@ -7,6 +7,8 @@ struct SyncConflict: Identifiable {
 
     let id = UUID()
     let months: [String]
+    /// 충돌·가져오기 대상 파일 종류. 지출/정산 CSV를 구분한다.
+    var kind: SyncFileKind = .expenses
     /// 추가(저장)처럼 작업이 가산적이라 "덮어쓰기"가 의미 없을 때 false.
     var allowOverwrite: Bool = true
     /// 가져오기가 진행 중인 편집을 대체(폐기)하는 경우 true (수정·삭제).
@@ -91,7 +93,7 @@ private struct SyncConflictAlertModifier: ViewModifier {
     private func importThenPerform(_ conflict: SyncConflict) {
         self.conflict = nil
         do {
-            let summary = try SyncCoordinator().importMonths(conflict.months, in: modelContext)
+            let summary = try SyncCoordinator().importMonths(conflict.months, kind: conflict.kind, in: modelContext)
             if let info = summary.skipNotice {
                 // 건너뛴 행/달이 있으면 먼저 알리고, 확인을 누르면 이어서 진행한다.
                 proceedAfterNotice = { conflict.perform(.afterImport) }

@@ -19,7 +19,7 @@ struct FileSyncView: View {
 
         var id: String {
             switch self {
-            case .month(let status): "month-\(status.monthKey)"
+            case .month(let status): "month-\(status.id)"
             }
         }
     }
@@ -108,17 +108,25 @@ struct FileSyncView: View {
                             Button {
                                 prompt = .month(status)
                             } label: {
-                                MonthSyncRow(label: monthLabel(status.monthKey), state: status.state)
+                                MonthSyncRow(
+                                    label: monthLabel(status.monthKey),
+                                    kindLabel: status.kind.label,
+                                    state: status.state
+                                )
                             }
                             .buttonStyle(.plain)
                         } else {
                             // 최신·내려받는 중 — 맞출 게 없어 상태만 표시 (탭 액션 없음)
-                            MonthSyncRow(label: monthLabel(status.monthKey), state: status.state)
+                            MonthSyncRow(
+                                label: monthLabel(status.monthKey),
+                                kindLabel: status.kind.label,
+                                state: status.state
+                            )
                         }
                     }
                 }
             } footer: {
-                Text("차이가 있는 달을 눌러 그 달의 앱 기록과 파일 내용을 맞춰요. "
+                Text("차이가 있는 달을 눌러 그 달의 지출·정산 CSV와 앱 내용을 맞춰요. "
                     + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요.")
             }
 
@@ -155,12 +163,12 @@ struct FileSyncView: View {
         case .month(let status):
             if status.allowsImport {
                 Button("파일 내용 가져오기", role: status.allowsExport ? nil : .destructive) {
-                    runMonth(status.monthKey, importingFromFile: true)
+                    runMonth(status.monthKey, kind: status.kind, importingFromFile: true)
                 }
             }
             if status.allowsExport {
                 Button("앱 내용으로 저장", role: status.allowsImport ? nil : .destructive) {
-                    runMonth(status.monthKey, importingFromFile: false)
+                    runMonth(status.monthKey, kind: status.kind, importingFromFile: false)
                 }
             }
             Button("취소", role: .cancel) { self.prompt = nil }
@@ -170,7 +178,7 @@ struct FileSyncView: View {
     private func dialogMessage(for prompt: SyncPrompt) -> String {
         switch prompt {
         case .month(let status):
-            "\(monthLabel(status.monthKey)) — \(monthMessage(for: status.state))"
+            "\(monthLabel(status.monthKey)) \(status.kind.label) — \(monthMessage(for: status.state))"
         }
     }
 
@@ -195,16 +203,16 @@ struct FileSyncView: View {
         }
     }
 
-    private func runMonth(_ monthKey: String, importingFromFile: Bool) {
+    private func runMonth(_ monthKey: String, kind: SyncFileKind, importingFromFile: Bool) {
         prompt = nil
         let sync = SyncCoordinator()
         do {
             if importingFromFile {
-                let summary = try sync.importMonths([monthKey], in: modelContext)
+                let summary = try sync.importMonths([monthKey], kind: kind, in: modelContext)
                 resultMessage = summary.userMessage
             } else {
-                try sync.exportMonths([monthKey], in: modelContext)
-                resultMessage = "\(monthLabel(monthKey)) 파일을 앱 내용으로 저장했어요."
+                try sync.exportMonths([monthKey], kind: kind, in: modelContext)
+                resultMessage = "\(monthLabel(monthKey)) \(kind.label) 파일을 앱 내용으로 저장했어요."
             }
         } catch {
             resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -219,11 +227,17 @@ struct FileSyncView: View {
 
 private struct MonthSyncRow: View {
     let label: String
+    let kindLabel: String
     let state: MonthSyncStatus.State
 
     var body: some View {
         HStack {
-            Text(label)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                Text(kindLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             Text(badgeText)
                 .font(.caption.weight(.medium))

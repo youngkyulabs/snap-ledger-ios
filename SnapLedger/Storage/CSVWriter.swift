@@ -61,6 +61,20 @@ struct CSVWriter {
         "expenses-\(key).csv"
     }
 
+    /// `<prefix>YYYY-MM.csv` → `YYYY-MM`. 패턴이 안 맞으면 nil.
+    /// 지출(`expenses-`)·정산(`reconciliations-`) 파일명 파싱이 공유한다.
+    nonisolated static func monthKey(fromFilename name: String, prefix: String) -> String? {
+        guard name.hasPrefix(prefix), name.hasSuffix(".csv") else { return nil }
+        let mid = String(name.dropFirst(prefix.count).dropLast(".csv".count))
+        let parts = mid.split(separator: "-")
+        guard parts.count == 2,
+              parts[0].count == 4, Int(parts[0]) != nil,
+              parts[1].count == 2, Int(parts[1]) != nil else {
+            return nil
+        }
+        return mid
+    }
+
     /// `2026-05` → `2026년 5월`. 사용자 노출 문구에서 월 키를 사람이 읽는 라벨로.
     /// 패턴이 안 맞으면 입력 키를 그대로 반환한다.
     /// `LocalizedError.errorDescription`(nonisolated)에서도 부르므로 `nonisolated`.
