@@ -14,6 +14,7 @@ struct BudgetView: View {
 
     @State private var selectedMonthKey: Int?
     @State private var showingLimitEditor = false
+    @State private var categoryDetail: CategoryEntriesDetail?
 
     private var currentMonthKey: Int { CategoryBudgetStore.monthKey(from: Date()) }
     private var effectiveMonthKey: Int { selectedMonthKey ?? currentMonthKey }
@@ -82,6 +83,10 @@ struct BudgetView: View {
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: effectiveMonthKey)
+        .sheet(item: $categoryDetail) { detail in
+            CategoryEntriesSheet(detail: detail)
+                .presentationDetents([.medium, .large])
+        }
     }
 
     private var monthPickerSection: some View {
@@ -144,22 +149,37 @@ struct BudgetView: View {
 
     private var linesSection: some View {
         Section {
-            ForEach(summary.lines) { line in LineRow(line: line, presets: presets) }
+            ForEach(summary.lines) { line in
+                Button {
+                    categoryDetail = CategoryEntriesDetail(category: line.category, monthKey: effectiveMonthKey)
+                } label: {
+                    LineRow(line: line, presets: presets)
+                }
+                .buttonStyle(.plain)
+            }
         } header: {
             Text("카테고리별 진행률").textCase(nil)
+        } footer: {
+            Text("카테고리를 누르면 항목을 볼 수 있어요.")
         }
     }
 
     private var unbudgetedSection: some View {
         Section {
             ForEach(summary.unbudgeted) { item in
-                HStack {
-                    Text(item.category).font(.body)
-                    Spacer()
-                    Text("\(item.spent.formatted(.number))원")
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                Button {
+                    categoryDetail = CategoryEntriesDetail(category: item.category, monthKey: effectiveMonthKey)
+                } label: {
+                    HStack {
+                        Text(item.category).font(.body)
+                        Spacer()
+                        Text("\(item.spent.formatted(.number))원")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
             }
         } header: {
             Text("한도를 정하지 않은 지출").textCase(nil)
@@ -258,6 +278,7 @@ private struct LineRow: View {
             .tint(budgetStateColor(line.state))
         }
         .padding(.vertical, 2)
+        .contentShape(.rect)
     }
 }
 

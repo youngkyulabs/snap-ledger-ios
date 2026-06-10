@@ -29,6 +29,16 @@ enum StatisticsAggregation {
         let ratioFromPrevious: Double?
     }
 
+    /// 스택 추세 차트용 — (달, 카테고리)마다 한 포인트.
+    struct CategoryTrendPoint: Identifiable, Equatable {
+        let monthID: DateComponents
+        let shortTitle: String
+        let category: String
+        let total: Int
+
+        var id: String { "\(monthID.year ?? 0)-\(monthID.month ?? 0)-\(category)" }
+    }
+
     static func aggregate(
         entries: [SavedEntry],
         calendar: Calendar = .current,
@@ -86,7 +96,8 @@ enum StatisticsAggregation {
         referenceDate: Date = .now,
         calendar: Calendar = .current,
         locale: Locale = Locale(identifier: "ko_KR"),
-        trimLeadingZeros: Bool = true
+        trimLeadingZeros: Bool = true,
+        category: String? = nil
     ) -> [TrendPoint] {
         guard limit > 0 else { return [] }
 
@@ -96,29 +107,20 @@ enum StatisticsAggregation {
         shortFormatter.timeZone = calendar.timeZone
         shortFormatter.dateFormat = "M월"
 
-        let refComps = calendar.dateComponents([.year, .month], from: referenceDate)
-        guard let refMonthStart = calendar.date(from: refComps) else { return [] }
-
-        // Int key (year*100 + month) avoids DateComponents hash mismatches caused by
-        // implicit timezone/calendar metadata returned by Calendar.dateComponents.
-        var monthsByKey: [Int: MonthlyStats] = [:]
-        for stats in months {
-            let key = (stats.id.year ?? 0) * 100 + (stats.id.month ?? 0)
-            monthsByKey[key] = stats
+        guard let slots = windowSlots(limit: limit, referenceDate: referenceDate, calendar: calendar) else {
+            return []
         }
-
-        var slots: [(lookupKey: Int, date: Date)] = []
-        for offset in stride(from: limit - 1, through: 0, by: -1) {
-            guard let d = calendar.date(byAdding: .month, value: -offset, to: refMonthStart) else { continue }
-            let comps = calendar.dateComponents([.year, .month], from: d)
-            let lookupKey = (comps.year ?? 0) * 100 + (comps.month ?? 0)
-            slots.append((lookupKey, d))
-        }
+        let monthsByKey = monthsByLookupKey(months)
 
         var previous: Int?
         let raw: [TrendPoint] = slots.map { slot in
             let matched = monthsByKey[slot.lookupKey]
-            let total = matched?.total ?? 0
+            let total: Int
+            if let category {
+                total = matched?.slices.first { $0.category == category }?.total ?? 0
+            } else {
+                total = matched?.total ?? 0
+            }
             let delta: Int? = previous.map { total - $0 }
             let ratio: Double? = {
                 guard let prev = previous, prev > 0 else { return nil }
@@ -155,10 +157,41 @@ enum StatisticsAggregation {
         return [resetFirst] + trimmed.dropFirst()
     }
 
+    /// 추세 윈도의 (lookupKey, 슬롯 시작일) 목록 — 오래된 달부터.
+    private static func windowSlots(
+        limit: Int,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> [(lookupKey: Int, date: Date)]? {
+        guard limit > 0 else { return nil }
+        let refComps = calendar.dateComponents([.year, .month], from: referenceDate)
+        guard let refMonthStart = calendar.date(from: refComps) else { return nil }
+
+        var slots: [(lookupKey: Int, date: Date)] = []
+        for offset in stride(from: limit - 1, through: 0, by: -1) {
+            guard let d = calendar.date(byAdding: .month, value: -offset, to: refMonthStart) else { continue }
+            let comps = calendar.dateComponents([.year, .month], from: d)
+            let lookupKey = (comps.year ?? 0) * 100 + (comps.month ?? 0)
+            slots.append((lookupKey, d))
+        }
+        return slots
+    }
+
+    // Int key (year*100 + month) avoids DateComponents hash mismatches caused by
+    // implicit timezone/calendar metadata returned by Calendar.dateComponents.
+    private static func monthsByLookupKey(_ months: [MonthlyStats]) -> [Int: MonthlyStats] {
+        var monthsByKey: [Int: MonthlyStats] = [:]
+        for stats in months {
+            let key = (stats.id.year ?? 0) * 100 + (stats.id.month ?? 0)
+            monthsByKey[key] = stats
+        }
+        return monthsByKey
+    }
+
     private static func slices(for items: [SavedEntry], monthTotal: Int) -> [CategorySlice] {
         var totals: [String: Int] = [:]
         for entry in items {
-            let label = normalize(category: entry.category)
+            let label = displayCategory(for: entry.category)
             totals[label, default: 0] += entry.amount
         }
         let denominator = max(monthTotal, 1)
@@ -176,9 +209,85 @@ enum StatisticsAggregation {
             }
     }
 
-    private static func normalize(category: String?) -> String {
+    /// 항목의 표시용 카테고리 이름 (nil·빈 값은 "미분류"). 슬라이스·필터가 같은 규칙을 쓴다.
+    static func displayCategory(for category: String?) -> String {
         let trimmed = category?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? uncategorizedLabel : trimmed
+    }
+
+    /// 카테고리 상세 시트용 — 해당 달(YYYYMM 키)·카테고리의 항목만 추린다.
+    static func filteredEntries(
+        _ entries: [SavedEntry],
+        category: String,
+        monthKey: Int,
+        calendar: Calendar = .current
+    ) -> [SavedEntry] {
+        entries.filter {
+            CategoryBudgetStore.monthKey(from: $0.date, calendar: calendar) == monthKey
+                && displayCategory(for: $0.category) == category
+        }
+    }
+
+    /// 스택 추세 차트용 — 윈도 안의 (달, 카테고리)별 합계 포인트. 기록 없는 달은
+    /// 포인트를 만들지 않는다 (x축 라벨은 호출부가 도메인으로 고정).
+    /// 막대 안 스택 순서가 달마다 흔들리지 않게, 달 안에서는 윈도 합계 내림차순으로 늘어놓는다.
+    static func categoryTrend(
+        months: [MonthlyStats],
+        limit: Int = 6,
+        referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) -> [CategoryTrendPoint] {
+        guard let slots = windowSlots(limit: limit, referenceDate: referenceDate, calendar: calendar) else {
+            return []
+        }
+        let monthsByKey = monthsByLookupKey(months)
+
+        var windowTotals: [String: Int] = [:]
+        for slot in slots {
+            for slice in monthsByKey[slot.lookupKey]?.slices ?? [] {
+                windowTotals[slice.category, default: 0] += slice.total
+            }
+        }
+        let order = categoryOrder(windowTotals)
+        let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+
+        var points: [CategoryTrendPoint] = []
+        for slot in slots {
+            guard let stats = monthsByKey[slot.lookupKey] else { continue }
+            var idComps = DateComponents()
+            idComps.year = slot.lookupKey / 100
+            idComps.month = slot.lookupKey % 100
+            let sorted = stats.slices.sorted { (rank[$0.category] ?? .max) < (rank[$1.category] ?? .max) }
+            for slice in sorted {
+                points.append(
+                    CategoryTrendPoint(
+                        monthID: idComps,
+                        shortTitle: stats.shortTitle,
+                        category: slice.category,
+                        total: slice.total
+                    )
+                )
+            }
+        }
+        return points
+    }
+
+    /// 추세 필터 메뉴용 — 윈도 합계 내림차순(동률은 이름순) 카테고리 목록.
+    static func trendCategories(in points: [CategoryTrendPoint]) -> [String] {
+        var totals: [String: Int] = [:]
+        for point in points {
+            totals[point.category, default: 0] += point.total
+        }
+        return categoryOrder(totals)
+    }
+
+    private static func categoryOrder(_ totals: [String: Int]) -> [String] {
+        totals
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value { return lhs.value > rhs.value }
+                return lhs.key < rhs.key
+            }
+            .map(\.key)
     }
 
     /// 카테고리에 매길 색 팔레트 인덱스(0..<paletteCount)를 정한다.
