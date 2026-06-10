@@ -97,18 +97,30 @@ struct StatisticsView: View {
         }
     }
 
+    // 화살표는 기록이 있는 달 사이만 이동 (빈 달은 통계가 없으므로 건너뛴다).
     private var monthPickerSection: some View {
         Section {
-            Picker("월 선택", selection: Binding(
-                get: { selectedMonth?.id ?? months[0].id },
-                set: { selectedMonthID = $0 }
-            )) {
-                ForEach(months) { month in
-                    Text(month.title).tag(month.id)
-                }
-            }
-            .pickerStyle(.menu)
+            MonthNavigationRow(
+                title: selectedMonth?.title ?? "",
+                options: months.map { .init(key: $0.id, title: $0.title) },
+                canStepBackward: selectedIndex.map { $0 + 1 < months.count } ?? false,
+                canStepForward: selectedIndex.map { $0 > 0 } ?? false,
+                stepBackward: { step(by: 1) },
+                stepForward: { step(by: -1) },
+                select: { selectedMonthID = $0 }
+            )
         }
+    }
+
+    /// months는 최신순 정렬 — index 0이 가장 최근 달.
+    private var selectedIndex: Int? {
+        guard let id = selectedMonth?.id else { return nil }
+        return months.firstIndex { $0.id == id }
+    }
+
+    private func step(by offset: Int) {
+        guard let index = selectedIndex, months.indices.contains(index + offset) else { return }
+        selectedMonthID = months[index + offset].id
     }
 
     private func summarySection(month: StatisticsAggregation.MonthlyStats) -> some View {

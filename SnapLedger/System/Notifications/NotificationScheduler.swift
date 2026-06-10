@@ -53,10 +53,7 @@ struct NotificationScheduler {
         content.sound = .default
         content.badge = NSNumber(value: max(0, pendingCount))
 
-        var components = DateComponents()
-        components.hour = hour
-        components.minute = minute
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        let trigger = ReminderContent.trigger(hour: hour, minute: minute)
 
         let request = UNNotificationRequest(
             identifier: ReminderContent.identifier,

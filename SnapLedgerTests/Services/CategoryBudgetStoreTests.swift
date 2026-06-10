@@ -100,6 +100,12 @@ struct CategoryBudgetStoreTests {
         #expect(CategoryBudgetStore.nextMonthKey(202_601) == 202_602)
     }
 
+    @Test func previousMonthKeyRollsBackJanuary() {
+        #expect(CategoryBudgetStore.previousMonthKey(202_604) == 202_603)
+        #expect(CategoryBudgetStore.previousMonthKey(202_601) == 202_512)
+        #expect(CategoryBudgetStore.previousMonthKey(202_612) == 202_611)
+    }
+
     @Test func singleMonthEditConfinesToThatMonthLeavingCurrentUntouched() throws {
         let ctx = try makeContext()
         let store = CategoryBudgetStore()

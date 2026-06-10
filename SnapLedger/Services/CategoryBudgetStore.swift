@@ -15,6 +15,13 @@ struct CategoryBudgetStore {
         return month >= 12 ? (year + 1) * 100 + 1 : key + 1
     }
 
+    /// YYYYMM 키의 이전 달 키 (1월 → 전 해 12월).
+    static func previousMonthKey(_ key: Int) -> Int {
+        let year = key / 100
+        let month = key % 100
+        return month <= 1 ? (year - 1) * 100 + 12 : key - 1
+    }
+
     /// (카테고리, 월)에 유효한 한도. effectiveFrom <= month 중 가장 최근 레코드의 monthlyLimit.
     /// 레코드가 없거나 tombstone(0)이면 nil(= 한도 없음).
     static func resolveLimit(in budgets: [CategoryBudget], category: String, asOf month: Int) -> Int? {
