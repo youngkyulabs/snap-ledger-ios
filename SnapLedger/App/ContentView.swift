@@ -89,6 +89,9 @@ struct ContentView: View {
                 Task {
                     await drainPending()
                     await checkExternalChanges()
+                    // 1회성 알림이 소비됐거나 검토를 끝낸 직후일 수 있으니
+                    // 포그라운드 진입 시에도 최신 카운트로 재장전한다.
+                    await refreshReminder()
                 }
             case .background:
                 BackgroundRefresh.schedule()
@@ -164,35 +167,7 @@ struct ContentView: View {
 
     @MainActor
     private func refreshReminder() async {
-        let scheduler = NotificationScheduler()
-        let settings = currentSettings()
-        guard settings.reminderEnabled else {
-            scheduler.clear()
-            return
-        }
-        let pendingCount = pendingParsedEntryCount()
-        await scheduler.refresh(
-            hour: settings.reminderHour,
-            minute: settings.reminderMinute,
-            pendingCount: pendingCount
-        )
-    }
-
-    @MainActor
-    private func pendingParsedEntryCount() -> Int {
-        let all = (try? modelContext.fetch(FetchDescriptor<ParsedEntry>())) ?? []
-        return all.filter { $0.status == .pending }.count
-    }
-
-    @MainActor
-    private func currentSettings() -> AppSettings {
-        if let existing = try? modelContext.fetch(FetchDescriptor<AppSettings>()).first {
-            return existing
-        }
-        let new = AppSettings()
-        modelContext.insert(new)
-        try? modelContext.save()
-        return new
+        await ReminderRefresher.refresh(in: modelContext)
     }
 }
 
