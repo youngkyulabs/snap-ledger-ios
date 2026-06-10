@@ -87,52 +87,19 @@ struct BudgetView: View {
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: effectiveMonthKey)
     }
 
+    // 화살표는 달력 인접 이동 (한도는 매달 이어지므로 기록 없는 달도 의미가 있다).
+    // 다음 달까지 허용 — 다음 달 예산을 미리 세팅하는 용도.
     private var monthPickerSection: some View {
         Section {
-            HStack {
-                Button {
-                    selectedMonthKey = CategoryBudgetStore.previousMonthKey(effectiveMonthKey)
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.medium))
-                        .frame(minWidth: 44, minHeight: 32)
-                }
-                .disabled(effectiveMonthKey <= (availableMonthKeys.min() ?? currentMonthKey))
-                .accessibilityLabel("이전 달")
-
-                Spacer()
-
-                Menu {
-                    ForEach(availableMonthKeys, id: \.self) { key in
-                        Button(Self.monthLabel(key)) { selectedMonthKey = key }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(Self.monthLabel(effectiveMonthKey))
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.primary)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .accessibilityLabel("월 선택")
-                .accessibilityValue(Self.monthLabel(effectiveMonthKey))
-
-                Spacer()
-
-                Button {
-                    selectedMonthKey = CategoryBudgetStore.nextMonthKey(effectiveMonthKey)
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.body.weight(.medium))
-                        .frame(minWidth: 44, minHeight: 32)
-                }
-                // 다음 달까지 허용 — 다음 달 예산을 미리 세팅하는 용도.
-                .disabled(effectiveMonthKey >= CategoryBudgetStore.nextMonthKey(currentMonthKey))
-                .accessibilityLabel("다음 달")
-            }
-            .buttonStyle(.borderless)
+            MonthNavigationRow(
+                title: Self.monthLabel(effectiveMonthKey),
+                options: availableMonthKeys.map { .init(key: $0, title: Self.monthLabel($0)) },
+                canStepBackward: effectiveMonthKey > (availableMonthKeys.min() ?? currentMonthKey),
+                canStepForward: effectiveMonthKey < CategoryBudgetStore.nextMonthKey(currentMonthKey),
+                stepBackward: { selectedMonthKey = CategoryBudgetStore.previousMonthKey(effectiveMonthKey) },
+                stepForward: { selectedMonthKey = CategoryBudgetStore.nextMonthKey(effectiveMonthKey) },
+                select: { selectedMonthKey = $0 }
+            )
         }
     }
 
