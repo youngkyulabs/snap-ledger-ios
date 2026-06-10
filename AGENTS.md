@@ -62,6 +62,7 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
   Models/                            # SwiftData @Model
     AppSettings.swift, ParsedEntry.swift, SavedEntry.swift, PendingImage.swift, MerchantCategory.swift
     CSVFileState.swift               # 월별 CSV 파일의 마지막 동기화 지문 (해시+mtime) — 외부 변경 감지 기준
+    AppSchema.swift                  # ModelContainer 공유 스키마 (메인 앱·AppIntent가 같은 스토어를 열므로 필수 동일)
 
   Services/                          # 비즈니스 로직 (전부 unit-testable)
     OCRService.swift                 # protocol + VisionKitOCRService (한·영 accurate)

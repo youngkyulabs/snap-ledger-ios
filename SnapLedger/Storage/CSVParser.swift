@@ -1,7 +1,18 @@
 import Foundation
 
 enum CSVParser {
+    struct Output: Equatable {
+        let rows: [[String]]
+        /// 파일 끝까지 닫히지 않은 따옴표가 있었는지 — 외부 편집기에서
+        /// 구조가 깨진 파일의 신호. 이후 행들이 한 필드로 뭉개졌을 수 있다.
+        let hasUnterminatedQuote: Bool
+    }
+
     static func parse(_ raw: String) -> [[String]] {
+        parseDetailed(raw).rows
+    }
+
+    static func parseDetailed(_ raw: String) -> Output {
         var content = raw
         if content.first == "\u{FEFF}" {
             content.removeFirst()
@@ -55,6 +66,6 @@ enum CSVParser {
             currentRow.append(currentField)
             rows.append(currentRow)
         }
-        return rows
+        return Output(rows: rows, hasUnterminatedQuote: inQuotes)
     }
 }

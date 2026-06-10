@@ -80,6 +80,34 @@ struct SaveCoordinatorDeleteTests {
         #expect(jun.contains("2026-06-01,Jun,,1000"))
     }
 
+    @Test func deleteExportFailureKeepsEntry() throws {
+        let ctx = try makeContext()
+        let folder = try makeTempFolderWithBookmark(in: ctx)
+
+        let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스", category: "카페")
+        ctx.insert(entry)
+        try ctx.save()
+
+        let coord = SaveCoordinator(categoryLearner: CategoryLearner())
+        try coord.save(entry, in: ctx)
+        let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
+
+        // 폴더는 살아 있어 충돌 가드는 통과하지만, 읽기 전용이라 CSV 쓰기 자체가 실패하는 상황.
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
+        }
+
+        #expect(throws: (any Error).self) {
+            try coord.delete(saved, in: ctx)
+        }
+
+        // 파일을 고치지 못했으면 앱에서도 지워지면 안 된다.
+        let remaining = try ModelContext(ctx.container).fetch(FetchDescriptor<SavedEntry>())
+        #expect(remaining.count == 1)
+        #expect(remaining.first?.merchant == "스타벅스")
+    }
+
     @Test func saveTwoEntriesIntoSameMonthlyFile() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)

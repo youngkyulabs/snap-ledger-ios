@@ -38,13 +38,15 @@ struct ContentView: View {
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: pendingReviewCount)
         .sheet(isPresented: shouldShowOnboardingBinding) {
             if let settings = currentSettingsIfExists() {
-                OnboardingView(settings: settings) {}
-                    .interactiveDismissDisabled()
+                OnboardingView(settings: settings) {
+                    // 온보딩 동안 미뤄둔 시작 작업을 완료 시점에 한 번 실행한다.
+                    Task {
+                        await drainPending()
+                        await checkExternalChanges()
+                    }
+                }
+                .interactiveDismissDisabled()
             }
-        }
-        .task {
-            await drainPending()
-            await checkExternalChanges()
         }
         .alert(
             "파일이 앱 밖에서 바뀌었어요",
@@ -76,9 +78,14 @@ struct ContentView: View {
         .onChange(of: pendingReviewCount, initial: true) { _, newCount in
             Task { await NotificationScheduler().syncIconBadge(count: newCount) }
         }
-        .onChange(of: scenePhase) { _, newPhase in
+        // `initial: true`로 런치 시에도 정확히 한 번 실행된다 — 별도 `.task`와
+        // scenePhase 핸들러가 같은 작업을 거의 동시에 두 번 돌리던 것을 단일화.
+        .onChange(of: scenePhase, initial: true) { _, newPhase in
             switch newPhase {
             case .active:
+                // 온보딩이 끝나기 전에는 inbox 처리·변경 감지를 시작하지 않는다.
+                // (완료 시점에 OnboardingView의 onComplete가 한 번 실행.)
+                guard hasCompletedOnboarding else { break }
                 Task {
                     await drainPending()
                     await checkExternalChanges()
@@ -125,6 +132,10 @@ struct ContentView: View {
             syncResultMessage = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }
+    }
+
+    private var hasCompletedOnboarding: Bool {
+        allSettings.first?.hasCompletedOnboarding ?? false
     }
 
     private var shouldShowOnboardingBinding: Binding<Bool> {
