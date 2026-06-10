@@ -101,7 +101,8 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     Intents/AddExpenseFromImageIntent.swift     # AppIntent (Spotlight/Siri)
     Intents/SnapLedgerShortcuts.swift           # AppShortcutsProvider
     Notifications/NotificationScheduler.swift   # UNUserNotification wrapper
-    Notifications/ReminderContent.swift         # pure: 시간/카운트 → 본문
+    Notifications/ReminderContent.swift         # pure: 시간/카운트 → 본문·1회성 트리거
+    Notifications/ReminderRefresher.swift       # 설정·pending 카운트 → 알림 재예약/해제 (ContentView·BGTask 공용)
 
 SnapLedgerShareExtension/            # Share Extension 타겟 (synchronized root group, 별도)
   ShareViewController.swift          # silent UIVC, NSItemProvider 이미지를 App Group inbox에 복사
@@ -185,5 +186,5 @@ e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWith
 ## 알려진 한계 (의도적, 변경 전 확인)
 
 - Foundation Models가 simulator에서 unavailable이면 drain이 통째로 스킵되어 검토 탭이 비어 보임. inbox 파일은 그대로 큐잉 상태로 남아 있음 — 실기기에서 처리됨.
-- Reminder 본문은 백그라운드 진입 시점의 pending 카운트로 baked-in. 그 후 Extension으로 더 공유해도 본문 숫자는 stale일 수 있음 (다음 백그라운드 진입 때 refresh됨). MVP에서 허용.
+- Reminder 본문은 예약 시점의 pending 카운트로 baked-in (iOS 로컬 알림은 발사 시점 재계산 불가). 완화책: 반복 예약 대신 **다음 1회만** 예약하고(`ReminderContent.trigger`), 앱 실행 중 모든 갱신 기회(scenePhase `.active`/`.background`, BGTask)에 `ReminderRefresher.refresh`로 재장전. 앱을 강제 종료하면 BGTask도 안 돌므로 stale 알림이 최대 1회 올 수 있음 — iOS 제약상 허용.
 - Share Extension UI는 호스트 앱이 detent 힌트(`preferredContentSize`)를 무시할 수도 있음. 표준 host (Photos, Safari, Messages)에서는 동작.
