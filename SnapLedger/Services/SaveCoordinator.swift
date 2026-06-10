@@ -166,6 +166,40 @@ struct SaveCoordinator {
         }
     }
 
+    /// 같은 날짜 항목들의 표시 순서 변경을 영속화한다. `entries`는 새 표시 순서
+    /// (savedAt 내림차순 표시 기준)로 받는다. savedAt은 기존 값들의 순열로만 바뀌고,
+    /// CSV는 savedAt 순으로 행을 쓰므로 해당 월 파일도 함께 다시 쓴다.
+    func reorder(
+        _ entries: [SavedEntry],
+        ignoringConflict: Bool = false,
+        in context: ModelContext
+    ) throws {
+        guard entries.count > 1 else { return }
+        try withFolder(in: context) { folderURL in
+            let monthKeys = Array(Set(entries.map { CSVWriter.monthKey(for: $0.date) }))
+            if !ignoringConflict {
+                try ensureNoConflict(monthKeys: monthKeys, folderURL: folderURL, in: context)
+            }
+
+            let originals = entries.map(\.savedAt)
+            let stamps = EntryReorder.descendingTimestamps(from: originals)
+            for (entry, stamp) in zip(entries, stamps) {
+                entry.savedAt = stamp
+            }
+            do {
+                try sync.exportMonths(monthKeys, folderURL: folderURL, in: context)
+                try context.save()
+            } catch {
+                // rollback()은 등록된 객체의 속성 변경을 메모리에 남길 수 있어 원본 값을 직접 복원한다.
+                context.rollback()
+                for (entry, original) in zip(entries, originals) {
+                    entry.savedAt = original
+                }
+                throw error
+            }
+        }
+    }
+
     /// 폴더 접근(resolve·scope·도달성·stale 갱신)은 `CSVFolderAccess`에 위임하고,
     /// 그 중립 에러를 사용자 노출용 `CoordinatorError`로 매핑한다. save/update/delete 공통.
     private func withFolder(

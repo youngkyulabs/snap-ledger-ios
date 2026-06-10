@@ -8,6 +8,9 @@ struct StatisticsView: View {
     @Query private var settingsList: [AppSettings]
 
     @State private var selectedMonthID: DateComponents?
+    @State private var categoryDetail: CategoryEntriesDetail?
+    /// 월별 추세 필터 — nil이면 전체(카테고리 스택), 값이 있으면 그 카테고리만.
+    @State private var trendCategory: String?
 
     private var months: [StatisticsAggregation.MonthlyStats] {
         StatisticsAggregation.aggregate(entries: entries)
@@ -24,14 +27,32 @@ struct StatisticsView: View {
         return months.first
     }
 
-    private var trendPoints: [StatisticsAggregation.TrendPoint] {
+    /// 섹션 노출 기준 — 필터로 행이 비어도 섹션(과 필터 메뉴)은 남아 있어야 한다.
+    private var overallTrendPoints: [StatisticsAggregation.TrendPoint] {
         StatisticsAggregation.trend(months: months)
+    }
+
+    private var trendPoints: [StatisticsAggregation.TrendPoint] {
+        StatisticsAggregation.trend(months: months, category: trendCategory)
     }
 
     // 차트는 항상 6개월 슬롯을 그대로 보여주고, 기록 없는 달은 빈 막대로 둔다.
     // 리스트만 leading-zero trim이 적용된다 (trendPoints).
     private var chartPoints: [StatisticsAggregation.TrendPoint] {
-        StatisticsAggregation.trend(months: months, trimLeadingZeros: false)
+        StatisticsAggregation.trend(months: months, trimLeadingZeros: false, category: trendCategory)
+    }
+
+    private var categoryChartPoints: [StatisticsAggregation.CategoryTrendPoint] {
+        StatisticsAggregation.categoryTrend(months: months)
+    }
+
+    private var trendCategoryOptions: [String] {
+        StatisticsAggregation.trendCategories(in: categoryChartPoints)
+    }
+
+    private var trendTint: Color {
+        guard let trendCategory else { return .accentColor }
+        return CategoryColor.color(for: trendCategory, presets: categoryPresets)
     }
 
     var body: some View {
@@ -64,12 +85,16 @@ struct StatisticsView: View {
                 breakdownSection(month: month)
             }
 
-            if !trendPoints.isEmpty {
+            if !overallTrendPoints.isEmpty {
                 trendSection
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: selectedMonth?.id)
+        .sheet(item: $categoryDetail) { detail in
+            CategoryEntriesSheet(detail: detail)
+                .presentationDetents([.medium, .large])
+        }
     }
 
     // 화살표는 기록이 있는 달 사이만 이동 (빈 달은 통계가 없으므로 건너뛴다).
@@ -140,21 +165,56 @@ struct StatisticsView: View {
     private func breakdownSection(month: StatisticsAggregation.MonthlyStats) -> some View {
         Section {
             ForEach(month.slices) { slice in
-                CategoryBreakdownRow(slice: slice)
+                Button {
+                    categoryDetail = CategoryEntriesDetail(
+                        category: slice.category,
+                        monthKey: (month.id.year ?? 0) * 100 + (month.id.month ?? 0)
+                    )
+                } label: {
+                    CategoryBreakdownRow(slice: slice)
+                }
+                .buttonStyle(.plain)
             }
         } header: {
             Text("카테고리별 합계")
                 .textCase(nil)
+        } footer: {
+            Text("카테고리를 누르면 항목을 볼 수 있어요.")
         }
     }
 
     private var trendSection: some View {
         Section {
-            TrendChart(points: chartPoints)
-                .frame(height: 200)
-                .padding(.vertical, 8)
-            ForEach(trendPoints.reversed()) { point in
-                TrendRow(point: point)
+            Picker("카테고리", selection: $trendCategory) {
+                Text("전체").tag(String?.none)
+                ForEach(trendCategoryOptions, id: \.self) { category in
+                    Text(category).tag(String?.some(category))
+                }
+            }
+            .pickerStyle(.menu)
+
+            Group {
+                if trendCategory == nil {
+                    TrendStackedChart(
+                        points: categoryChartPoints,
+                        monthOrder: chartPoints.map(\.shortTitle),
+                        presets: categoryPresets
+                    )
+                    .frame(height: 240)
+                } else {
+                    TrendChart(points: chartPoints, tint: trendTint)
+                        .frame(height: 200)
+                }
+            }
+            .padding(.vertical, 8)
+
+            if trendPoints.isEmpty {
+                Text("최근 6개월에 이 카테고리 기록이 없어요.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(trendPoints.reversed()) { point in
+                    TrendRow(point: point)
+                }
             }
         } header: {
             Text("월별 추세")
@@ -225,11 +285,13 @@ private struct CategoryBreakdownRow: View {
                     .contentTransition(.numericText())
             }
         }
+        .contentShape(.rect)
     }
 }
 
 private struct TrendChart: View {
     let points: [StatisticsAggregation.TrendPoint]
+    var tint: Color = .accentColor
 
     var body: some View {
         Chart(points) { point in
@@ -237,7 +299,7 @@ private struct TrendChart: View {
                 x: .value("월", point.shortTitle),
                 y: .value("합계", point.total)
             )
-            .foregroundStyle(Color.accentColor.gradient)
+            .foregroundStyle(tint.gradient)
             .cornerRadius(4)
         }
         .chartYAxis {
@@ -245,7 +307,40 @@ private struct TrendChart: View {
                 AxisGridLine()
                 AxisValueLabel {
                     if let amount = value.as(Int.self) {
-                        Text(Self.compactLabel(for: amount))
+                        Text(trendAxisLabel(for: amount))
+                            .font(.caption2)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct TrendStackedChart: View {
+    let points: [StatisticsAggregation.CategoryTrendPoint]
+    /// 기록 없는 달도 x축 라벨이 사라지지 않게 윈도 전체(6개월)를 도메인으로 고정한다.
+    let monthOrder: [String]
+    let presets: [String]
+
+    var body: some View {
+        Chart(points) { point in
+            BarMark(
+                x: .value("월", point.shortTitle),
+                y: .value("금액", point.total)
+            )
+            .foregroundStyle(by: .value("카테고리", point.category))
+            .cornerRadius(2)
+        }
+        .chartXScale(domain: monthOrder)
+        // 도넛 차트와 동일한 고정 색 매핑 — 자동 매핑은 달 구성에 따라 색이 흔들린다.
+        .chartForegroundStyleScale(mapping: color(for:))
+        .chartLegend(position: .bottom, alignment: .center, spacing: 8)
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let amount = value.as(Int.self) {
+                        Text(trendAxisLabel(for: amount))
                             .font(.caption2)
                     }
                 }
@@ -253,17 +348,21 @@ private struct TrendChart: View {
         }
     }
 
-    private static func compactLabel(for amount: Int) -> String {
-        if amount >= 10_000 {
-            let value = Double(amount) / 10_000
-            return String(format: "%.0f만", value)
-        }
-        if amount >= 1_000 {
-            let value = Double(amount) / 1_000
-            return String(format: "%.0f천", value)
-        }
-        return "\(amount)"
+    private func color(for category: String) -> Color {
+        CategoryColor.color(for: category, presets: presets)
     }
+}
+
+private func trendAxisLabel(for amount: Int) -> String {
+    if amount >= 10_000 {
+        let value = Double(amount) / 10_000
+        return String(format: "%.0f만", value)
+    }
+    if amount >= 1_000 {
+        let value = Double(amount) / 1_000
+        return String(format: "%.0f천", value)
+    }
+    return "\(amount)"
 }
 
 private struct TrendRow: View {

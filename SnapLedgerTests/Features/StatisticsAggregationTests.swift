@@ -238,4 +238,143 @@ struct StatisticsAggregationTests {
             #expect((0..<12).contains(index))
         }
     }
+
+    // MARK: - 카테고리 표시명·항목 필터 (카테고리 상세 시트용)
+
+    @Test func displayCategoryNormalizesNilAndWhitespace() {
+        #expect(StatisticsAggregation.displayCategory(for: nil) == "미분류")
+        #expect(StatisticsAggregation.displayCategory(for: "") == "미분류")
+        #expect(StatisticsAggregation.displayCategory(for: "  ") == "미분류")
+        #expect(StatisticsAggregation.displayCategory(for: " 식비 ") == "식비")
+    }
+
+    @Test func filteredEntriesMatchMonthAndCategory() {
+        let entries = [
+            entry(2026, 5, 1, merchant: "A", category: "식비"),
+            entry(2026, 5, 2, merchant: "B", category: " 식비 "),
+            entry(2026, 5, 3, merchant: "C", category: "카페"),
+            entry(2026, 4, 30, merchant: "D", category: "식비"),
+        ]
+        let out = StatisticsAggregation.filteredEntries(
+            entries, category: "식비", monthKey: 202605, calendar: kst
+        )
+        #expect(out.map(\.merchant).sorted() == ["A", "B"])
+    }
+
+    @Test func filteredEntriesMatchUncategorized() {
+        let entries = [
+            entry(2026, 5, 1, merchant: "A", category: nil),
+            entry(2026, 5, 2, merchant: "B", category: ""),
+            entry(2026, 5, 3, merchant: "C", category: "식비"),
+        ]
+        let out = StatisticsAggregation.filteredEntries(
+            entries, category: "미분류", monthKey: 202605, calendar: kst
+        )
+        #expect(out.map(\.merchant).sorted() == ["A", "B"])
+    }
+
+    // MARK: - 카테고리별 월 추세 (스택 차트용)
+
+    @Test func categoryTrendEmitsPointsPerMonthAndCategory() {
+        let entries = [
+            entry(2026, 4, 1, amount: 3000, category: "식비"),
+            entry(2026, 5, 1, amount: 5000, category: "식비"),
+            entry(2026, 5, 2, amount: 2000, category: "카페"),
+        ]
+        let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
+        let points = StatisticsAggregation.categoryTrend(
+            months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
+        )
+        // 기록 없는 달은 포인트를 만들지 않는다 — 4월 1개 + 5월 2개.
+        #expect(points.count == 3)
+        #expect(points.filter { $0.monthID.month == 5 }.count == 2)
+        let april = points.first { $0.monthID.month == 4 }
+        #expect(april?.category == "식비")
+        #expect(april?.total == 3000)
+        #expect(april?.shortTitle == "4월")
+    }
+
+    @Test func categoryTrendOrdersMonthsChronologicallyAndCategoriesByWindowTotal() {
+        let entries = [
+            entry(2026, 4, 1, amount: 1000, category: "카페"),
+            entry(2026, 4, 2, amount: 900, category: "식비"),
+            entry(2026, 5, 1, amount: 5000, category: "식비"),
+            entry(2026, 5, 2, amount: 200, category: "카페"),
+        ]
+        let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
+        let points = StatisticsAggregation.categoryTrend(
+            months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
+        )
+        // 윈도 합계: 식비 5900 > 카페 1200 → 4월이 카페가 더 커도 두 달 모두 식비가 먼저.
+        // 막대 안 스택 순서가 달마다 흔들리지 않게 하기 위함.
+        #expect(points.map { $0.monthID.month } == [4, 4, 5, 5])
+        #expect(points.map(\.category) == ["식비", "카페", "식비", "카페"])
+    }
+
+    @Test func categoryTrendLimitsToWindow() throws {
+        let entries = [
+            entry(2025, 11, 1, amount: 1000, category: "식비"),
+            entry(2026, 5, 1, amount: 2000, category: "식비"),
+        ]
+        let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
+        let points = StatisticsAggregation.categoryTrend(
+            months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
+        )
+        // 윈도(2025-12 ~ 2026-05) 밖의 2025-11은 제외.
+        #expect(points.count == 1)
+        let only = try #require(points.first)
+        #expect(only.monthID.year == 2026)
+        #expect(only.monthID.month == 5)
+    }
+
+    @Test func trendCategoriesOrderedByWindowTotalThenName() {
+        let entries = [
+            entry(2026, 4, 1, amount: 1000, category: "카페"),
+            entry(2026, 4, 2, amount: 5900, category: "식비"),
+            entry(2026, 5, 1, amount: 200, category: "카페"),
+            entry(2026, 5, 2, amount: 1200, category: "교통"),
+        ]
+        let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
+        let points = StatisticsAggregation.categoryTrend(
+            months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
+        )
+        // 식비 5900 > 카페 1200 = 교통 1200 → 동률은 이름 오름차순(교통 < 카페).
+        #expect(StatisticsAggregation.trendCategories(in: points) == ["식비", "교통", "카페"])
+    }
+
+    // MARK: - 단일 카테고리 월별 추세 (trend의 category 파라미터)
+
+    @Test func trendWithCategoryUsesCategoryTotalsAndDelta() {
+        let entries = [
+            entry(2026, 3, 1, amount: 10_000, category: "식비"),
+            entry(2026, 3, 2, amount: 4000, category: "카페"),
+            entry(2026, 4, 1, amount: 6000, category: "식비"),
+            entry(2026, 5, 1, amount: 9000, category: "카페"),
+        ]
+        let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
+        let trend = StatisticsAggregation.trend(
+            months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst,
+            category: "식비"
+        )
+        // 식비 기준: 3월 10000(기준 월), 4월 6000, 5월 0 (식비 기록 없음 — 뒤쪽 0은 유지).
+        #expect(trend.map(\.total) == [10_000, 6000, 0])
+        #expect(trend[0].deltaFromPrevious == nil)
+        #expect(trend[1].deltaFromPrevious == -4000)
+        #expect(trend[2].deltaFromPrevious == -6000)
+    }
+
+    @Test func trendWithCategoryTrimsLeadingZerosOfThatCategory() {
+        let entries = [
+            entry(2026, 3, 1, amount: 1000, category: "카페"),
+            entry(2026, 4, 1, amount: 2000, category: "식비"),
+        ]
+        let stats = StatisticsAggregation.aggregate(entries: entries, calendar: kst)
+        let trend = StatisticsAggregation.trend(
+            months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst,
+            category: "식비"
+        )
+        // 식비가 처음 등장한 4월부터. 5월의 0은 trailing이라 유지.
+        #expect(trend.map(\.total) == [2000, 0])
+        #expect(trend[0].deltaFromPrevious == nil)
+    }
 }

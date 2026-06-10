@@ -3,10 +3,14 @@ import SwiftData
 
 struct HistoryView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var monthsBack: Int = 0
     @State private var isLoadingMore = false
     @State private var editingEntry: SavedEntry?
+    @State private var editMode: EditMode = .inactive
+    @State private var reorderError: String?
+    @State private var reorderConflict: SyncConflict?
 
     private var allMonths: [HistoryGrouping.MonthGroup] {
         HistoryGrouping.group(entries: entries)
@@ -37,6 +41,14 @@ struct HistoryView: View {
             .toolbar {
                 // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
                 if !allMonths.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        // 시스템 EditButton은 영문 "Edit"으로 보일 수 있어 한글 토글을 직접 둔다.
+                        Button(editMode.isEditing ? "완료" : "순서 편집") {
+                            withAnimation(reduceMotion ? nil : .default) {
+                                editMode = editMode.isEditing ? .inactive : .active
+                            }
+                        }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             PastMonthsView()
@@ -54,17 +66,31 @@ struct HistoryView: View {
     private var historyList: some View {
         List {
             ForEach(displayedMonths) { month in
-                MonthSections(month: month, editingEntry: $editingEntry)
+                MonthSections(month: month, editingEntry: $editingEntry, onMove: moveEntries)
             }
 
             footerSection
         }
+        .environment(\.editMode, $editMode)
         .contentMargins(.bottom, 24, for: .scrollContent)
         // sheet을 부모 레벨에 두어야 자식(MonthSections)이 무한 스크롤이나
         // SwiftData @Query 갱신으로 재구성될 때도 dismiss되지 않는다.
         .sheet(item: $editingEntry) { entry in
             SavedEntryEditorView(entry: entry)
         }
+        .reorderFailureAlert($reorderError)
+        .syncConflictAlert($reorderConflict)
+    }
+
+    private func moveEntries(in day: HistoryGrouping.DayGroup, from source: IndexSet, to destination: Int) {
+        var reordered = day.entries
+        reordered.move(fromOffsets: source, toOffset: destination)
+        EntryReorderAction.perform(
+            reordered,
+            context: modelContext,
+            onConflict: { reorderConflict = $0 },
+            onError: { reorderError = $0 }
+        )
     }
 
     @ViewBuilder
@@ -125,17 +151,25 @@ struct HistoryView: View {
 struct MonthSections: View {
     let month: HistoryGrouping.MonthGroup
     @Binding var editingEntry: SavedEntry?
+    /// 같은 날짜 안 드래그 이동 (편집 모드). day 섹션별 ForEach에 붙어 섹션 간 이동은 불가능.
+    let onMove: (HistoryGrouping.DayGroup, IndexSet, Int) -> Void
+    @Environment(\.editMode) private var editMode
 
     var body: some View {
         ForEach(month.days) { day in
             Section {
                 ForEach(day.entries) { entry in
                     Button {
+                        // 편집 모드에서는 드래그 중 오탭으로 편집 시트가 뜨지 않게 막는다.
+                        guard editMode?.wrappedValue.isEditing != true else { return }
                         editingEntry = entry
                     } label: {
                         HistoryRow(entry: entry)
                     }
                     .buttonStyle(.plain)
+                }
+                .onMove { source, destination in
+                    onMove(day, source, destination)
                 }
             } header: {
                 Text(day.title)
@@ -218,8 +252,12 @@ struct PastMonthsView: View {
 struct PastMonthDetailView: View {
     let monthId: DateComponents
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var editingEntry: SavedEntry?
+    @State private var editMode: EditMode = .inactive
+    @State private var reorderError: String?
+    @State private var reorderConflict: SyncConflict?
 
     private var month: HistoryGrouping.MonthGroup? {
         HistoryGrouping.group(entries: entries).first { $0.id == monthId }
@@ -229,15 +267,26 @@ struct PastMonthDetailView: View {
         Group {
             if let month {
                 List {
-                    MonthSections(month: month, editingEntry: $editingEntry)
+                    MonthSections(month: month, editingEntry: $editingEntry, onMove: moveEntries)
                 }
+                .environment(\.editMode, $editMode)
                 .contentMargins(.bottom, 24, for: .scrollContent)
                 .navigationTitle(month.title)
                 .navigationSubtitle("합계 \(month.total.formatted(.number))원")
                 .sheet(item: $editingEntry) { entry in
                     SavedEntryEditorView(entry: entry)
                 }
+                .reorderFailureAlert($reorderError)
+                .syncConflictAlert($reorderConflict)
                 .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        // 시스템 EditButton은 영문 "Edit"으로 보일 수 있어 한글 토글을 직접 둔다.
+                        Button(editMode.isEditing ? "완료" : "순서 편집") {
+                            withAnimation(reduceMotion ? nil : .default) {
+                                editMode = editMode.isEditing ? .inactive : .active
+                            }
+                        }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             CSVFileView(
@@ -260,6 +309,68 @@ struct PastMonthDetailView: View {
         }
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: month == nil)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func moveEntries(in day: HistoryGrouping.DayGroup, from source: IndexSet, to destination: Int) {
+        var reordered = day.entries
+        reordered.move(fromOffsets: source, toOffset: destination)
+        EntryReorderAction.perform(
+            reordered,
+            context: modelContext,
+            onConflict: { reorderConflict = $0 },
+            onError: { reorderError = $0 }
+        )
+    }
+}
+
+/// 드래그 순서 변경의 저장·충돌 해소 흐름 (최근 기록·월별 상세 공용).
+@MainActor
+private enum EntryReorderAction {
+    static func perform(
+        _ reordered: [SavedEntry],
+        ignoringConflict: Bool = false,
+        context: ModelContext,
+        onConflict: @escaping (SyncConflict) -> Void,
+        onError: @escaping (String) -> Void
+    ) {
+        do {
+            try SaveCoordinator(categoryLearner: CategoryLearner())
+                .reorder(reordered, ignoringConflict: ignoringConflict, in: context)
+        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
+            // 가져오면 방금 바꾼 순서가 파일 내용으로 대체되므로 importDiscardsEdit=true.
+            onConflict(
+                SyncConflict(months: months, importDiscardsEdit: true) { mode in
+                    if case .overwrite = mode {
+                        perform(
+                            reordered,
+                            ignoringConflict: true,
+                            context: context,
+                            onConflict: onConflict,
+                            onError: onError
+                        )
+                    }
+                }
+            )
+        } catch {
+            onError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+        }
+    }
+}
+
+private extension View {
+    func reorderFailureAlert(_ message: Binding<String?>) -> some View {
+        alert(
+            "순서 변경 실패",
+            isPresented: Binding(
+                get: { message.wrappedValue != nil },
+                set: { if !$0 { message.wrappedValue = nil } }
+            ),
+            presenting: message.wrappedValue
+        ) { _ in
+            Button("확인", role: .cancel) { message.wrappedValue = nil }
+        } message: { text in
+            Text(text)
+        }
     }
 }
 

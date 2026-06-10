@@ -14,6 +14,9 @@ struct BudgetView: View {
 
     @State private var selectedMonthKey: Int?
     @State private var showingLimitEditor = false
+    @State private var categoryDetail: CategoryEntriesDetail?
+    /// 한도 없는 지출 행의 스와이프 '한도 설정' → 해당 카테고리 포커스로 한도 편집 진입.
+    @State private var limitEditCategory: String?
 
     private var currentMonthKey: Int { CategoryBudgetStore.monthKey(from: Date()) }
     private var effectiveMonthKey: Int { selectedMonthKey ?? currentMonthKey }
@@ -66,6 +69,13 @@ struct BudgetView: View {
                 .navigationDestination(isPresented: $showingLimitEditor) {
                     BudgetLimitEditView(month: effectiveMonthKey, currentMonthKey: currentMonthKey)
                 }
+                .navigationDestination(item: $limitEditCategory) { category in
+                    BudgetLimitEditView(
+                        month: effectiveMonthKey,
+                        currentMonthKey: currentMonthKey,
+                        focusCategory: category
+                    )
+                }
         }
     }
 
@@ -85,6 +95,10 @@ struct BudgetView: View {
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: effectiveMonthKey)
+        .sheet(item: $categoryDetail) { detail in
+            CategoryEntriesSheet(detail: detail)
+                .presentationDetents([.medium, .large])
+        }
     }
 
     // 화살표는 달력 인접 이동 (한도는 매달 이어지므로 기록 없는 달도 의미가 있다).
@@ -156,34 +170,47 @@ struct BudgetView: View {
 
     private func linesSection(_ summary: BudgetProgress.Summary) -> some View {
         Section {
-            ForEach(summary.lines) { line in LineRow(line: line, presets: presets) }
+            ForEach(summary.lines) { line in
+                Button {
+                    categoryDetail = CategoryEntriesDetail(category: line.category, monthKey: effectiveMonthKey)
+                } label: {
+                    LineRow(line: line, presets: presets)
+                }
+                .buttonStyle(.plain)
+            }
         } header: {
             Text("카테고리별 진행률").textCase(nil)
+        } footer: {
+            Text("카테고리를 누르면 항목을 볼 수 있어요.")
         }
     }
 
     private func unbudgetedSection(_ summary: BudgetProgress.Summary) -> some View {
         Section {
             ForEach(summary.unbudgeted) { item in
-                // 프리셋 카테고리만 한도 편집으로 연결 (미분류 등은 한도 설정 대상이 아님).
-                if presets.contains(item.category) {
-                    NavigationLink {
-                        BudgetLimitEditView(
-                            month: effectiveMonthKey,
-                            currentMonthKey: currentMonthKey,
-                            focusCategory: item.category
-                        )
-                    } label: {
-                        unbudgetedRow(item)
-                    }
-                } else {
+                Button {
+                    categoryDetail = CategoryEntriesDetail(category: item.category, monthKey: effectiveMonthKey)
+                } label: {
                     unbudgetedRow(item)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                // 프리셋 카테고리만 한도 편집 진입 제공 (미분류 등은 한도 설정 대상이 아님).
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    if presets.contains(item.category) {
+                        Button {
+                            limitEditCategory = item.category
+                        } label: {
+                            Label("한도 설정", systemImage: "wonsign.circle")
+                        }
+                        .tint(.accentColor)
+                    }
                 }
             }
         } header: {
             Text("한도를 정하지 않은 지출").textCase(nil)
         } footer: {
-            Text("항목을 탭하거나 오른쪽 위 '한도 편집'에서 한도를 정할 수 있어요.")
+            Text("카테고리를 누르면 항목을 볼 수 있어요. 한도는 왼쪽으로 밀거나 오른쪽 위 '한도 편집'에서 정할 수 있어요.")
         }
     }
 
@@ -314,6 +341,7 @@ private struct LineRow: View {
             .tint(budgetStateColor(line.state))
         }
         .padding(.vertical, 2)
+        .contentShape(.rect)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(lineAccessibilityText(line))
     }
