@@ -79,4 +79,17 @@ struct CSVParserTests {
         #expect(CSVParser.parse("").isEmpty)
         #expect(CSVParser.parse("\u{FEFF}").isEmpty)
     }
+
+    @Test func parseDetailedFlagsUnterminatedQuote() {
+        let csv = "날짜,설명\n2026-05-17,\"열린 따옴표\n2026-05-18,정상\n"
+        let result = CSVParser.parseDetailed(csv)
+        #expect(result.hasUnterminatedQuote)
+    }
+
+    @Test func parseDetailedCleanInputHasNoUnterminatedQuote() {
+        let csv = "a,\"b,c\"\nd,\"e\"\"f\"\n"
+        let result = CSVParser.parseDetailed(csv)
+        #expect(!result.hasUnterminatedQuote)
+        #expect(result.rows == [["a", "b,c"], ["d", "e\"f"]])
+    }
 }

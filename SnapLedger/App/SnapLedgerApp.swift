@@ -6,19 +6,7 @@ struct SnapLedgerApp: App {
     let modelContainer: ModelContainer
 
     init() {
-        let schema = Schema([
-            PendingImage.self,
-            ParsedEntry.self,
-            SavedEntry.self,
-            MerchantCategory.self,
-            AppSettings.self,
-            CSVFileState.self,
-            CategoryBudget.self,
-            MonthlyReconciliation.self,
-            AccountMonthlyBalance.self,
-            CashAdjustment.self,
-            SavingsItem.self,
-        ])
+        let schema = Schema(AppSchema.models)
         let configuration = ModelConfiguration(
             schema: schema,
             groupContainer: .identifier(AppGroup.identifier)

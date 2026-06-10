@@ -96,6 +96,8 @@ struct SyncCoordinator {
         var notReadyMonths: [String] = []
         /// 파일을 읽지 못해(권한·잠금·비-UTF8 등) 건너뛴 달 — 앱 데이터는 건드리지 않음.
         var unreadableMonths: [String] = []
+        /// 구조가 깨져(닫히지 않은 따옴표) 건너뛴 달 — 앱 데이터는 건드리지 않음.
+        var malformedMonths: [String] = []
 
         /// 사용자에게 보여줄 결과 요약 문구.
         var userMessage: String {
@@ -118,12 +120,19 @@ struct SyncCoordinator {
                     "파일을 읽지 못해 건너뛴 달이 있어요: \(CSVWriter.monthLabels(unreadableMonths))."
                 )
             }
+            if !malformedMonths.isEmpty {
+                parts.append(
+                    "파일 형식이 깨져 있어 건너뛴 달이 있어요: \(CSVWriter.monthLabels(malformedMonths)). "
+                        + "닫히지 않은 따옴표(\")가 있는지 확인해 주세요."
+                )
+            }
             return parts.joined(separator: " ")
         }
 
         /// 건너뛴 행/달이 있을 때만 사용자에게 보여줄 안내. 깨끗하면 nil (조용히 진행).
         var skipNotice: String? {
-            guard skippedRows > 0 || !notReadyMonths.isEmpty || !unreadableMonths.isEmpty else {
+            guard skippedRows > 0 || !notReadyMonths.isEmpty
+                || !unreadableMonths.isEmpty || !malformedMonths.isEmpty else {
                 return nil
             }
             return userMessage
@@ -310,6 +319,12 @@ struct SyncCoordinator {
                 let url = folderURL.appendingPathComponent(filename)
                 switch FileFingerprint.read(at: url) {
                 case .ready(let content):
+                    // 구조가 깨진 파일(닫히지 않은 따옴표)로 그 달을 교체하면 행이
+                    // 잘려 들어와 데이터가 유실되므로 건너뛰고 사용자에게 알린다.
+                    guard !CSVParser.parseDetailed(content.text).hasUnterminatedQuote else {
+                        summary.malformedMonths.append(key)
+                        continue
+                    }
                     let parsed = replaceMonthFromCSV(kind: kind, monthKey: key, text: content.text, in: ctx)
                     upsertFileState(filename: filename, hash: content.hash, modified: content.modified, in: ctx)
                     summary.importedMonths.append(key)

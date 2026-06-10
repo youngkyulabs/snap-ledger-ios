@@ -1,5 +1,8 @@
 import Foundation
+import OSLog
 import SwiftData
+
+private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "save")
 
 /// 저장된 항목 편집 결과. 모델(`SavedEntry`)은 쓰기가 성공할 때만 바뀌도록,
 /// 편집 값을 먼저 이 값으로 넘기고 `update`가 가드 통과 후 대입한다.
@@ -55,8 +58,6 @@ struct SaveCoordinator {
                 amount: entry.amount,
                 note: entry.note
             )
-            try CSVWriter(folder: folderURL).append(row)
-
             context.insert(
                 SavedEntry(
                     date: entry.date,
@@ -67,12 +68,20 @@ struct SaveCoordinator {
                     csvFile: CSVWriter.filename(forMonthKey: monthKey)
                 )
             )
-
-            try learnCategoryIfPresent(merchant: entry.merchant, category: entry.category, in: context)
-
+            let originalStatus = entry.status
             entry.status = .dismissed
-            sync.refreshFileState(monthKey: monthKey, folderURL: folderURL, in: context)
-            try context.save()
+            do {
+                try CSVWriter(folder: folderURL).append(row)
+                sync.refreshFileState(monthKey: monthKey, folderURL: folderURL, in: context)
+                try context.save()
+            } catch {
+                // rollback()은 pending insert/delete는 버리지만 등록된 객체의
+                // 속성 변경은 메모리에 남길 수 있어 원본 값을 직접 복원한다.
+                context.rollback()
+                entry.status = originalStatus
+                throw error
+            }
+            learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
         }
     }
 
@@ -94,18 +103,39 @@ struct SaveCoordinator {
                 try ensureNoConflict(monthKeys: affectedKeys, folderURL: folderURL, in: context)
             }
 
-            // 가드 통과 후에만 모델을 변경한다.
+            // 가드 통과 후에만 모델을 변경하고, CSV 쓰기까지 성공해야 커밋한다.
+            // 쓰기 실패 시 되돌림 — DB만 바뀌고 파일·지문은 그대로인 "감지 불가능한
+            // 어긋남"(지문이 파일과 일치해 외부 변경으로도 안 잡힘)을 막는다.
+            let original = SavedEntryEdit(
+                date: entry.date,
+                merchant: entry.merchant,
+                amount: entry.amount,
+                category: entry.category,
+                note: entry.note
+            )
+            let originalFile = entry.csvFile
             entry.date = edit.date
             entry.merchant = edit.merchant
             entry.amount = edit.amount
             entry.category = edit.category
             entry.note = edit.note
             entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
-            try context.save()
-
-            try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
-            try learnCategoryIfPresent(merchant: entry.merchant, category: entry.category, in: context)
-            try context.save()
+            do {
+                try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
+                try context.save()
+            } catch {
+                // rollback()은 pending insert/delete는 버리지만 등록된 객체의
+                // 속성 변경은 메모리에 남길 수 있어 원본 값을 직접 복원한다.
+                context.rollback()
+                entry.date = original.date
+                entry.merchant = original.merchant
+                entry.amount = original.amount
+                entry.category = original.category
+                entry.note = original.note
+                entry.csvFile = originalFile
+                throw error
+            }
+            learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
         }
     }
 
@@ -124,11 +154,15 @@ struct SaveCoordinator {
                 try ensureNoConflict(monthKeys: affectedKeys, folderURL: folderURL, in: context)
             }
 
+            // 삭제도 CSV 쓰기까지 성공해야 커밋한다 (update와 같은 이유).
             context.delete(entry)
-            try context.save()
-
-            try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
-            try context.save()
+            do {
+                try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
+                try context.save()
+            } catch {
+                context.rollback()
+                throw error
+            }
         }
     }
 
@@ -153,13 +187,18 @@ struct SaveCoordinator {
         }
     }
 
-    private func learnCategoryIfPresent(
+    /// 가맹점→카테고리 학습은 부가 기능 — 실패해도 (이미 커밋된) 저장을
+    /// 실패로 보고하면 사용자가 "저장 안 됨"으로 오인하므로 로그만 남긴다.
+    private func learnCategoryBestEffort(
         merchant: String,
         category: String?,
         in context: ModelContext
-    ) throws {
-        if let category, !category.isEmpty {
+    ) {
+        guard let category, !category.isEmpty else { return }
+        do {
             try categoryLearner.learn(merchant: merchant, category: category, in: context)
+        } catch {
+            log.error("category learn failed: \(String(describing: error))")
         }
     }
 

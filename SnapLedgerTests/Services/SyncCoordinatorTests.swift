@@ -125,6 +125,31 @@ struct SyncCoordinatorTests {
         #expect(saved.contains { $0.merchant == "스타벅스" && $0.amount == 5500 })
     }
 
+    @Test func importSkipsMalformedMonthAndKeepsAppData() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        insertEntry(context, day: 1, amount: 100, merchant: "기존")
+        try context.save()
+
+        // 닫히지 않은 따옴표 — 외부 편집기에서 구조가 깨진 파일.
+        // 이걸로 그 달을 교체하면 행이 잘려 들어오므로 건너뛰어야 한다.
+        try writeCSV(
+            dir, "expenses-2026-05.csv",
+            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-17,\"스타벅스,카페,5500,\n"
+        )
+
+        let summary = try sync.importMonths(["2026-05"], in: context)
+        #expect(summary.malformedMonths == ["2026-05"])
+        #expect(summary.importedMonths.isEmpty)
+        #expect(summary.skipNotice != nil)
+
+        let saved = try context.fetch(FetchDescriptor<SavedEntry>())
+        #expect(saved.count == 1)
+        #expect(saved.first?.merchant == "기존")
+    }
+
     @Test func writeGuardDetectsConflict() throws {
         let dir = makeTempDir()
         let context = try makeContext()

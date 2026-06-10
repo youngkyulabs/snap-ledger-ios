@@ -26,13 +26,8 @@ struct AddExpenseFromImageIntent: AppIntent {
         let destination = inboxURL.appendingPathComponent(filename)
         try image.data.write(to: destination, options: .atomic)
 
-        let schema = Schema([
-            PendingImage.self,
-            ParsedEntry.self,
-            SavedEntry.self,
-            MerchantCategory.self,
-            AppSettings.self,
-        ])
+        // 메인 앱과 같은 App Group 스토어를 열므로 스키마도 반드시 동일해야 한다.
+        let schema = Schema(AppSchema.models)
         let configuration = ModelConfiguration(
             schema: schema,
             groupContainer: .identifier(AppGroup.identifier)
