@@ -50,11 +50,6 @@ struct StatisticsView: View {
         StatisticsAggregation.trendCategories(in: categoryChartPoints)
     }
 
-    private var trendTint: Color {
-        guard let trendCategory else { return .accentColor }
-        return CategoryColor.color(for: trendCategory, presets: categoryPresets)
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -193,7 +188,7 @@ struct StatisticsView: View {
             }
             .pickerStyle(.menu)
 
-            TrendChart(points: chartPoints, tint: trendTint)
+            TrendChart(points: chartPoints)
                 .frame(height: 200)
                 .padding(.vertical, 8)
 
@@ -281,7 +276,6 @@ private struct CategoryBreakdownRow: View {
 private struct TrendChart: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let points: [StatisticsAggregation.TrendPoint]
-    var tint: Color = .accentColor
 
     var body: some View {
         Chart(points) { point in
@@ -289,7 +283,7 @@ private struct TrendChart: View {
                 x: .value("월", point.shortTitle),
                 y: .value("합계", point.total)
             )
-            .foregroundStyle(tint.gradient)
+            .foregroundStyle(Color.accentColor.gradient)
             .cornerRadius(4)
         }
         .chartYAxis {
