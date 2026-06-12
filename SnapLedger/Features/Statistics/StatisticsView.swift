@@ -213,17 +213,14 @@ struct StatisticsView: View {
 }
 
 private struct CategoryDonutChart: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let slices: [StatisticsAggregation.CategorySlice]
     let total: Int
     let presets: [String]
-    /// 진입 시 조각을 0에서 펼쳐 추세 막대와 동일한 "그려지는" 효과를 낸다.
-    @State private var revealed = false
 
     var body: some View {
         Chart(slices) { slice in
             SectorMark(
-                angle: .value("금액", revealed ? slice.total : 0),
+                angle: .value("금액", slice.total),
                 innerRadius: .ratio(0.62),
                 angularInset: 1.5
             )
@@ -250,14 +247,6 @@ private struct CategoryDonutChart: View {
                 Text("총 지출")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-        }
-        .onAppear {
-            guard !revealed else { return }
-            if reduceMotion {
-                revealed = true
-            } else {
-                withAnimation(.easeOut(duration: 0.6)) { revealed = true }
             }
         }
     }
@@ -293,14 +282,12 @@ private struct TrendChart: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let points: [StatisticsAggregation.TrendPoint]
     var tint: Color = .accentColor
-    /// 진입 시 막대를 0에서 키워 도넛처럼 "그려지는" 효과를 낸다.
-    @State private var revealed = false
 
     var body: some View {
         Chart(points) { point in
             BarMark(
                 x: .value("월", point.shortTitle),
-                y: .value("합계", revealed ? point.total : 0)
+                y: .value("합계", point.total)
             )
             .foregroundStyle(tint.gradient)
             .cornerRadius(4)
@@ -318,14 +305,6 @@ private struct TrendChart: View {
         }
         // 카테고리 전환 등 데이터가 바뀌면 막대 높이가 부드럽게 변형되도록.
         .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: points.map(\.total))
-        .onAppear {
-            guard !revealed else { return }
-            if reduceMotion {
-                revealed = true
-            } else {
-                withAnimation(.easeOut(duration: 0.6)) { revealed = true }
-            }
-        }
     }
 }
 
