@@ -8,7 +8,6 @@ struct HistoryView: View {
     @State private var monthsBack: Int = 0
     @State private var isLoadingMore = false
     @State private var editingEntry: SavedEntry?
-    @State private var editMode: EditMode = .inactive
     @State private var reorderError: String?
     @State private var reorderConflict: SyncConflict?
 
@@ -41,14 +40,6 @@ struct HistoryView: View {
             .toolbar {
                 // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
                 if !allMonths.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) {
-                        // 시스템 EditButton은 영문 "Edit"으로 보일 수 있어 한글 토글을 직접 둔다.
-                        Button(editMode.isEditing ? "완료" : "순서 편집") {
-                            withAnimation(reduceMotion ? nil : .default) {
-                                editMode = editMode.isEditing ? .inactive : .active
-                            }
-                        }
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             PastMonthsView()
@@ -71,7 +62,6 @@ struct HistoryView: View {
 
             footerSection
         }
-        .environment(\.editMode, $editMode)
         .contentMargins(.bottom, 24, for: .scrollContent)
         // sheet을 부모 레벨에 두어야 자식(MonthSections)이 무한 스크롤이나
         // SwiftData @Query 갱신으로 재구성될 때도 dismiss되지 않는다.
@@ -151,17 +141,14 @@ struct HistoryView: View {
 struct MonthSections: View {
     let month: HistoryGrouping.MonthGroup
     @Binding var editingEntry: SavedEntry?
-    /// 같은 날짜 안 드래그 이동 (편집 모드). day 섹션별 ForEach에 붙어 섹션 간 이동은 불가능.
+    /// 같은 날짜 안 드래그 이동 (행을 꾹 눌러 재정렬). day 섹션별 ForEach에 붙어 섹션 간 이동은 불가능.
     let onMove: (HistoryGrouping.DayGroup, IndexSet, Int) -> Void
-    @Environment(\.editMode) private var editMode
 
     var body: some View {
         ForEach(month.days) { day in
             Section {
                 ForEach(day.entries) { entry in
                     Button {
-                        // 편집 모드에서는 드래그 중 오탭으로 편집 시트가 뜨지 않게 막는다.
-                        guard editMode?.wrappedValue.isEditing != true else { return }
                         editingEntry = entry
                     } label: {
                         HistoryRow(entry: entry)
@@ -255,7 +242,6 @@ struct PastMonthDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var editingEntry: SavedEntry?
-    @State private var editMode: EditMode = .inactive
     @State private var reorderError: String?
     @State private var reorderConflict: SyncConflict?
 
@@ -269,7 +255,6 @@ struct PastMonthDetailView: View {
                 List {
                     MonthSections(month: month, editingEntry: $editingEntry, onMove: moveEntries)
                 }
-                .environment(\.editMode, $editMode)
                 .contentMargins(.bottom, 24, for: .scrollContent)
                 .navigationTitle(month.title)
                 .navigationSubtitle("합계 \(month.total.formatted(.number))원")
@@ -279,14 +264,6 @@ struct PastMonthDetailView: View {
                 .reorderFailureAlert($reorderError)
                 .syncConflictAlert($reorderConflict)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        // 시스템 EditButton은 영문 "Edit"으로 보일 수 있어 한글 토글을 직접 둔다.
-                        Button(editMode.isEditing ? "완료" : "순서 편집") {
-                            withAnimation(reduceMotion ? nil : .default) {
-                                editMode = editMode.isEditing ? .inactive : .active
-                            }
-                        }
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             CSVFileView(

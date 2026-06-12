@@ -193,20 +193,9 @@ struct StatisticsView: View {
             }
             .pickerStyle(.menu)
 
-            Group {
-                if trendCategory == nil {
-                    TrendStackedChart(
-                        points: categoryChartPoints,
-                        monthOrder: chartPoints.map(\.shortTitle),
-                        presets: categoryPresets
-                    )
-                    .frame(height: 240)
-                } else {
-                    TrendChart(points: chartPoints, tint: trendTint)
-                        .frame(height: 200)
-                }
-            }
-            .padding(.vertical, 8)
+            TrendChart(points: chartPoints, tint: trendTint)
+                .frame(height: 200)
+                .padding(.vertical, 8)
 
             if trendPoints.isEmpty {
                 Text("최근 6개월에 이 카테고리 기록이 없어요.")
@@ -290,14 +279,17 @@ private struct CategoryBreakdownRow: View {
 }
 
 private struct TrendChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let points: [StatisticsAggregation.TrendPoint]
     var tint: Color = .accentColor
+    /// 진입 시 막대를 0에서 키워 도넛처럼 "그려지는" 효과를 낸다.
+    @State private var revealed = false
 
     var body: some View {
         Chart(points) { point in
             BarMark(
                 x: .value("월", point.shortTitle),
-                y: .value("합계", point.total)
+                y: .value("합계", revealed ? point.total : 0)
             )
             .foregroundStyle(tint.gradient)
             .cornerRadius(4)
@@ -313,43 +305,16 @@ private struct TrendChart: View {
                 }
             }
         }
-    }
-}
-
-private struct TrendStackedChart: View {
-    let points: [StatisticsAggregation.CategoryTrendPoint]
-    /// 기록 없는 달도 x축 라벨이 사라지지 않게 윈도 전체(6개월)를 도메인으로 고정한다.
-    let monthOrder: [String]
-    let presets: [String]
-
-    var body: some View {
-        Chart(points) { point in
-            BarMark(
-                x: .value("월", point.shortTitle),
-                y: .value("금액", point.total)
-            )
-            .foregroundStyle(by: .value("카테고리", point.category))
-            .cornerRadius(2)
-        }
-        .chartXScale(domain: monthOrder)
-        // 도넛 차트와 동일한 고정 색 매핑 — 자동 매핑은 달 구성에 따라 색이 흔들린다.
-        .chartForegroundStyleScale(mapping: color(for:))
-        .chartLegend(position: .bottom, alignment: .center, spacing: 8)
-        .chartYAxis {
-            AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let amount = value.as(Int.self) {
-                        Text(trendAxisLabel(for: amount))
-                            .font(.caption2)
-                    }
-                }
+        // 카테고리 전환 등 데이터가 바뀌면 막대 높이가 부드럽게 변형되도록.
+        .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: points.map(\.total))
+        .onAppear {
+            guard !revealed else { return }
+            if reduceMotion {
+                revealed = true
+            } else {
+                withAnimation(.easeOut(duration: 0.6)) { revealed = true }
             }
         }
-    }
-
-    private func color(for category: String) -> Color {
-        CategoryColor.color(for: category, presets: presets)
     }
 }
 
