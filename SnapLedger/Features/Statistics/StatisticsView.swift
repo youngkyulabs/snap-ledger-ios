@@ -213,14 +213,17 @@ struct StatisticsView: View {
 }
 
 private struct CategoryDonutChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let slices: [StatisticsAggregation.CategorySlice]
     let total: Int
     let presets: [String]
+    /// 진입 시 조각을 0에서 펼쳐 추세 막대와 동일한 "그려지는" 효과를 낸다.
+    @State private var revealed = false
 
     var body: some View {
         Chart(slices) { slice in
             SectorMark(
-                angle: .value("금액", slice.total),
+                angle: .value("금액", revealed ? slice.total : 0),
                 innerRadius: .ratio(0.62),
                 angularInset: 1.5
             )
@@ -247,6 +250,14 @@ private struct CategoryDonutChart: View {
                 Text("총 지출")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear {
+            guard !revealed else { return }
+            if reduceMotion {
+                revealed = true
+            } else {
+                withAnimation(.easeOut(duration: 0.6)) { revealed = true }
             }
         }
     }
