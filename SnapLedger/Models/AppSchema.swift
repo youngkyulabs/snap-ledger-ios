@@ -16,5 +16,6 @@ enum AppSchema {
         AccountMonthlyBalance.self,
         CashAdjustment.self,
         SavingsItem.self,
+        CardUsageItem.self,
     ]
 }

@@ -516,6 +516,7 @@ private struct BudgetLimitEditView: View {
                 AccountMonthlyBalance.self,
                 CashAdjustment.self,
                 SavingsItem.self,
+                CardUsageItem.self,
             ],
             inMemory: true
         )

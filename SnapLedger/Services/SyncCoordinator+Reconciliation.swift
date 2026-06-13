@@ -29,9 +29,11 @@ extension SyncCoordinator {
         let reconciliation = MonthlyReconciliation(monthKey: month)
         var balanceState = BalanceImportState()
         var savingsOrder = 0
+        var cardOrder = 0
 
         for row in rows {
-            if row.kind == .savings {
+            switch row.kind {
+            case .savings:
                 context.insert(
                     SavingsItem(
                         monthKey: month,
@@ -41,7 +43,18 @@ extension SyncCoordinator {
                     )
                 )
                 savingsOrder += 1
-            } else {
+            case .creditCard:
+                context.insert(
+                    CardUsageItem(
+                        monthKey: month,
+                        // title 없는 행은 레거시 단일 카드와 같은 이름으로 흡수 (export 명칭과 일치).
+                        title: row.title ?? ReconciliationStore.legacyCardTitle,
+                        amount: row.amount,
+                        sortOrder: cardOrder
+                    )
+                )
+                cardOrder += 1
+            default:
                 apply(row, to: reconciliation, month: month, balanceState: &balanceState, in: context)
             }
         }
@@ -63,7 +76,9 @@ extension SyncCoordinator {
             .map { Self.monthKeyString(from: $0.monthKey) }
         let savingsKeys = ((try? context.fetch(FetchDescriptor<SavingsItem>())) ?? [])
             .map { Self.monthKeyString(from: $0.monthKey) }
-        return Set(reconciliationKeys + balanceKeys + adjustmentKeys + savingsKeys)
+        let cardKeys = ((try? context.fetch(FetchDescriptor<CardUsageItem>())) ?? [])
+            .map { Self.monthKeyString(from: $0.monthKey) }
+        return Set(reconciliationKeys + balanceKeys + adjustmentKeys + savingsKeys + cardKeys)
     }
 
     private func apply(
@@ -77,9 +92,8 @@ extension SyncCoordinator {
         case .salary:
             reconciliation.salaryAmount = row.amount
             reconciliation.note = row.note
-        case .creditCard:
-            reconciliation.creditCardAmount = row.amount
-        case .savings:
+        case .creditCard, .savings:
+            // 카드·저축 항목은 replaceReconciliationMonth 루프에서 직접 처리한다.
             break
         case .openingBalance, .closingBalance, .interest:
             applyBalanceRow(row, month: month, balanceState: &balanceState)

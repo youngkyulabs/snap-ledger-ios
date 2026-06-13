@@ -13,6 +13,8 @@ struct MonthlyReconciliationView: View {
     @State private var showingAccountPrompt = false
     @State private var newSavingsName = ""
     @State private var showingSavingsPrompt = false
+    @State private var newCardName = ""
+    @State private var showingCardPrompt = false
     @State private var showingAdjustmentEditor = false
     @State private var conflict: SyncConflict?
     @State private var resultMessage: String?
@@ -21,8 +23,8 @@ struct MonthlyReconciliationView: View {
     /// 키보드 내림 버튼 노출과 월급 마스킹 해제에 쓰는 포커스 식별자.
     private enum Field: Hashable {
         case salary
-        case card
         case memo
+        case card(UUID)
         case savings(UUID)
         case opening(UUID)
         case closing(UUID)
@@ -42,6 +44,7 @@ struct MonthlyReconciliationView: View {
             summarySection
             explanationSection
             monthlyInputSection
+            cardsSection
             savingsSection
             accountsSection
             adjustmentsSection
@@ -95,6 +98,13 @@ struct MonthlyReconciliationView: View {
             Button("취소", role: .cancel) { newSavingsName = "" }
         } message: {
             Text("적금·펀드 등 저축 항목 이름을 입력하세요.")
+        }
+        .alert("카드 추가", isPresented: $showingCardPrompt) {
+            TextField("카드명", text: $newCardName)
+            Button("추가") { addCard() }
+            Button("취소", role: .cancel) { newCardName = "" }
+        } message: {
+            Text("정산에 포함할 카드 이름을 입력하세요.")
         }
         .sheet(isPresented: $showingAdjustmentEditor) {
             NavigationStack {
@@ -153,7 +163,6 @@ struct MonthlyReconciliationView: View {
     private var monthlyInputSection: some View {
         Section {
             salaryRow
-            moneyField("카드 사용액", value: $draft.creditCard, field: .card)
             TextField("메모", text: $draft.note)
                 .focused($focusedField, equals: .memo)
         } header: {
@@ -189,6 +198,34 @@ struct MonthlyReconciliationView: View {
             Text("원")
                 .foregroundStyle(.secondary)
                 .opacity(focusedField == .salary ? 1 : 0)
+        }
+    }
+
+    private var cardsSection: some View {
+        Section {
+            ForEach($draft.cards) { $item in
+                HStack {
+                    TextField("항목", text: $item.title)
+                    Spacer()
+                    TextField("0", text: amountText($item.amount))
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 130)
+                        .focused($focusedField, equals: .card(item.id))
+                    Text("원")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onDelete { draft.cards.remove(atOffsets: $0) }
+            Button {
+                showingCardPrompt = true
+            } label: {
+                Label("카드 추가", systemImage: "plus.circle")
+            }
+        } header: {
+            Text("카드 사용액").textCase(nil)
+        } footer: {
+            Text("카드별 이번 달 사용액을 항목으로 입력하세요.")
         }
     }
 
@@ -292,7 +329,9 @@ struct MonthlyReconciliationView: View {
             Text("계산 기준").textCase(nil)
         }
     }
+}
 
+extension MonthlyReconciliationView {
     private func moneyField(_ title: String, value: Binding<Int>, field: Field) -> some View {
         HStack {
             Text(title)
@@ -340,6 +379,14 @@ struct MonthlyReconciliationView: View {
         let nextOrder = (draft.savings.map(\.sortOrder).max() ?? -1) + 1
         draft.savings.append(SavingsItemDraft(title: trimmed, amount: 0, sortOrder: nextOrder))
         newSavingsName = ""
+    }
+
+    private func addCard() {
+        let trimmed = newCardName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let nextOrder = (draft.cards.map(\.sortOrder).max() ?? -1) + 1
+        draft.cards.append(CardUsageItemDraft(title: trimmed, amount: 0, sortOrder: nextOrder))
+        newCardName = ""
     }
 
     private func save(ignoringConflict: Bool = false) {
@@ -458,6 +505,7 @@ private func reconciliationMonthLabel(_ key: Int) -> String {
             AccountMonthlyBalance.self,
             CashAdjustment.self,
             SavingsItem.self,
+            CardUsageItem.self,
             AppSettings.self,
         ],
         inMemory: true
