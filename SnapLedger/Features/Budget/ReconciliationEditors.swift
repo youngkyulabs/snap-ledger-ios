@@ -84,8 +84,8 @@ struct ReconciliationAccountEditor: View {
                 TextField("계좌명", text: $name)
             }
             Section {
-                reconciliationMoneyField("기초 잔액", value: $opening)
-                reconciliationMoneyField("기말 잔액", value: $closing)
+                reconciliationMoneyField("월초 잔액", value: $opening)
+                reconciliationMoneyField("월말 잔액", value: $closing)
                 reconciliationMoneyField("이자", value: $interest)
             }
         }

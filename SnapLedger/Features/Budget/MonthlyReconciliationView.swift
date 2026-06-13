@@ -269,25 +269,35 @@ struct MonthlyReconciliationView: View {
     // MARK: - 행
 
     private func accountRow(_ balance: BalanceDraft) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(balance.accountName.isEmpty ? "계좌" : balance.accountName)
                     .font(.headline)
-                Text("기초 \(maskedAmount(balance.opening)) · 이자 \(maskedAmount(balance.interest))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if balance.interest != 0 {
+                    Text("이자 \(maskedAmount(balance.interest))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(maskedAmount(balance.closing))
-                    .font(.subheadline.monospacedDigit())
-                Text("기말 잔액")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: 12) {
+                balanceColumn("월초 잔액", amount: balance.opening)
+                balanceColumn("월말 잔액", amount: balance.closing)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
         .contentShape(.rect)
+    }
+
+    private func balanceColumn(_ label: String, amount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(maskedAmount(amount))
+                .font(.callout.weight(.medium).monospacedDigit())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func itemRow(title: String, amount: Int) -> some View {

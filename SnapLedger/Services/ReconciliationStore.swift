@@ -130,7 +130,7 @@ struct ReconciliationStore {
         return draft
     }
 
-    /// 전월 정산을 바탕으로 한 미리 채움 값 (영속화하지 않음). 잔액은 전월 기말을 이번 달 기초로 이월한다.
+    /// 전월 정산을 바탕으로 한 미리 채움 값 (영속화하지 않음). 잔액은 전월 월말을 이번 달 월초로 이월한다.
     private func carryForwardDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
         let previous = Self.previousMonthKey(month)
         let prevReconciliation = fetchReconciliation(previous, in: context)
