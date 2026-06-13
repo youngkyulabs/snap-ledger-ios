@@ -18,10 +18,15 @@ struct BudgetView: View {
     @Query private var incomeItems: [IncomeItem]
 
     @State private var selectedMonthKey: Int?
-    @State private var showingLimitEditor = false
     @State private var categoryDetail: CategoryEntriesDetail?
-    /// 한도 없는 지출 행의 스와이프 '한도 설정' → 해당 카테고리 포커스로 한도 편집 진입.
-    @State private var limitEditCategory: String?
+    /// 정산·한도편집 푸시 경로. 탭 재선택 시 루트 여부(path.isEmpty) 판단에도 쓴다.
+    @State private var path: [Route] = []
+
+    /// 예산 탭 NavigationStack에 쌓이는 화면. (정산 상세 / 한도 편집)
+    private enum Route: Hashable {
+        case reconciliation(month: Int)
+        case limitEdit(month: Int, focus: String?)
+    }
 
     private var currentMonthKey: Int { CategoryBudgetStore.monthKey(from: Date()) }
     private var effectiveMonthKey: Int { selectedMonthKey ?? currentMonthKey }
@@ -61,32 +66,38 @@ struct BudgetView: View {
         // 집계는 전체 entries 순회라 비싸다 — 렌더링당 1회만 계산해 섹션에 넘긴다.
         let summary = self.summary
         let reconciliation = self.reconciliationSummary
-        NavigationStack {
+        NavigationStack(path: $path) {
             progressList(summary: summary, reconciliation: reconciliation)
                 .navigationTitle("예산")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
-                            showingLimitEditor = true
+                            path.append(.limitEdit(month: effectiveMonthKey, focus: nil))
                         } label: {
                             Label("한도 편집", systemImage: "square.and.pencil")
                         }
                     }
                 }
-                .navigationDestination(isPresented: $showingLimitEditor) {
-                    BudgetLimitEditView(month: effectiveMonthKey, currentMonthKey: currentMonthKey)
-                }
-                .navigationDestination(item: $limitEditCategory) { category in
-                    BudgetLimitEditView(
-                        month: effectiveMonthKey,
-                        currentMonthKey: currentMonthKey,
-                        focusCategory: category
-                    )
+                .navigationDestination(for: Route.self) { route in
+                    switch route {
+                    case .reconciliation(let month):
+                        MonthlyReconciliationView(month: month)
+                    case .limitEdit(let month, let focus):
+                        BudgetLimitEditView(
+                            month: month,
+                            currentMonthKey: currentMonthKey,
+                            focusCategory: focus
+                        )
+                    }
                 }
         }
-        // 탭 재선택 → 선택 월을 비워 현재 달로 복귀 (effectiveMonthKey가 currentMonthKey로 폴백).
+        // 탭 재선택: 푸시된 화면이 있으면 루트로 닫기만(월 유지), 루트면 현재 달로 복귀.
         .onChange(of: resetNonce) { _, _ in
-            selectedMonthKey = nil
+            if path.isEmpty {
+                selectedMonthKey = nil
+            } else {
+                path.removeAll()
+            }
         }
     }
 
@@ -133,9 +144,7 @@ struct BudgetView: View {
         // (displayVerdict) 빈 달이 '정상'이나 큰 '차이'로 오표기되지 않고, 정산 상세 화면과도 일치한다.
         let status = ReconciliationSummary.periodStatus(month: effectiveMonthKey, today: Date())
         return Section {
-            NavigationLink {
-                MonthlyReconciliationView(month: effectiveMonthKey)
-            } label: {
+            NavigationLink(value: Route.reconciliation(month: effectiveMonthKey)) {
                 ReconciliationSummaryRow(
                     summary: summary,
                     verdict: summary.displayVerdict(status: status, isReconciled: summary.hasReconciliationData)
@@ -216,7 +225,7 @@ struct BudgetView: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     if presets.contains(item.category) {
                         Button {
-                            limitEditCategory = item.category
+                            path.append(.limitEdit(month: effectiveMonthKey, focus: item.category))
                         } label: {
                             Label("한도 설정", systemImage: "wonsign.circle")
                         }
@@ -245,7 +254,7 @@ struct BudgetView: View {
     private var emptyBudgetSection: some View {
         Section {
             Button {
-                showingLimitEditor = true
+                path.append(.limitEdit(month: effectiveMonthKey, focus: nil))
             } label: {
                 Label("카테고리별 한도 정하기", systemImage: "wonsign.circle")
             }

@@ -288,6 +288,10 @@ struct MonthlyReconciliationView: View {
                 draft.adjustments.remove(atOffsets: offsets)
                 save()
             }
+            .onMove { source, destination in
+                draft.adjustments.move(fromOffsets: source, toOffset: destination)
+                save()
+            }
             addButton("자금변동 추가") { activeSheet = .adjustment(nil) }
         } header: {
             Text("자금변동").textCase(nil)
@@ -431,16 +435,17 @@ extension MonthlyReconciliationView {
             draft.adjustments[index].direction = direction
             draft.adjustments[index].amount = amount
         } else {
+            let nextOrder = (draft.adjustments.map(\.sortOrder).max() ?? -1) + 1
             draft.adjustments.append(
                 AdjustmentDraft(
                     title: resolvedTitle,
                     direction: direction,
                     amount: amount,
-                    note: nil
+                    note: nil,
+                    sortOrder: nextOrder
                 )
             )
         }
-        draft.adjustments.sort { $0.title < $1.title }
         amountsHidden = false
         save()
     }
