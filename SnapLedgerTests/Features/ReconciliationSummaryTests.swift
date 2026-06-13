@@ -281,6 +281,25 @@ struct ReconciliationSummaryTests {
         #expect(summary.creditCardAmount == 500_000)
     }
 
+    @Test func cardItemsContributeToActualSpending() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                cardItems: [
+                    CardUsageItem(monthKey: 202_606, title: "신한", amount: 300_000),
+                    CardUsageItem(monthKey: 202_606, title: "현대", amount: 200_000),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        // 카드 사용액은 actualSpending 계산식의 항 — 잔액·월급·자금변동이 모두 0이면 카드 합계와 같다.
+        // (예산탭이 cardItems를 안 넘겨 카드 금액을 0으로 계산하던 회귀를 막는다.)
+        #expect(summary.actualSpending == 500_000)
+    }
+
     @Test func usesLegacyCreditCardAmountWhenNoCardItems() {
         let summary = ReconciliationSummary.compute(
             entries: [],
