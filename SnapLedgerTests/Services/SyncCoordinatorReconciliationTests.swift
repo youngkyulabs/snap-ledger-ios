@@ -179,7 +179,6 @@ struct SyncCoordinatorReconciliationTests {
         context.insert(
             CashAdjustment(
                 monthKey: 202_605,
-                date: makeDate(year: 2026, month: 5, day: 2),
                 title: "기존",
                 direction: .deposit,
                 amount: 1

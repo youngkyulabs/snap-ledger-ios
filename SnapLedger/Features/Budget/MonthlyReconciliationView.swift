@@ -130,7 +130,7 @@ struct MonthlyReconciliationView: View {
                 saveCard(existing: existing, title: title, amount: amount)
             }
         case .adjustment(let existing):
-            ReconciliationAdjustmentEditor(month: month, initial: existing) { title, direction, amount in
+            ReconciliationAdjustmentEditor(initial: existing) { title, direction, amount in
                 saveAdjustment(existing: existing, title: title, direction: direction, amount: amount)
             }
         }
@@ -417,7 +417,6 @@ extension MonthlyReconciliationView {
         } else {
             draft.adjustments.append(
                 AdjustmentDraft(
-                    date: ReconciliationStore.date(month: month),
                     title: resolvedTitle,
                     direction: direction,
                     amount: amount,
@@ -425,7 +424,7 @@ extension MonthlyReconciliationView {
                 )
             )
         }
-        draft.adjustments.sort { $0.date == $1.date ? $0.title < $1.title : $0.date < $1.date }
+        draft.adjustments.sort { $0.title < $1.title }
         amountsHidden = false
         save()
     }

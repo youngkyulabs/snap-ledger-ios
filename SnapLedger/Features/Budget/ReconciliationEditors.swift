@@ -109,7 +109,6 @@ struct ReconciliationAccountEditor: View {
 // MARK: - 자금변동 편집 시트
 
 struct ReconciliationAdjustmentEditor: View {
-    let month: Int
     let initial: AdjustmentDraft?
     let onSave: (String, CashAdjustmentDirection, Int) -> Void
 
@@ -119,11 +118,9 @@ struct ReconciliationAdjustmentEditor: View {
     @State private var amount: Int
 
     init(
-        month: Int,
         initial: AdjustmentDraft?,
         onSave: @escaping (String, CashAdjustmentDirection, Int) -> Void
     ) {
-        self.month = month
         self.initial = initial
         self.onSave = onSave
         _title = State(initialValue: initial?.title ?? "")

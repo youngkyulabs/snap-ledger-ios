@@ -113,7 +113,6 @@ struct ReconciliationSummaryTests {
         let adjustments = [
             CashAdjustment(
                 monthKey: 202_606,
-                date: date(2026, 6, 25),
                 title: "전월 카드대금",
                 direction: .withdrawal,
                 amount: 400_000
@@ -152,7 +151,6 @@ struct ReconciliationSummaryTests {
         let adjustments = [
             CashAdjustment(
                 monthKey: 202_606,
-                date: date(2026, 6, 10),
                 title: "환급",
                 direction: .deposit,
                 amount: 100_000
@@ -196,14 +194,12 @@ struct ReconciliationSummaryTests {
                 adjustments: [
                     CashAdjustment(
                         monthKey: 202_605,
-                        date: date(2026, 5, 1),
                         title: "5월",
                         direction: .deposit,
                         amount: 999
                     ),
                     CashAdjustment(
                         monthKey: 202_606,
-                        date: date(2026, 6, 1),
                         title: "6월",
                         direction: .deposit,
                         amount: 100

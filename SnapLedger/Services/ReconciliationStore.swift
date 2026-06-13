@@ -55,7 +55,6 @@ struct BalanceDraft: Identifiable, Equatable {
 
 struct AdjustmentDraft: Identifiable, Equatable {
     var id = UUID()
-    var date: Date
     var title: String
     var direction: CashAdjustmentDirection
     var amount: Int
@@ -124,7 +123,6 @@ struct ReconciliationStore {
         }
         draft.adjustments = adjustments.map {
             AdjustmentDraft(
-                date: $0.date,
                 title: $0.title,
                 direction: $0.direction,
                 amount: $0.amount,
@@ -298,16 +296,6 @@ struct ReconciliationStore {
         return year * 100 + month - 1
     }
 
-    static func date(month: Int, day: Int = 1, calendar: Calendar = .current) -> Date {
-        var comps = DateComponents()
-        comps.year = month / 100
-        comps.month = month % 100
-        comps.day = day
-        comps.calendar = calendar
-        comps.timeZone = calendar.timeZone
-        return calendar.date(from: comps) ?? Date()
-    }
-
     // MARK: - 내부
 
     private func replaceMonth(_ month: Int, with draft: ReconciliationDraft, in context: ModelContext) {
@@ -367,7 +355,6 @@ struct ReconciliationStore {
             context.insert(
                 CashAdjustment(
                     monthKey: month,
-                    date: adjustment.date,
                     title: adjustment.title,
                     direction: adjustment.direction,
                     amount: adjustment.amount,
@@ -405,7 +392,7 @@ extension ReconciliationStore {
     private func fetchAdjustments(_ month: Int, in context: ModelContext) -> [CashAdjustment] {
         fetchAllAdjustments(in: context)
             .filter { $0.monthKey == month }
-            .sorted { $0.date == $1.date ? $0.title < $1.title : $0.date < $1.date }
+            .sorted { $0.title < $1.title }
     }
 
     private func fetchSavings(_ month: Int, in context: ModelContext) -> [SavingsItem] {
@@ -502,7 +489,6 @@ extension ReconciliationDraft {
             adjustments: adjustments.map {
                 CashAdjustment(
                     monthKey: month,
-                    date: $0.date,
                     title: $0.title,
                     direction: $0.direction,
                     amount: $0.amount,
