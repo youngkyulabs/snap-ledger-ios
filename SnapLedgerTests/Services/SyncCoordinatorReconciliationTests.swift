@@ -104,12 +104,36 @@ struct SyncCoordinatorReconciliationTests {
         #expect(content.contains("월급,,,월급,,3000000,"))
         #expect(content.contains("저축액,,,저축액,,500000,"))
         #expect(content.contains("기초잔액,,입출금,,,1000000,"))
+        // 항목 없는 레거시 creditCardAmount는 단일 카드 행으로 폴백 export된다.
+        #expect(content.contains("카드사용액,,,카드 사용액,,450000,"))
 
         let statuses = await sync.monthStatuses(in: context)
         let reconciliation = try #require(
             statuses.first { $0.kind == .reconciliation && $0.monthKey == "2026-05" }
         )
         #expect(reconciliation.state == .synced)
+    }
+
+    @Test func exportWritesCardItemsAsSeparateRows() async throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+
+        context.insert(MonthlyReconciliation(monthKey: 202_605, salaryAmount: 3_000_000))
+        context.insert(CardUsageItem(monthKey: 202_605, title: "신한", amount: 300_000, sortOrder: 0))
+        context.insert(CardUsageItem(monthKey: 202_605, title: "현대", amount: 200_000, sortOrder: 1))
+        try context.save()
+
+        try sync.exportMonths(["2026-05"], kind: .reconciliation, in: context)
+
+        let content = try String(
+            contentsOf: dir.appendingPathComponent("reconciliations-2026-05.csv"),
+            encoding: .utf8
+        )
+        // 카드 항목은 각각 별도 카드사용액 행으로 export된다.
+        #expect(content.contains("카드사용액,,,신한,,300000,"))
+        #expect(content.contains("카드사용액,,,현대,,200000,"))
     }
 
     @Test func importReconciliationMonthReplacesExistingMonth() throws {

@@ -47,7 +47,8 @@ extension SyncCoordinator {
                 context.insert(
                     CardUsageItem(
                         monthKey: month,
-                        title: row.title ?? ReconciliationCSVKind.creditCard.rawValue,
+                        // title 없는 행은 레거시 단일 카드와 같은 이름으로 흡수 (export 명칭과 일치).
+                        title: row.title ?? ReconciliationStore.legacyCardTitle,
                         amount: row.amount,
                         sortOrder: cardOrder
                     )
