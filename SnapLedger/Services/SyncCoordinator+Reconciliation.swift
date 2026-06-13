@@ -95,7 +95,7 @@ extension SyncCoordinator {
             context.insert(
                 CardUsageItem(
                     monthKey: month,
-                    title: row.title ?? ReconciliationStore.legacyCardTitle,
+                    title: row.title ?? ReconciliationCSVKind.creditCard.rawValue,
                     amount: amount,
                     sortOrder: state.cardOrder
                 )

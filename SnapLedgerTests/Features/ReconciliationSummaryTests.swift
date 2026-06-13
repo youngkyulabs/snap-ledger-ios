@@ -34,11 +34,7 @@ struct ReconciliationSummaryTests {
     }
 
     @Test func computesActualRecordedAndDifference() {
-        let reconciliation = MonthlyReconciliation(
-            monthKey: 202_606,
-            salaryAmount: 3_000_000,
-            creditCardAmount: 450_000
-        )
+        let reconciliation = MonthlyReconciliation(monthKey: 202_606)
         let balances = [
             AccountMonthlyBalance(
                 monthKey: 202_606,
@@ -67,7 +63,9 @@ struct ReconciliationSummaryTests {
                 balances: balances,
                 savingsItems: [
                     SavingsItem(monthKey: 202_606, title: "저축", amount: 500_000),
-                ]
+                ],
+                cardItems: [CardUsageItem(monthKey: 202_606, title: "카드", amount: 450_000)],
+                incomeItems: [IncomeItem(monthKey: 202_606, title: "월급", amount: 3_000_000)]
             ),
             targetMonth: 202_606,
             calendar: kst
@@ -79,11 +77,7 @@ struct ReconciliationSummaryTests {
     }
 
     @Test func cashAdjustmentWithdrawalsReduceActualSpendingBase() {
-        let reconciliation = MonthlyReconciliation(
-            monthKey: 202_606,
-            salaryAmount: 3_000_000,
-            creditCardAmount: 700_000
-        )
+        let reconciliation = MonthlyReconciliation(monthKey: 202_606)
         let balances = [
             AccountMonthlyBalance(
                 monthKey: 202_606,
@@ -107,7 +101,9 @@ struct ReconciliationSummaryTests {
             input: ReconciliationSummaryInput(
                 reconciliation: reconciliation,
                 balances: balances,
-                adjustments: adjustments
+                adjustments: adjustments,
+                cardItems: [CardUsageItem(monthKey: 202_606, title: "카드", amount: 700_000)],
+                incomeItems: [IncomeItem(monthKey: 202_606, title: "월급", amount: 3_000_000)]
             ),
             targetMonth: 202_606,
             calendar: kst
@@ -120,11 +116,7 @@ struct ReconciliationSummaryTests {
     }
 
     @Test func cashAdjustmentDepositsIncreaseActualSpendingBase() {
-        let reconciliation = MonthlyReconciliation(
-            monthKey: 202_606,
-            salaryAmount: 2_000_000,
-            creditCardAmount: 300_000
-        )
+        let reconciliation = MonthlyReconciliation(monthKey: 202_606)
         let balances = [
             AccountMonthlyBalance(
                 monthKey: 202_606,
@@ -151,7 +143,9 @@ struct ReconciliationSummaryTests {
                 adjustments: adjustments,
                 savingsItems: [
                     SavingsItem(monthKey: 202_606, title: "저축", amount: 100_000),
-                ]
+                ],
+                cardItems: [CardUsageItem(monthKey: 202_606, title: "카드", amount: 300_000)],
+                incomeItems: [IncomeItem(monthKey: 202_606, title: "월급", amount: 2_000_000)]
             ),
             targetMonth: 202_606,
             calendar: kst
@@ -216,7 +210,10 @@ struct ReconciliationSummaryTests {
     @Test func verdictForInProgressMonthIsNeutral() {
         let summary = ReconciliationSummary.compute(
             entries: [],
-            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_606, salaryAmount: 9_000)),
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                incomeItems: [IncomeItem(monthKey: 202_606, title: "월급", amount: 9_000)]
+            ),
             targetMonth: 202_606,
             calendar: kst
         )
@@ -229,7 +226,10 @@ struct ReconciliationSummaryTests {
         // 월급 9,000 외 잔액/지출 없음 → 차이 9,000 (실제 > 기록).
         let summary = ReconciliationSummary.compute(
             entries: [],
-            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_606, salaryAmount: 9_000)),
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                incomeItems: [IncomeItem(monthKey: 202_606, title: "월급", amount: 9_000)]
+            ),
             targetMonth: 202_606,
             calendar: kst
         )
@@ -272,7 +272,10 @@ struct ReconciliationSummaryTests {
         // 실제(월급 1,000) > 기록(0)
         let actualHeavy = ReconciliationSummary.compute(
             entries: [],
-            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_605, salaryAmount: 1_000)),
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_605),
+                incomeItems: [IncomeItem(monthKey: 202_605, title: "월급", amount: 1_000)]
+            ),
             targetMonth: 202_605,
             calendar: kst
         ).verdict(status: .closed)
@@ -330,19 +333,6 @@ struct ReconciliationSummaryTests {
         #expect(summary.actualSpending == 500_000)
     }
 
-    @Test func usesLegacyCreditCardAmountWhenNoCardItems() {
-        let summary = ReconciliationSummary.compute(
-            entries: [],
-            input: ReconciliationSummaryInput(
-                reconciliation: MonthlyReconciliation(monthKey: 202_606, creditCardAmount: 450_000)
-            ),
-            targetMonth: 202_606,
-            calendar: kst
-        )
-
-        #expect(summary.creditCardAmount == 450_000)
-    }
-
     @Test func sumsSavingsItems() {
         let summary = ReconciliationSummary.compute(
             entries: [],
@@ -380,18 +370,5 @@ struct ReconciliationSummaryTests {
         #expect(summary.salaryAmount == 3_500_000)
         #expect(summary.actualSpending == 3_500_000)
         #expect(summary.hasReconciliationData == true)
-    }
-
-    @Test func usesLegacySalaryAmountWhenNoIncomeItems() {
-        let summary = ReconciliationSummary.compute(
-            entries: [],
-            input: ReconciliationSummaryInput(
-                reconciliation: MonthlyReconciliation(monthKey: 202_606, salaryAmount: 2_000_000)
-            ),
-            targetMonth: 202_606,
-            calendar: kst
-        )
-
-        #expect(summary.salaryAmount == 2_000_000)
     }
 }
