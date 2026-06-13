@@ -74,7 +74,7 @@ struct ReconciliationCSVParser {
             return ReconciliationCSVRow(kind: .monthNote, note: note)
         }
 
-        guard let amount = nonEmpty(raw[safe: 4]).flatMap({ Int($0) }) else {
+        guard let amount = nonEmpty(raw[safe: 4]).flatMap(parseAmount) else {
             return nil
         }
         if kind == .cashAdjustment, direction == nil {
@@ -97,6 +97,11 @@ struct ReconciliationCSVParser {
     private static func nonEmpty(_ value: String?) -> String? {
         let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// 금액 파싱 — 천 단위 구분자(콤마)를 제거하고 정수로. 지출 CSV 파서(`CSVRowParser`)와 동작을 맞춘다.
+    private static func parseAmount(_ raw: String) -> Int? {
+        Int(raw.replacingOccurrences(of: ",", with: ""))
     }
 }
 

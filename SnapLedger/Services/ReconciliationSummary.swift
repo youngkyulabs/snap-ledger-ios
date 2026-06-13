@@ -153,3 +153,22 @@ extension ReconciliationSummary {
         )
     }
 }
+
+extension ReconciliationVerdict {
+    /// 아직 저장된 정산 데이터가 없는 달(전월 값으로 프리필만 됐거나 빈 달)에 보여줄 중립 판정.
+    static let notReconciled = ReconciliationVerdict(tone: .inProgress, headline: "아직 정산 전", detail: "")
+}
+
+extension ReconciliationSummary {
+    /// 화면 표시용 판정. 저장된 정산 데이터가 없으면(`isReconciled == false`) 차이 대신
+    /// '아직 정산 전'을 보여준다 — 전월 값으로 프리필만 된 정산 화면과 빈 DB를 읽는 예산 탭이
+    /// 같은 달에 대해 같은 결론을 내도록 맞춘다.
+    func displayVerdict(
+        status: ReconciliationPeriodStatus,
+        isReconciled: Bool,
+        revealInProgressDifference: Bool = false
+    ) -> ReconciliationVerdict {
+        guard isReconciled else { return .notReconciled }
+        return verdict(status: status, revealInProgressDifference: revealInProgressDifference)
+    }
+}

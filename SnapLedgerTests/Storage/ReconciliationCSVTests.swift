@@ -79,6 +79,23 @@ struct ReconciliationCSVTests {
         #expect(parsed.skipped == 0)
     }
 
+    @Test func parserAcceptsThousandsSeparatorInAmount() {
+        // 외부 편집기·스프레드시트가 금액을 천 단위 구분자로 다시 쓴 파일도 받아들인다
+        // (지출 CSV 파서와 동일). 따옴표로 감싼 "3,000,000"은 한 필드로 들어온다.
+        let csv = """
+        종류,항목,계좌,방향,금액,메모
+        수입,월급,,,"3,000,000",
+        카드사용액,주카드,,,"450,000",
+        """
+
+        let parsed = ReconciliationCSVParser.parse(csv)
+
+        #expect(parsed.skipped == 0)
+        #expect(parsed.rows.count == 2)
+        #expect(parsed.rows.first?.amount == 3_000_000)
+        #expect(parsed.rows.last?.amount == 450_000)
+    }
+
     @Test func parserSkipsInvalidRows() {
         let csv = """
         종류,항목,계좌,방향,금액,메모

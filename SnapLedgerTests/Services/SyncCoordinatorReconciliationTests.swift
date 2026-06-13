@@ -53,6 +53,39 @@ struct SyncCoordinatorReconciliationTests {
         try Data(content.utf8).write(to: dir.appendingPathComponent(name), options: .atomic)
     }
 
+    @Test func importDoesNotWipeMonthWhenAllRowsUnparseable() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+
+        // 앱에 2026-05 정산 데이터가 있다.
+        context.insert(MonthlyReconciliation(monthKey: 202_605, note: "메모"))
+        context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000, sortOrder: 0))
+        context.insert(
+            AccountMonthlyBalance(
+                monthKey: 202_605, accountName: "통장", openingBalance: 1_000_000, closingBalance: 900_000
+            )
+        )
+        try context.save()
+
+        // 폴더엔 모든 행이 형식 불일치인(파싱 0행·skipped>0) 파일이 있다 (구 포맷·금액 깨짐 등).
+        try writeCSV(
+            dir, "reconciliations-2026-05.csv",
+            "\u{FEFF}종류,항목,계좌,방향,금액,메모\n수입,월급,,,망가진금액,\n카드사용액,카드,,,또깨짐,\n"
+        )
+
+        let summary = try SyncCoordinator().importMonths(["2026-05"], kind: .reconciliation, in: context)
+
+        // 그 달 데이터가 지워지지 않고 보존돼야 한다.
+        let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
+        #expect(incomes.contains { $0.monthKey == 202_605 && $0.amount == 3_000_000 })
+        let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
+        #expect(balances.contains { $0.monthKey == 202_605 })
+        // 형식이 깨진 달로 보고하고, 가져온 달로 처리하지 않는다.
+        #expect(summary.malformedMonths.contains("2026-05"))
+        #expect(!summary.importedMonths.contains("2026-05"))
+    }
+
     @Test func monthStatusesIncludesReconciliationFiles() async throws {
         let dir = makeTempDir()
         let context = try makeContext()
@@ -146,7 +179,6 @@ struct SyncCoordinatorReconciliationTests {
         context.insert(
             CashAdjustment(
                 monthKey: 202_605,
-                date: makeDate(year: 2026, month: 5, day: 2),
                 title: "기존",
                 direction: .deposit,
                 amount: 1

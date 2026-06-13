@@ -11,6 +11,10 @@ struct ReconciliationDraft: Equatable {
     var balances: [BalanceDraft] = []
     var adjustments: [AdjustmentDraft] = []
 
+    /// 전월 값으로 프리필된(아직 저장하지 않은) 초안인지. true면 화면은 차이 판정 대신
+    /// '아직 정산 전'을 보여줘, 빈 DB를 읽는 예산 탭과 결론이 어긋나지 않게 한다.
+    var isCarriedForward = false
+
     /// 저장할 의미 있는 내용이 하나도 없으면 true (저장 시 그 달을 비운다).
     var isEmpty: Bool {
         incomes.isEmpty && cards.isEmpty && savings.isEmpty
@@ -51,7 +55,6 @@ struct BalanceDraft: Identifiable, Equatable {
 
 struct AdjustmentDraft: Identifiable, Equatable {
     var id = UUID()
-    var date: Date
     var title: String
     var direction: CashAdjustmentDirection
     var amount: Int
@@ -120,7 +123,6 @@ struct ReconciliationStore {
         }
         draft.adjustments = adjustments.map {
             AdjustmentDraft(
-                date: $0.date,
                 title: $0.title,
                 direction: $0.direction,
                 amount: $0.amount,
@@ -148,6 +150,7 @@ struct ReconciliationStore {
                 interest: 0
             )
         }
+        draft.isCarriedForward = true
         return draft
     }
 
@@ -180,8 +183,15 @@ struct ReconciliationStore {
                     try ensureNoConflict(key: key, folderURL: folderURL, in: context)
                 }
                 replaceMonth(month, with: draft, in: context)
-                try SyncCoordinator().exportReconciliationMonths([key], folderURL: folderURL, in: context)
-                try context.save()
+                do {
+                    try SyncCoordinator().exportReconciliationMonths([key], folderURL: folderURL, in: context)
+                    try context.save()
+                } catch {
+                    // CSV 쓰기/저장 실패 시 replaceMonth의 미커밋 insert/delete를 되돌려, DB만 바뀌고
+                    // 파일은 그대로인 "감지 불가능한 어긋남"을 막는다 (SaveCoordinator와 동일).
+                    context.rollback()
+                    throw error
+                }
             }
             return true
         } catch StoreError.noCSVFolder {
@@ -286,16 +296,6 @@ struct ReconciliationStore {
         return year * 100 + month - 1
     }
 
-    static func date(month: Int, day: Int = 1, calendar: Calendar = .current) -> Date {
-        var comps = DateComponents()
-        comps.year = month / 100
-        comps.month = month % 100
-        comps.day = day
-        comps.calendar = calendar
-        comps.timeZone = calendar.timeZone
-        return calendar.date(from: comps) ?? Date()
-    }
-
     // MARK: - 내부
 
     private func replaceMonth(_ month: Int, with draft: ReconciliationDraft, in context: ModelContext) {
@@ -355,7 +355,6 @@ struct ReconciliationStore {
             context.insert(
                 CashAdjustment(
                     monthKey: month,
-                    date: adjustment.date,
                     title: adjustment.title,
                     direction: adjustment.direction,
                     amount: adjustment.amount,
@@ -393,7 +392,7 @@ extension ReconciliationStore {
     private func fetchAdjustments(_ month: Int, in context: ModelContext) -> [CashAdjustment] {
         fetchAllAdjustments(in: context)
             .filter { $0.monthKey == month }
-            .sorted { $0.date == $1.date ? $0.title < $1.title : $0.date < $1.date }
+            .sorted { $0.title < $1.title }
     }
 
     private func fetchSavings(_ month: Int, in context: ModelContext) -> [SavingsItem] {
@@ -490,7 +489,6 @@ extension ReconciliationDraft {
             adjustments: adjustments.map {
                 CashAdjustment(
                     monthKey: month,
-                    date: $0.date,
                     title: $0.title,
                     direction: $0.direction,
                     amount: $0.amount,

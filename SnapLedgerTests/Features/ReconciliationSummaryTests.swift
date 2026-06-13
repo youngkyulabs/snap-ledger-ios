@@ -33,6 +33,30 @@ struct ReconciliationSummaryTests {
         )
     }
 
+    @Test func displayVerdictShowsNotReconciledWhenNoSavedData() {
+        // 전월 값으로 프리필만 돼 큰 차이가 계산되더라도, 저장 전이면 '아직 정산 전'으로 표시한다.
+        let balances = [
+            AccountMonthlyBalance(
+                monthKey: 202_604,
+                accountName: "통장",
+                openingBalance: 1_000_000,
+                closingBalance: 1_000_000
+            ),
+        ]
+        let incomes = [IncomeItem(monthKey: 202_604, title: "월급", amount: 3_000_000)]
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(balances: balances, incomeItems: incomes),
+            targetMonth: 202_604,
+            calendar: kst
+        )
+
+        #expect(summary.difference != 0)
+        #expect(summary.displayVerdict(status: .closed, isReconciled: false) == .notReconciled)
+        // 저장된 데이터로 간주하면 기존 차이 판정을 그대로 보여준다.
+        #expect(summary.displayVerdict(status: .closed, isReconciled: true).tone == .off)
+    }
+
     @Test func computesActualRecordedAndDifference() {
         let reconciliation = MonthlyReconciliation(monthKey: 202_606)
         let balances = [
@@ -89,7 +113,6 @@ struct ReconciliationSummaryTests {
         let adjustments = [
             CashAdjustment(
                 monthKey: 202_606,
-                date: date(2026, 6, 25),
                 title: "전월 카드대금",
                 direction: .withdrawal,
                 amount: 400_000
@@ -128,7 +151,6 @@ struct ReconciliationSummaryTests {
         let adjustments = [
             CashAdjustment(
                 monthKey: 202_606,
-                date: date(2026, 6, 10),
                 title: "환급",
                 direction: .deposit,
                 amount: 100_000
@@ -172,14 +194,12 @@ struct ReconciliationSummaryTests {
                 adjustments: [
                     CashAdjustment(
                         monthKey: 202_605,
-                        date: date(2026, 5, 1),
                         title: "5월",
                         direction: .deposit,
                         amount: 999
                     ),
                     CashAdjustment(
                         monthKey: 202_606,
-                        date: date(2026, 6, 1),
                         title: "6월",
                         direction: .deposit,
                         amount: 100

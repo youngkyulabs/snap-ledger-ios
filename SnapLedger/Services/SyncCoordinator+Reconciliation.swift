@@ -140,8 +140,6 @@ extension SyncCoordinator {
         context.insert(
             CashAdjustment(
                 monthKey: month,
-                // CSV는 자금변동 날짜를 담지 않는다(정산은 월 단위) — import 시 그 달 1일로 합성.
-                date: ReconciliationStore.date(month: month),
                 title: row.title ?? row.kind.rawValue,
                 direction: direction,
                 amount: amount,

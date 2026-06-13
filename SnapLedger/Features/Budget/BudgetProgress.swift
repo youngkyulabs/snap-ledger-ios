@@ -91,4 +91,11 @@ enum BudgetProgress {
             overallState: overallState
         )
     }
+
+    /// 표시용 사용률(%). 한도를 넘기 전(ratio < 1)에는 반올림이 100%에 닿더라도 99%로 묶어
+    /// "100% · N원 남음" 같은 모순 표기를 막는다. 도달·초과(ratio ≥ 1)는 그대로 보여준다.
+    static func usagePercent(ratio: Double) -> Int {
+        let raw = Int((ratio * 100).rounded())
+        return ratio < 1.0 ? min(raw, 99) : raw
+    }
 }

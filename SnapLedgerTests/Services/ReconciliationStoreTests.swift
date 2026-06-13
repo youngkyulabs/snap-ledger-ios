@@ -14,6 +14,67 @@ struct ReconciliationStoreTests {
         return ModelContext(container)
     }
 
+    @Test func loadDraftMarksCarriedForwardDraft() throws {
+        let context = try makeContext()
+        context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000, sortOrder: 0))
+        try context.save()
+
+        // 전월 값으로 프리필된 빈 달 → 이월 초안으로 표시된다.
+        let carried = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        #expect(carried.isCarriedForward)
+
+        // 저장된 데이터가 있는 달 → 이월 초안이 아니다.
+        context.insert(MonthlyReconciliation(monthKey: 202_607))
+        context.insert(IncomeItem(monthKey: 202_607, title: "월급", amount: 1, sortOrder: 0))
+        try context.save()
+        let loaded = ReconciliationStore().loadDraft(for: 202_607, in: context)
+        #expect(!loaded.isCarriedForward)
+    }
+
+    @Test func saveRollsBackWhenCSVWriteFails() throws {
+        let schema = Schema([
+            PendingImage.self, ParsedEntry.self, SavedEntry.self, MerchantCategory.self,
+            AppSettings.self, CSVFileState.self,
+            MonthlyReconciliation.self, AccountMonthlyBalance.self, CashAdjustment.self,
+            SavingsItem.self, CardUsageItem.self, IncomeItem.self,
+        ])
+        let container = try ModelContainer(
+            for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = ModelContext(container)
+
+        // 기존 저장 데이터(2026-06)가 있다.
+        context.insert(MonthlyReconciliation(monthKey: 202_606))
+        context.insert(IncomeItem(monthKey: 202_606, title: "기존", amount: 111, sortOrder: 0))
+        try context.save()
+
+        // 폴더를 읽기 전용으로 만들어 CSV 쓰기를 실패시킨다.
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ReconRollback-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
+            try? FileManager.default.removeItem(at: folder)
+        }
+        context.insert(AppSettings(csvFolderBookmark: try BookmarkStore.makeBookmark(for: folder)))
+        try context.save()
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
+
+        var draft = ReconciliationDraft()
+        draft.incomes = [IncomeItemDraft(title: "새값", amount: 999)]
+
+        // 쓰기 실패 → save가 throw.
+        #expect(throws: (any Error).self) {
+            try ReconciliationStore().save(draft, month: 202_606, in: context)
+        }
+
+        // 롤백되어 기존 데이터가 그대로 남아야 한다 (DB가 CSV와 어긋나지 않음).
+        let incomes = try context.fetch(FetchDescriptor<IncomeItem>()).filter { $0.monthKey == 202_606 }
+        #expect(incomes.count == 1)
+        #expect(incomes.first?.title == "기존")
+        #expect(incomes.first?.amount == 111)
+    }
+
     @Test func loadDraftCarriesForwardPreviousMonthWithoutPersisting() throws {
         let context = try makeContext()
         context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000, sortOrder: 0))

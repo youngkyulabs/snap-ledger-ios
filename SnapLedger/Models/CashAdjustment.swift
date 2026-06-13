@@ -26,7 +26,6 @@ final class CashAdjustment {
     var id: UUID
     /// YYYYMM (예: 202606)
     var monthKey: Int
-    var date: Date
     var title: String
     var direction: CashAdjustmentDirection
     var amount: Int
@@ -35,7 +34,6 @@ final class CashAdjustment {
     init(
         id: UUID = UUID(),
         monthKey: Int,
-        date: Date,
         title: String,
         direction: CashAdjustmentDirection,
         amount: Int,
@@ -43,7 +41,6 @@ final class CashAdjustment {
     ) {
         self.id = id
         self.monthKey = monthKey
-        self.date = date
         self.title = title
         self.direction = direction
         self.amount = amount

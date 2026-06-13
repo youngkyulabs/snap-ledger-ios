@@ -25,6 +25,17 @@ struct BudgetProgressTests {
                    savedAt: date(y, m, d), csvFile: "expenses-\(y)-\(String(format: "%02d", m)).csv")
     }
 
+    @Test func usagePercentStaysBelow100UntilOver() {
+        // 한도를 넘기 전(ratio < 1)에는 99.5~99.99%가 100%로 반올림돼선 안 된다
+        // ("100% · N원 남음" 모순 표기 방지).
+        #expect(BudgetProgress.usagePercent(ratio: 0.999) == 99)
+        #expect(BudgetProgress.usagePercent(ratio: 0.995) == 99)
+        #expect(BudgetProgress.usagePercent(ratio: 0.8) == 80)
+        // 한도 도달·초과는 그대로 100% 이상으로 보여준다.
+        #expect(BudgetProgress.usagePercent(ratio: 1.0) == 100)
+        #expect(BudgetProgress.usagePercent(ratio: 1.5) == 150)
+    }
+
     @Test func emptyInputsAreSafe() {
         let s = BudgetProgress.compute(entries: [], budgets: [], targetMonth: 202_606, calendar: kst)
         #expect(s.totalSpent == 0)

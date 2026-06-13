@@ -122,14 +122,17 @@ struct BudgetView: View {
     }
 
     private func reconciliationSection(_ summary: ReconciliationSummary) -> some View {
-        // 상세 화면과 같은 판정(진행 중/정상/차이)을 재사용 — 현재·미래 달은 '진행 중'이라
-        // 빈 다음 달이 '정상'으로 오표기되지 않는다.
+        // 상세 화면과 같은 판정을 재사용한다. 저장된 정산 데이터가 없으면 '아직 정산 전'으로 보여줘
+        // (displayVerdict) 빈 달이 '정상'이나 큰 '차이'로 오표기되지 않고, 정산 상세 화면과도 일치한다.
         let status = ReconciliationSummary.periodStatus(month: effectiveMonthKey, today: Date())
         return Section {
             NavigationLink {
                 MonthlyReconciliationView(month: effectiveMonthKey)
             } label: {
-                ReconciliationSummaryRow(summary: summary, verdict: summary.verdict(status: status))
+                ReconciliationSummaryRow(
+                    summary: summary,
+                    verdict: summary.displayVerdict(status: status, isReconciled: summary.hasReconciliationData)
+                )
             }
         } header: {
             Text("정산하기").textCase(nil)
@@ -278,7 +281,7 @@ private func budgetRemainingLabel(remaining: Int, ratio: Double, state: BudgetPr
 }
 
 private func budgetRemainingText(remaining: Int, ratio: Double) -> String {
-    let percent = Int((ratio * 100).rounded())
+    let percent = BudgetProgress.usagePercent(ratio: ratio)
     return remaining >= 0
         ? "\(percent)% · \(remaining.formatted(.number))원 남음"
         : "\(percent)% · \((-remaining).formatted(.number))원 초과"
