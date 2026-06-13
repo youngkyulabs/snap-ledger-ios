@@ -23,7 +23,6 @@ struct MonthlyReconciliationView: View {
     /// 키보드 내림 버튼 노출과 월급 마스킹 해제에 쓰는 포커스 식별자.
     private enum Field: Hashable {
         case salary
-        case memo
         case card(UUID)
         case savings(UUID)
         case opening(UUID)
@@ -42,11 +41,10 @@ struct MonthlyReconciliationView: View {
     var body: some View {
         List {
             summarySection
-            explanationSection
-            monthlyInputSection
-            cardsSection
-            savingsSection
             accountsSection
+            salarySection
+            savingsSection
+            cardsSection
             adjustmentsSection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
@@ -139,7 +137,7 @@ struct MonthlyReconciliationView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(verdict.headline)
                         .font(.title3.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(verdictColor(verdict.tone))
+                        .foregroundStyle(verdict.tone.color)
                     Spacer()
                     Text(verdict.detail)
                         .font(.caption)
@@ -160,13 +158,13 @@ struct MonthlyReconciliationView: View {
         }
     }
 
-    private var monthlyInputSection: some View {
+    private var salarySection: some View {
         Section {
             salaryRow
-            TextField("메모", text: $draft.note)
-                .focused($focusedField, equals: .memo)
         } header: {
-            Text("월 요약").textCase(nil)
+            Text("월급").textCase(nil)
+        } footer: {
+            Text("매달 들어오는 고정 수입을 입력하세요.")
         }
     }
 
@@ -197,7 +195,6 @@ struct MonthlyReconciliationView: View {
             }
             Text("원")
                 .foregroundStyle(.secondary)
-                .opacity(focusedField == .salary ? 1 : 0)
         }
     }
 
@@ -310,25 +307,6 @@ struct MonthlyReconciliationView: View {
             Text("환급, 가족 송금, 전월 카드대금 출금처럼 이번 달 지출 기록과 직접 맞추면 안 되는 잔액 변화를 입력하세요.")
         }
     }
-
-    private var explanationSection: some View {
-        Section {
-            LabeledContent("거래 내역") {
-                Text("\(summary.recordedExpenseAmount.formatted(.number))원")
-                    .monospacedDigit()
-            }
-            LabeledContent("저축액") {
-                Text("\(summary.savingsAmount.formatted(.number))원")
-                    .monospacedDigit()
-            }
-            LabeledContent("자금변동 순액") {
-                Text("\(summary.adjustmentNetAmount.formatted(.number))원")
-                    .monospacedDigit()
-            }
-        } header: {
-            Text("계산 기준").textCase(nil)
-        }
-    }
 }
 
 extension MonthlyReconciliationView {
@@ -343,14 +321,6 @@ extension MonthlyReconciliationView {
                 .focused($focusedField, equals: field)
             Text("원")
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private func verdictColor(_ tone: ReconciliationVerdict.Tone) -> Color {
-        switch tone {
-        case .balanced: .green
-        case .off: .orange
-        case .inProgress: .secondary
         }
     }
 
