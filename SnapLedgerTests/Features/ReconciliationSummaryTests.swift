@@ -206,6 +206,64 @@ struct ReconciliationSummaryTests {
         #expect(summary.adjustmentNetAmount == 100)
     }
 
+    @Test func periodStatusTreatsCurrentAndFutureMonthsAsInProgress() {
+        let today = date(2026, 6, 15)
+        #expect(ReconciliationSummary.periodStatus(month: 202_605, today: today, calendar: kst) == .closed)
+        #expect(ReconciliationSummary.periodStatus(month: 202_606, today: today, calendar: kst) == .inProgress)
+        #expect(ReconciliationSummary.periodStatus(month: 202_607, today: today, calendar: kst) == .inProgress)
+    }
+
+    @Test func verdictForInProgressMonthIsNeutral() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_606, salaryAmount: 9_000)),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        let verdict = summary.verdict(status: .inProgress)
+        #expect(verdict.tone == .inProgress)
+        #expect(verdict.headline == "진행 중")
+    }
+
+    @Test func verdictForClosedBalancedMonthIsNormal() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_605)),
+            targetMonth: 202_605,
+            calendar: kst
+        )
+        let verdict = summary.verdict(status: .closed)
+        #expect(verdict.tone == .balanced)
+        #expect(verdict.headline == "정상")
+        #expect(verdict.detail == "차이 없음")
+    }
+
+    @Test func verdictForClosedMonthDescribesDifferenceDirection() {
+        // 실제(월급 1,000) > 기록(0)
+        let actualHeavy = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_605, salaryAmount: 1_000)),
+            targetMonth: 202_605,
+            calendar: kst
+        ).verdict(status: .closed)
+        #expect(actualHeavy.tone == .off)
+        #expect(actualHeavy.detail == "실제 쓴 돈이 더 커요")
+        #expect(actualHeavy.headline.contains("차이"))
+
+        // 기록(저축 1,000) > 실제(0)
+        let recordedHeavy = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_605),
+                savingsItems: [SavingsItem(monthKey: 202_605, title: "저축", amount: 1_000)]
+            ),
+            targetMonth: 202_605,
+            calendar: kst
+        ).verdict(status: .closed)
+        #expect(recordedHeavy.tone == .off)
+        #expect(recordedHeavy.detail == "기록한 돈이 더 커요")
+    }
+
     @Test func sumsSavingsItems() {
         let summary = ReconciliationSummary.compute(
             entries: [],

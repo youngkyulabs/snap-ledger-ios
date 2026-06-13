@@ -14,24 +14,57 @@ struct MonthlyReconciliationView: View {
     @State private var newSavingsName = ""
     @State private var showingSavingsPrompt = false
     @State private var showingAdjustmentEditor = false
-    @State private var salaryRevealed = false
     @State private var conflict: SyncConflict?
     @State private var resultMessage: String?
+    @FocusState private var focusedField: Field?
+
+    /// 키보드 내림 버튼 노출과 월급 마스킹 해제에 쓰는 포커스 식별자.
+    private enum Field: Hashable {
+        case salary
+        case card
+        case memo
+        case savings(UUID)
+        case opening(UUID)
+        case closing(UUID)
+        case interest(UUID)
+    }
 
     private var summary: ReconciliationSummary {
         draft.summary(entries: entries, month: month)
     }
 
+    private var periodStatus: ReconciliationPeriodStatus {
+        ReconciliationSummary.periodStatus(month: month, today: Date())
+    }
+
     var body: some View {
         List {
             summarySection
+            explanationSection
             monthlyInputSection
             savingsSection
             accountsSection
             adjustmentsSection
-            explanationSection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
+        .scrollDismissesKeyboard(.interactively)
+        .overlay(alignment: .bottom) {
+            if focusedField != nil {
+                HStack {
+                    Spacer()
+                    Button {
+                        focusedField = nil
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            .padding(4)
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityLabel("키보드 닫기")
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal)
+            }
+        }
         .navigationTitle("월 정산")
         .navigationSubtitle(reconciliationMonthLabel(month))
         .navigationBarTitleDisplayMode(.inline)
@@ -90,14 +123,15 @@ struct MonthlyReconciliationView: View {
     }
 
     private var summarySection: some View {
-        Section {
+        let verdict = summary.verdict(status: periodStatus)
+        return Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(summary.isBalanced ? "정상" : "\(abs(summary.difference).formatted(.number))원 차이")
+                    Text(verdict.headline)
                         .font(.title3.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(summary.isBalanced ? .green : .orange)
+                        .foregroundStyle(verdictColor(verdict.tone))
                     Spacer()
-                    Text(summary.differenceText)
+                    Text(verdict.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -119,8 +153,9 @@ struct MonthlyReconciliationView: View {
     private var monthlyInputSection: some View {
         Section {
             salaryRow
-            moneyField("카드 사용액", value: $draft.creditCard)
+            moneyField("카드 사용액", value: $draft.creditCard, field: .card)
             TextField("메모", text: $draft.note)
+                .focused($focusedField, equals: .memo)
         } header: {
             Text("월 요약").textCase(nil)
         }
@@ -130,24 +165,28 @@ struct MonthlyReconciliationView: View {
         HStack {
             Text("월급")
             Spacer()
-            if salaryRevealed {
+            ZStack(alignment: .trailing) {
                 TextField("0", text: amountText($draft.salary))
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 150)
-                Text("원")
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("••••")
-                    .foregroundStyle(.secondary)
+                    .focused($focusedField, equals: .salary)
+                    .opacity(focusedField == .salary ? 1 : 0)
+                    .accessibilityLabel("월급")
+                if focusedField != .salary {
+                    Button {
+                        focusedField = .salary
+                    } label: {
+                        Text("••••")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("월급 보기")
+                }
             }
-            Button {
-                salaryRevealed.toggle()
-            } label: {
-                Image(systemName: salaryRevealed ? "eye" : "eye.slash")
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(salaryRevealed ? "월급 가리기" : "월급 보기")
+            Text("원")
+                .foregroundStyle(.secondary)
+                .opacity(focusedField == .salary ? 1 : 0)
         }
     }
 
@@ -161,6 +200,7 @@ struct MonthlyReconciliationView: View {
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 130)
+                        .focused($focusedField, equals: .savings(item.id))
                     Text("원")
                         .foregroundStyle(.secondary)
                 }
@@ -184,9 +224,9 @@ struct MonthlyReconciliationView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(balance.accountName)
                         .font(.subheadline.weight(.medium))
-                    moneyField("기초 잔액", value: $balance.opening)
-                    moneyField("기말 잔액", value: $balance.closing)
-                    moneyField("이자", value: $balance.interest)
+                    moneyField("기초 잔액", value: $balance.opening, field: .opening(balance.id))
+                    moneyField("기말 잔액", value: $balance.closing, field: .closing(balance.id))
+                    moneyField("이자", value: $balance.interest, field: .interest(balance.id))
                 }
                 .padding(.vertical, 2)
             }
@@ -251,7 +291,7 @@ struct MonthlyReconciliationView: View {
         }
     }
 
-    private func moneyField(_ title: String, value: Binding<Int>) -> some View {
+    private func moneyField(_ title: String, value: Binding<Int>, field: Field) -> some View {
         HStack {
             Text(title)
             Spacer()
@@ -259,8 +299,17 @@ struct MonthlyReconciliationView: View {
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: 150)
+                .focused($focusedField, equals: field)
             Text("원")
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private func verdictColor(_ tone: ReconciliationVerdict.Tone) -> Color {
+        switch tone {
+        case .balanced: .green
+        case .off: .orange
+        case .inProgress: .secondary
         }
     }
 
@@ -380,13 +429,6 @@ private struct CashAdjustmentEditor: View {
             )
         )
         dismiss()
-    }
-}
-
-private extension ReconciliationSummary {
-    var differenceText: String {
-        if difference == 0 { return "차이 없음" }
-        return difference > 0 ? "실제 쓴 돈이 더 커요" : "기록한 돈이 더 커요"
     }
 }
 
