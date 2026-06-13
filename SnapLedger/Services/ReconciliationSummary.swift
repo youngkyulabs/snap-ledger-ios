@@ -6,19 +6,22 @@ struct ReconciliationSummaryInput {
     var adjustments: [CashAdjustment]
     var savingsItems: [SavingsItem]
     var cardItems: [CardUsageItem]
+    var incomeItems: [IncomeItem]
 
     init(
         reconciliation: MonthlyReconciliation? = nil,
         balances: [AccountMonthlyBalance] = [],
         adjustments: [CashAdjustment] = [],
         savingsItems: [SavingsItem] = [],
-        cardItems: [CardUsageItem] = []
+        cardItems: [CardUsageItem] = [],
+        incomeItems: [IncomeItem] = []
     ) {
         self.reconciliation = reconciliation
         self.balances = balances
         self.adjustments = adjustments
         self.savingsItems = savingsItems
         self.cardItems = cardItems
+        self.incomeItems = incomeItems
     }
 }
 
@@ -52,12 +55,16 @@ struct ReconciliationSummary: Equatable {
         let monthAdjustments = input.adjustments.filter { $0.monthKey == targetMonth }
         let monthSavings = input.savingsItems.filter { $0.monthKey == targetMonth }
         let monthCards = input.cardItems.filter { $0.monthKey == targetMonth }
+        let monthIncomes = input.incomeItems.filter { $0.monthKey == targetMonth }
         let monthReconciliation = input.reconciliation?.monthKey == targetMonth ? input.reconciliation : nil
 
         let opening = monthBalances.reduce(0) { $0 + $1.openingBalance }
         let closing = monthBalances.reduce(0) { $0 + $1.closingBalance }
         let interest = monthBalances.reduce(0) { $0 + $1.interestAmount }
-        let salary = monthReconciliation?.salaryAmount ?? 0
+        // 수입은 항목별 합계. 항목이 없는 레거시 데이터는 단일 salaryAmount로 폴백.
+        let salary = monthIncomes.isEmpty
+            ? (monthReconciliation?.salaryAmount ?? 0)
+            : monthIncomes.reduce(0) { $0 + $1.amount }
         // 카드는 항목별 합계. 항목이 없는 레거시 데이터는 단일 creditCardAmount로 폴백.
         let card = monthCards.isEmpty
             ? (monthReconciliation?.creditCardAmount ?? 0)
@@ -76,6 +83,7 @@ struct ReconciliationSummary: Equatable {
         let recorded = recordedExpense + savings
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
             || !monthAdjustments.isEmpty || !monthSavings.isEmpty || !monthCards.isEmpty
+            || !monthIncomes.isEmpty
 
         return ReconciliationSummary(
             month: targetMonth,
@@ -96,13 +104,13 @@ struct ReconciliationSummary: Equatable {
 }
 
 /// 정산 대상 달이 아직 진행 중(현재·미래 달)인지, 이미 마감된 과거 달인지.
-/// 진행 중인 달은 기말 잔액이 아직 안 채워져 대사 차이가 의미 없으므로 문구를 다르게 한다.
+/// 진행 중인 달은 아직 마감 전이라 정산 차이가 의미 없으므로 '진행 중'으로만 표시한다.
 enum ReconciliationPeriodStatus: Equatable {
     case inProgress
     case closed
 }
 
-/// 대사 결과를 사용자에게 보여줄 한 줄 판정 (제목 + 보조 설명 + 색상 톤).
+/// 정산 결과를 사용자에게 보여줄 한 줄 판정 (제목 + 보조 설명 + 색상 톤).
 struct ReconciliationVerdict: Equatable {
     enum Tone: Equatable {
         case balanced
@@ -121,23 +129,32 @@ extension ReconciliationSummary {
         return month >= currentMonth ? .inProgress : .closed
     }
 
-    func verdict(status: ReconciliationPeriodStatus) -> ReconciliationVerdict {
+    /// `revealInProgressDifference`가 true면 진행 중인 달이라도 차이가 있을 때 그 차이를 보여준다
+    /// (정산 화면 전용 — 입력하면서 차이를 바로 확인). 톤은 '진행 중'(중립)으로 두어 확정 전임을 알린다.
+    /// 차이가 0이면 빈 달이 '정상'으로 오표기되지 않도록 '진행 중'으로 표시한다.
+    func verdict(
+        status: ReconciliationPeriodStatus,
+        revealInProgressDifference: Bool = false
+    ) -> ReconciliationVerdict {
         switch status {
         case .inProgress:
-            return ReconciliationVerdict(
-                tone: .inProgress,
-                headline: "진행 중",
-                detail: "기말 잔액을 채우면 대사돼요"
-            )
+            if revealInProgressDifference && !isBalanced {
+                return differenceVerdict(tone: .inProgress)
+            }
+            return ReconciliationVerdict(tone: .inProgress, headline: "진행 중", detail: "")
         case .closed:
             if isBalanced {
                 return ReconciliationVerdict(tone: .balanced, headline: "정상", detail: "차이 없음")
             }
-            return ReconciliationVerdict(
-                tone: .off,
-                headline: "\(abs(difference).formatted(.number))원 차이",
-                detail: difference > 0 ? "실제 쓴 돈이 더 커요" : "기록한 돈이 더 커요"
-            )
+            return differenceVerdict(tone: .off)
         }
+    }
+
+    private func differenceVerdict(tone: ReconciliationVerdict.Tone) -> ReconciliationVerdict {
+        ReconciliationVerdict(
+            tone: tone,
+            headline: "\(abs(difference).formatted(.number))원 차이",
+            detail: difference > 0 ? "실제 쓴 돈이 더 커요" : "기록한 돈이 더 커요"
+        )
     }
 }

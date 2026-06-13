@@ -225,6 +225,36 @@ struct ReconciliationSummaryTests {
         #expect(verdict.headline == "진행 중")
     }
 
+    @Test func verdictRevealsInProgressDifferenceOnDemand() {
+        // 월급 9,000 외 잔액/지출 없음 → 차이 9,000 (실제 > 기록).
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_606, salaryAmount: 9_000)),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        // 기본(예산탭 글랜스)은 진행 중으로만 표시.
+        #expect(summary.verdict(status: .inProgress).headline == "진행 중")
+        // 정산 화면은 진행 중이라도 차이를 노출 — 단 톤은 중립(진행 중) 유지.
+        let revealed = summary.verdict(status: .inProgress, revealInProgressDifference: true)
+        #expect(revealed.headline.contains("차이"))
+        #expect(revealed.detail == "실제 쓴 돈이 더 커요")
+        #expect(revealed.tone == .inProgress)
+    }
+
+    @Test func verdictKeepsInProgressWhenBalancedEvenIfRevealing() {
+        // 빈/균형 달은 차이가 0이라 '정상' 오표기 대신 '진행 중'을 유지한다.
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(reconciliation: MonthlyReconciliation(monthKey: 202_606)),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        let revealed = summary.verdict(status: .inProgress, revealInProgressDifference: true)
+        #expect(revealed.headline == "진행 중")
+        #expect(revealed.tone == .inProgress)
+    }
+
     @Test func verdictForClosedBalancedMonthIsNormal() {
         let summary = ReconciliationSummary.compute(
             entries: [],
@@ -330,5 +360,38 @@ struct ReconciliationSummaryTests {
         #expect(summary.savingsAmount == 500_000)
         #expect(summary.recordedSpending == 500_000)
         #expect(summary.hasReconciliationData == true)
+    }
+
+    @Test func sumsIncomeItems() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                incomeItems: [
+                    IncomeItem(monthKey: 202_606, title: "월급", amount: 3_000_000),
+                    IncomeItem(monthKey: 202_606, title: "보너스", amount: 500_000),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        // 수입은 actualSpending 계산식의 항 — 잔액·카드·자금변동이 0이면 수입 합계와 같다.
+        #expect(summary.salaryAmount == 3_500_000)
+        #expect(summary.actualSpending == 3_500_000)
+        #expect(summary.hasReconciliationData == true)
+    }
+
+    @Test func usesLegacySalaryAmountWhenNoIncomeItems() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606, salaryAmount: 2_000_000)
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.salaryAmount == 2_000_000)
     }
 }

@@ -9,25 +9,29 @@ struct MonthlyReconciliationView: View {
 
     @State private var draft = ReconciliationDraft()
     @State private var didLoad = false
-    @State private var newAccountName = ""
-    @State private var showingAccountPrompt = false
-    @State private var newSavingsName = ""
-    @State private var showingSavingsPrompt = false
-    @State private var newCardName = ""
-    @State private var showingCardPrompt = false
-    @State private var showingAdjustmentEditor = false
+    @State private var activeSheet: ActiveSheet?
+    /// 정산 결과를 제외한 금액(계좌별 잔액·수입·저축·카드·자금변동)을 가린다. 기본 가림.
+    @State private var amountsHidden = true
     @State private var conflict: SyncConflict?
     @State private var resultMessage: String?
-    @FocusState private var focusedField: Field?
 
-    /// 키보드 내림 버튼 노출과 월급 마스킹 해제에 쓰는 포커스 식별자.
-    private enum Field: Hashable {
-        case salary
-        case card(UUID)
-        case savings(UUID)
-        case opening(UUID)
-        case closing(UUID)
-        case interest(UUID)
+    /// 어떤 항목을 어떤 시트로 편집 중인지. 연관 값이 nil이면 새 항목 추가.
+    private enum ActiveSheet: Identifiable {
+        case account(BalanceDraft?)
+        case income(IncomeItemDraft?)
+        case savings(SavingsItemDraft?)
+        case card(CardUsageItemDraft?)
+        case adjustment(AdjustmentDraft?)
+
+        var id: String {
+            switch self {
+            case .account(let item): "account-\(item?.id.uuidString ?? "new")"
+            case .income(let item): "income-\(item?.id.uuidString ?? "new")"
+            case .savings(let item): "savings-\(item?.id.uuidString ?? "new")"
+            case .card(let item): "card-\(item?.id.uuidString ?? "new")"
+            case .adjustment(let item): "adjustment-\(item?.id.uuidString ?? "new")"
+            }
+        }
     }
 
     private var summary: ReconciliationSummary {
@@ -42,34 +46,26 @@ struct MonthlyReconciliationView: View {
         List {
             summarySection
             accountsSection
-            salarySection
+            incomeSection
             savingsSection
             cardsSection
             adjustmentsSection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
-        .scrollDismissesKeyboard(.interactively)
-        .overlay(alignment: .bottom) {
-            if focusedField != nil {
-                HStack {
-                    Spacer()
-                    Button {
-                        focusedField = nil
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                            .padding(4)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityLabel("키보드 닫기")
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal)
-            }
-        }
         .navigationTitle("월 정산")
         .navigationSubtitle(reconciliationMonthLabel(month))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    amountsHidden.toggle()
+                } label: {
+                    Label(
+                        amountsHidden ? "금액 보기" : "금액 가리기",
+                        systemImage: amountsHidden ? "eye.slash" : "eye"
+                    )
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     save()
@@ -83,35 +79,9 @@ struct MonthlyReconciliationView: View {
             draft = ReconciliationStore().loadDraft(for: month, in: modelContext)
             didLoad = true
         }
-        .alert("계좌 추가", isPresented: $showingAccountPrompt) {
-            TextField("계좌명", text: $newAccountName)
-            Button("추가") { addAccount() }
-            Button("취소", role: .cancel) { newAccountName = "" }
-        } message: {
-            Text("정산에 포함할 통장 이름을 입력하세요.")
-        }
-        .alert("저축 항목 추가", isPresented: $showingSavingsPrompt) {
-            TextField("항목명", text: $newSavingsName)
-            Button("추가") { addSavings() }
-            Button("취소", role: .cancel) { newSavingsName = "" }
-        } message: {
-            Text("적금·펀드 등 저축 항목 이름을 입력하세요.")
-        }
-        .alert("카드 추가", isPresented: $showingCardPrompt) {
-            TextField("카드명", text: $newCardName)
-            Button("추가") { addCard() }
-            Button("취소", role: .cancel) { newCardName = "" }
-        } message: {
-            Text("정산에 포함할 카드 이름을 입력하세요.")
-        }
-        .sheet(isPresented: $showingAdjustmentEditor) {
+        .sheet(item: $activeSheet) { sheet in
             NavigationStack {
-                CashAdjustmentEditor(month: month) { adjustment in
-                    draft.adjustments.append(adjustment)
-                    draft.adjustments.sort {
-                        $0.date == $1.date ? $0.title < $1.title : $0.date < $1.date
-                    }
-                }
+                editor(for: sheet)
             }
             .presentationDetents([.medium, .large])
         }
@@ -130,8 +100,53 @@ struct MonthlyReconciliationView: View {
         }
     }
 
+    // MARK: - 시트 라우팅
+
+    @ViewBuilder
+    private func editor(for sheet: ActiveSheet) -> some View {
+        switch sheet {
+        case .account(let existing):
+            ReconciliationAccountEditor(initial: existing) { name, opening, closing, interest in
+                saveAccount(existing: existing, name: name, opening: opening, closing: closing, interest: interest)
+            }
+        case .income(let existing):
+            ReconciliationItemEditor(
+                navTitle: existing == nil ? "수입 추가" : "수입 수정",
+                titlePlaceholder: "항목",
+                initialTitle: existing?.title ?? "",
+                initialAmount: existing?.amount ?? 0
+            ) { title, amount in
+                saveIncome(existing: existing, title: title, amount: amount)
+            }
+        case .savings(let existing):
+            ReconciliationItemEditor(
+                navTitle: existing == nil ? "저축 항목 추가" : "저축 항목 수정",
+                titlePlaceholder: "항목",
+                initialTitle: existing?.title ?? "",
+                initialAmount: existing?.amount ?? 0
+            ) { title, amount in
+                saveSavings(existing: existing, title: title, amount: amount)
+            }
+        case .card(let existing):
+            ReconciliationItemEditor(
+                navTitle: existing == nil ? "카드 추가" : "카드 수정",
+                titlePlaceholder: "카드명",
+                initialTitle: existing?.title ?? "",
+                initialAmount: existing?.amount ?? 0
+            ) { title, amount in
+                saveCard(existing: existing, title: title, amount: amount)
+            }
+        case .adjustment(let existing):
+            ReconciliationAdjustmentEditor(month: month, initial: existing) { title, direction, amount in
+                saveAdjustment(existing: existing, title: title, direction: direction, amount: amount)
+            }
+        }
+    }
+
+    // MARK: - 섹션
+
     private var summarySection: some View {
-        let verdict = summary.verdict(status: periodStatus)
+        let verdict = summary.verdict(status: periodStatus, revealInProgressDifference: true)
         return Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
@@ -154,99 +169,58 @@ struct MonthlyReconciliationView: View {
             }
             .padding(.vertical, 4)
         } header: {
-            Text("대사 결과").textCase(nil)
+            Text("정산 결과").textCase(nil)
         }
     }
 
-    private var salarySection: some View {
+    private var accountsSection: some View {
         Section {
-            salaryRow
-        } header: {
-            Text("월급").textCase(nil)
-        } footer: {
-            Text("매달 들어오는 고정 수입을 입력하세요.")
-        }
-    }
-
-    private var salaryRow: some View {
-        HStack {
-            Text("월급")
-            Spacer()
-            ZStack(alignment: .trailing) {
-                TextField("0", text: amountText($draft.salary))
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 150)
-                    .focused($focusedField, equals: .salary)
-                    .opacity(focusedField == .salary ? 1 : 0)
-                    .accessibilityLabel("월급")
-                    // 마스킹 중에는 VoiceOver에서도 숨겨 금액이 읽히지 않게 한다 (시각 마스킹과 일관).
-                    .accessibilityHidden(focusedField != .salary)
-                if focusedField != .salary {
-                    Button {
-                        focusedField = .salary
-                    } label: {
-                        Text("••••")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("월급 보기")
+            ForEach(draft.balances) { balance in
+                Button {
+                    activeSheet = .account(balance)
+                } label: {
+                    accountRow(balance)
                 }
+                .buttonStyle(.plain)
             }
-            Text("원")
-                .foregroundStyle(.secondary)
+            .onDelete { draft.balances.remove(atOffsets: $0) }
+            addButton("계좌 추가") { activeSheet = .account(nil) }
+        } header: {
+            Text("계좌별 잔액").textCase(nil)
         }
     }
 
-    private var cardsSection: some View {
+    private var incomeSection: some View {
         Section {
-            ForEach($draft.cards) { $item in
-                HStack {
-                    TextField("항목", text: $item.title)
-                    Spacer()
-                    TextField("0", text: amountText($item.amount))
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 130)
-                        .focused($focusedField, equals: .card(item.id))
-                    Text("원")
-                        .foregroundStyle(.secondary)
+            ForEach(draft.incomes) { item in
+                Button {
+                    activeSheet = .income(item)
+                } label: {
+                    itemRow(title: item.title, amount: item.amount)
                 }
+                .buttonStyle(.plain)
             }
-            .onDelete { draft.cards.remove(atOffsets: $0) }
-            Button {
-                showingCardPrompt = true
-            } label: {
-                Label("카드 추가", systemImage: "plus.circle")
-            }
+            .onDelete { draft.incomes.remove(atOffsets: $0) }
+            addButton("수입 추가") { activeSheet = .income(nil) }
         } header: {
-            Text("카드 사용액").textCase(nil)
+            Text("수입").textCase(nil)
         } footer: {
-            Text("카드별 이번 달 사용액을 항목으로 입력하세요.")
+            Text("월급·보너스처럼 이번 달에 들어온 돈을 항목별로 입력하세요.")
         }
     }
 
     private var savingsSection: some View {
         Section {
-            ForEach($draft.savings) { $item in
-                HStack {
-                    TextField("항목", text: $item.title)
-                    Spacer()
-                    TextField("0", text: amountText($item.amount))
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 130)
-                        .focused($focusedField, equals: .savings(item.id))
-                    Text("원")
-                        .foregroundStyle(.secondary)
+            ForEach(draft.savings) { item in
+                Button {
+                    activeSheet = .savings(item)
+                } label: {
+                    itemRow(title: item.title, amount: item.amount)
                 }
+                .buttonStyle(.plain)
             }
             .onDelete { draft.savings.remove(atOffsets: $0) }
-            Button {
-                showingSavingsPrompt = true
-            } label: {
-                Label("저축 항목 추가", systemImage: "plus.circle")
-            }
+            addButton("저축 항목 추가") { activeSheet = .savings(nil) }
         } header: {
             Text("저축").textCase(nil)
         } footer: {
@@ -254,109 +228,187 @@ struct MonthlyReconciliationView: View {
         }
     }
 
-    private var accountsSection: some View {
+    private var cardsSection: some View {
         Section {
-            ForEach($draft.balances) { $balance in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(balance.accountName)
-                        .font(.subheadline.weight(.medium))
-                    moneyField("기초 잔액", value: $balance.opening, field: .opening(balance.id))
-                    moneyField("기말 잔액", value: $balance.closing, field: .closing(balance.id))
-                    moneyField("이자", value: $balance.interest, field: .interest(balance.id))
+            ForEach(draft.cards) { item in
+                Button {
+                    activeSheet = .card(item)
+                } label: {
+                    itemRow(title: item.title, amount: item.amount)
                 }
-                .padding(.vertical, 2)
+                .buttonStyle(.plain)
             }
-            .onDelete { draft.balances.remove(atOffsets: $0) }
-            Button {
-                showingAccountPrompt = true
-            } label: {
-                Label("계좌 추가", systemImage: "plus.circle")
-            }
+            .onDelete { draft.cards.remove(atOffsets: $0) }
+            addButton("카드 추가") { activeSheet = .card(nil) }
         } header: {
-            Text("계좌별 잔액").textCase(nil)
+            Text("카드 사용액").textCase(nil)
+        } footer: {
+            Text("카드별 이번 달 사용액을 항목으로 입력하세요.")
         }
     }
 
     private var adjustmentsSection: some View {
         Section {
             ForEach(draft.adjustments) { adjustment in
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(adjustment.title.isEmpty ? "자금변동" : adjustment.title)
-                        if let note = adjustment.note, !note.isEmpty {
-                            Text(note)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                    Text("\(adjustment.direction.label) \(adjustment.amount.formatted(.number))원")
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(adjustment.direction == .deposit ? .green : .secondary)
+                Button {
+                    activeSheet = .adjustment(adjustment)
+                } label: {
+                    adjustmentRow(adjustment)
                 }
+                .buttonStyle(.plain)
             }
             .onDelete { draft.adjustments.remove(atOffsets: $0) }
-            Button {
-                showingAdjustmentEditor = true
-            } label: {
-                Label("자금변동 추가", systemImage: "plus.circle")
-            }
+            addButton("자금변동 추가") { activeSheet = .adjustment(nil) }
         } header: {
             Text("자금변동").textCase(nil)
         } footer: {
             Text("환급, 가족 송금, 전월 카드대금 출금처럼 이번 달 지출 기록과 직접 맞추면 안 되는 잔액 변화를 입력하세요.")
         }
     }
-}
 
-extension MonthlyReconciliationView {
-    private func moneyField(_ title: String, value: Binding<Int>, field: Field) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            TextField("0", text: amountText(value))
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 150)
-                .focused($focusedField, equals: field)
-            Text("원")
+    // MARK: - 행
+
+    private func accountRow(_ balance: BalanceDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(balance.accountName.isEmpty ? "계좌" : balance.accountName)
+                    .font(.headline)
+                Spacer(minLength: 8)
+                if balance.interest != 0 {
+                    Text("이자 \(maskedAmount(balance.interest))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            HStack(alignment: .top, spacing: 12) {
+                balanceColumn("월초 잔액", amount: balance.opening)
+                balanceColumn("월말 잔액", amount: balance.closing)
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(.rect)
+    }
+
+    private func balanceColumn(_ label: String, amount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption)
                 .foregroundStyle(.secondary)
+            Text(maskedAmount(amount))
+                .font(.callout.weight(.medium).monospacedDigit())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func itemRow(title: String, amount: Int) -> some View {
+        HStack {
+            Text(title.isEmpty ? "항목" : title)
+            Spacer()
+            Text(maskedAmount(amount))
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(.rect)
+    }
+
+    private func adjustmentRow(_ adjustment: AdjustmentDraft) -> some View {
+        HStack {
+            Text(adjustment.title.isEmpty ? "자금변동" : adjustment.title)
+            Spacer()
+            Text("\(adjustment.direction.label) \(maskedAmount(adjustment.amount))")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(adjustment.direction == .deposit ? .green : .secondary)
+        }
+        .contentShape(.rect)
+    }
+
+    private func addButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: "plus.circle")
         }
     }
 
-    private func amountText(_ value: Binding<Int>) -> Binding<String> {
-        Binding(
-            get: {
-                value.wrappedValue == 0 ? "" : value.wrappedValue.formatted(.number)
-            },
-            set: { newValue in
-                value.wrappedValue = Int(newValue.filter(\.isNumber)) ?? 0
-            }
-        )
+    private func maskedAmount(_ value: Int) -> String {
+        amountsHidden ? "••••" : "\(value.formatted(.number))원"
+    }
+}
+
+// MARK: - 업서트 + 저장
+
+extension MonthlyReconciliationView {
+    private func saveAccount(existing: BalanceDraft?, name: String, opening: Int, closing: Int, interest: Int) {
+        if let existing, let index = draft.balances.firstIndex(where: { $0.id == existing.id }) {
+            draft.balances[index].accountName = name
+            draft.balances[index].opening = opening
+            draft.balances[index].closing = closing
+            draft.balances[index].interest = interest
+        } else {
+            let nextOrder = (draft.balances.map(\.sortOrder).max() ?? -1) + 1
+            draft.balances.append(
+                BalanceDraft(accountName: name, sortOrder: nextOrder, opening: opening, closing: closing, interest: interest)
+            )
+        }
+        // 추가·수정한 금액을 바로 확인할 수 있도록 가리기를 해제한다.
+        amountsHidden = false
     }
 
-    private func addAccount() {
-        let trimmed = newAccountName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let nextOrder = (draft.balances.map(\.sortOrder).max() ?? -1) + 1
-        draft.balances.append(BalanceDraft(accountName: trimmed, sortOrder: nextOrder))
-        newAccountName = ""
+    private func saveIncome(existing: IncomeItemDraft?, title: String, amount: Int) {
+        if let existing, let index = draft.incomes.firstIndex(where: { $0.id == existing.id }) {
+            draft.incomes[index].title = title
+            draft.incomes[index].amount = amount
+        } else {
+            let nextOrder = (draft.incomes.map(\.sortOrder).max() ?? -1) + 1
+            draft.incomes.append(IncomeItemDraft(title: title, amount: amount, sortOrder: nextOrder))
+        }
+        amountsHidden = false
     }
 
-    private func addSavings() {
-        let trimmed = newSavingsName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let nextOrder = (draft.savings.map(\.sortOrder).max() ?? -1) + 1
-        draft.savings.append(SavingsItemDraft(title: trimmed, amount: 0, sortOrder: nextOrder))
-        newSavingsName = ""
+    private func saveSavings(existing: SavingsItemDraft?, title: String, amount: Int) {
+        if let existing, let index = draft.savings.firstIndex(where: { $0.id == existing.id }) {
+            draft.savings[index].title = title
+            draft.savings[index].amount = amount
+        } else {
+            let nextOrder = (draft.savings.map(\.sortOrder).max() ?? -1) + 1
+            draft.savings.append(SavingsItemDraft(title: title, amount: amount, sortOrder: nextOrder))
+        }
+        amountsHidden = false
     }
 
-    private func addCard() {
-        let trimmed = newCardName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let nextOrder = (draft.cards.map(\.sortOrder).max() ?? -1) + 1
-        draft.cards.append(CardUsageItemDraft(title: trimmed, amount: 0, sortOrder: nextOrder))
-        newCardName = ""
+    private func saveCard(existing: CardUsageItemDraft?, title: String, amount: Int) {
+        if let existing, let index = draft.cards.firstIndex(where: { $0.id == existing.id }) {
+            draft.cards[index].title = title
+            draft.cards[index].amount = amount
+        } else {
+            let nextOrder = (draft.cards.map(\.sortOrder).max() ?? -1) + 1
+            draft.cards.append(CardUsageItemDraft(title: title, amount: amount, sortOrder: nextOrder))
+        }
+        amountsHidden = false
+    }
+
+    private func saveAdjustment(
+        existing: AdjustmentDraft?,
+        title: String,
+        direction: CashAdjustmentDirection,
+        amount: Int
+    ) {
+        let resolvedTitle = title.isEmpty ? direction.label : title
+        if let existing, let index = draft.adjustments.firstIndex(where: { $0.id == existing.id }) {
+            draft.adjustments[index].title = resolvedTitle
+            draft.adjustments[index].direction = direction
+            draft.adjustments[index].amount = amount
+        } else {
+            draft.adjustments.append(
+                AdjustmentDraft(
+                    date: ReconciliationStore.date(month: month),
+                    title: resolvedTitle,
+                    direction: direction,
+                    amount: amount,
+                    note: nil
+                )
+            )
+        }
+        draft.adjustments.sort { $0.date == $1.date ? $0.title < $1.title : $0.date < $1.date }
+        amountsHidden = false
     }
 
     private func save(ignoringConflict: Bool = false) {
@@ -392,65 +444,6 @@ extension MonthlyReconciliationView {
     }
 }
 
-private struct CashAdjustmentEditor: View {
-    let month: Int
-    let onAdd: (AdjustmentDraft) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var title = ""
-    @State private var direction: CashAdjustmentDirection = .deposit
-    @State private var amount = ""
-    @State private var note = ""
-
-    var body: some View {
-        List {
-            Section {
-                TextField("항목", text: $title)
-                Picker("방향", selection: $direction) {
-                    ForEach(CashAdjustmentDirection.allCases, id: \.self) { direction in
-                        Text(direction.label).tag(direction)
-                    }
-                }
-                .pickerStyle(.segmented)
-                HStack {
-                    TextField("금액", text: $amount)
-                        .keyboardType(.numberPad)
-                    Text("원")
-                        .foregroundStyle(.secondary)
-                }
-                TextField("메모", text: $note)
-            }
-        }
-        .navigationTitle("자금변동")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("취소") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("추가") { add() }
-                    .disabled((Int(amount.filter(\.isNumber)) ?? 0) <= 0)
-            }
-        }
-    }
-
-    private func add() {
-        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        onAdd(
-            AdjustmentDraft(
-                date: ReconciliationStore.date(month: month),
-                title: cleanTitle.isEmpty ? direction.label : cleanTitle,
-                direction: direction,
-                amount: Int(amount.filter(\.isNumber)) ?? 0,
-                note: cleanNote.isEmpty ? nil : cleanNote
-            )
-        )
-        dismiss()
-    }
-}
-
 private func reconciliationMonthLabel(_ key: Int) -> String {
     var comps = DateComponents()
     comps.year = key / 100
@@ -476,6 +469,7 @@ private func reconciliationMonthLabel(_ key: Int) -> String {
             CashAdjustment.self,
             SavingsItem.self,
             CardUsageItem.self,
+            IncomeItem.self,
             AppSettings.self,
         ],
         inMemory: true

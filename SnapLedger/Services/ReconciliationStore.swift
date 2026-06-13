@@ -4,7 +4,7 @@ import SwiftData
 /// 월 정산 편집 화면이 다루는 메모리 상태. 사용자가 "저장"하기 전까지는
 /// DB·CSV에 아무것도 쓰지 않고 이 값만 들고 있다 (지출 입력 폼과 동일한 방식).
 struct ReconciliationDraft: Equatable {
-    var salary: Int = 0
+    var incomes: [IncomeItemDraft] = []
     var cards: [CardUsageItemDraft] = []
     var savings: [SavingsItemDraft] = []
     var note: String = ""
@@ -13,10 +13,17 @@ struct ReconciliationDraft: Equatable {
 
     /// 저장할 의미 있는 내용이 하나도 없으면 true (저장 시 그 달을 비운다).
     var isEmpty: Bool {
-        salary == 0 && cards.isEmpty && savings.isEmpty
+        incomes.isEmpty && cards.isEmpty && savings.isEmpty
             && note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && balances.isEmpty && adjustments.isEmpty
     }
+}
+
+struct IncomeItemDraft: Identifiable, Equatable {
+    var id = UUID()
+    var title: String
+    var amount: Int
+    var sortOrder: Int = 0
 }
 
 struct SavingsItemDraft: Identifiable, Equatable {
@@ -86,16 +93,18 @@ struct ReconciliationStore {
         let adjustments = fetchAdjustments(month, in: context)
         let savingsItems = fetchSavings(month, in: context)
         let cardItems = fetchCards(month, in: context)
+        let incomeItems = fetchIncomes(month, in: context)
 
-        if reconciliation == nil, balances.isEmpty, adjustments.isEmpty, savingsItems.isEmpty, cardItems.isEmpty {
+        if reconciliation == nil, balances.isEmpty, adjustments.isEmpty,
+           savingsItems.isEmpty, cardItems.isEmpty, incomeItems.isEmpty {
             return carryForwardDraft(for: month, in: context)
         }
 
         var draft = ReconciliationDraft()
         if let reconciliation {
-            draft.salary = reconciliation.salaryAmount
             draft.note = reconciliation.note ?? ""
         }
+        draft.incomes = incomeDrafts(reconciliation: reconciliation, items: incomeItems)
         draft.cards = cardDrafts(reconciliation: reconciliation, items: cardItems)
         draft.savings = savingsItems.map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
@@ -121,14 +130,12 @@ struct ReconciliationStore {
         return draft
     }
 
-    /// 전월 정산을 바탕으로 한 미리 채움 값 (영속화하지 않음). 잔액은 전월 기말을 이번 달 기초로 이월한다.
+    /// 전월 정산을 바탕으로 한 미리 채움 값 (영속화하지 않음). 잔액은 전월 월말을 이번 달 월초로 이월한다.
     private func carryForwardDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
         let previous = Self.previousMonthKey(month)
         let prevReconciliation = fetchReconciliation(previous, in: context)
         var draft = ReconciliationDraft()
-        if let prevReconciliation {
-            draft.salary = prevReconciliation.salaryAmount
-        }
+        draft.incomes = incomeDrafts(reconciliation: prevReconciliation, items: fetchIncomes(previous, in: context))
         draft.cards = cardDrafts(reconciliation: prevReconciliation, items: fetchCards(previous, in: context))
         draft.savings = fetchSavings(previous, in: context).map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
@@ -157,7 +164,20 @@ struct ReconciliationStore {
         return []
     }
 
+    /// 수입 항목을 draft로 변환한다. 항목이 없고 레거시 단일 `salaryAmount`만 있으면
+    /// "월급" 한 항목으로 흡수해 과거 데이터가 사라지지 않게 한다.
+    private func incomeDrafts(reconciliation: MonthlyReconciliation?, items: [IncomeItem]) -> [IncomeItemDraft] {
+        if !items.isEmpty {
+            return items.map { IncomeItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
+        }
+        if let amount = reconciliation?.salaryAmount, amount != 0 {
+            return [IncomeItemDraft(title: Self.legacyIncomeTitle, amount: amount)]
+        }
+        return []
+    }
+
     static let legacyCardTitle = "카드 사용액"
+    static let legacyIncomeTitle = "월급"
 
     // MARK: - 저장 (편집 폼 → DB + CSV)
 
@@ -197,15 +217,12 @@ struct ReconciliationStore {
         let savingsItems = fetchSavings(month, in: context)
         let cardItems = fetchCards(month, in: context)
 
+        let incomeItems = fetchIncomes(month, in: context)
+
         var rows: [ReconciliationCSVRow] = []
-        if let reconciliation {
+        for income in incomeDrafts(reconciliation: reconciliation, items: incomeItems) {
             rows.append(
-                ReconciliationCSVRow(
-                    kind: .salary,
-                    title: "월급",
-                    amount: reconciliation.salaryAmount,
-                    note: reconciliation.note
-                )
+                ReconciliationCSVRow(kind: .income, title: income.title, amount: income.amount)
             )
         }
         for card in cardDrafts(reconciliation: reconciliation, items: cardItems) {
@@ -269,6 +286,9 @@ struct ReconciliationStore {
         for item in fetchAllCards(in: context) where item.monthKey == month {
             context.delete(item)
         }
+        for item in fetchAllIncomes(in: context) where item.monthKey == month {
+            context.delete(item)
+        }
     }
 
     static func monthString(from key: Int) -> String {
@@ -302,12 +322,22 @@ struct ReconciliationStore {
         context.insert(
             MonthlyReconciliation(
                 monthKey: month,
-                salaryAmount: draft.salary,
-                // 카드는 항목(CardUsageItem)으로 관리. 레거시 단일 필드는 0으로 비운다.
+                // 수입·카드는 항목(IncomeItem·CardUsageItem)으로 관리. 레거시 단일 필드는 0으로 비운다.
+                salaryAmount: 0,
                 creditCardAmount: 0,
                 note: trimmedNote.isEmpty ? nil : trimmedNote
             )
         )
+        for (index, item) in draft.incomes.enumerated() {
+            context.insert(
+                IncomeItem(
+                    monthKey: month,
+                    title: item.title,
+                    amount: item.amount,
+                    sortOrder: index
+                )
+            )
+        }
         for (index, item) in draft.cards.enumerated() {
             context.insert(
                 CardUsageItem(
@@ -364,7 +394,11 @@ struct ReconciliationStore {
             throw StoreError.externalConflict(months: keys)
         }
     }
+}
 
+// MARK: - Fetch / 폴더 헬퍼
+
+extension ReconciliationStore {
     private func fetchReconciliation(_ month: Int, in context: ModelContext) -> MonthlyReconciliation? {
         fetchAllReconciliations(in: context).first { $0.monthKey == month }
     }
@@ -393,6 +427,12 @@ struct ReconciliationStore {
             .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
     }
 
+    private func fetchIncomes(_ month: Int, in context: ModelContext) -> [IncomeItem] {
+        fetchAllIncomes(in: context)
+            .filter { $0.monthKey == month }
+            .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
+    }
+
     private func fetchAllReconciliations(in context: ModelContext) -> [MonthlyReconciliation] {
         (try? context.fetch(FetchDescriptor<MonthlyReconciliation>())) ?? []
     }
@@ -411,6 +451,10 @@ struct ReconciliationStore {
 
     private func fetchAllCards(in context: ModelContext) -> [CardUsageItem] {
         (try? context.fetch(FetchDescriptor<CardUsageItem>())) ?? []
+    }
+
+    private func fetchAllIncomes(in context: ModelContext) -> [IncomeItem] {
+        (try? context.fetch(FetchDescriptor<IncomeItem>())) ?? []
     }
 
     private func withFolder<T>(
@@ -434,7 +478,7 @@ struct ReconciliationStore {
 }
 
 extension ReconciliationDraft {
-    /// 편집 중인 (아직 저장 안 된) 값으로 대사 요약을 계산한다. 임시 모델 인스턴스를 만들어
+    /// 편집 중인 (아직 저장 안 된) 값으로 정산 요약을 계산한다. 임시 모델 인스턴스를 만들어
     /// `ReconciliationSummary.compute`에 넘긴다 (context에 삽입하지 않으므로 영속화되지 않는다).
     func summary(entries: [SavedEntry], month: Int, calendar: Calendar = .current) -> ReconciliationSummary {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -450,7 +494,8 @@ extension ReconciliationDraft {
         ReconciliationSummaryInput(
             reconciliation: MonthlyReconciliation(
                 monthKey: month,
-                salaryAmount: salary,
+                // 수입은 incomeItems로 넘기므로 레거시 salaryAmount는 0.
+                salaryAmount: 0,
                 creditCardAmount: 0,
                 note: trimmedNote.isEmpty ? nil : trimmedNote
             ),
@@ -479,6 +524,9 @@ extension ReconciliationDraft {
             },
             cardItems: cards.enumerated().map { index, item in
                 CardUsageItem(monthKey: month, title: item.title, amount: item.amount, sortOrder: index)
+            },
+            incomeItems: incomes.enumerated().map { index, item in
+                IncomeItem(monthKey: month, title: item.title, amount: item.amount, sortOrder: index)
             }
         )
     }
