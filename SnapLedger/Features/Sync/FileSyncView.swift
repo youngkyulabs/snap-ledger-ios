@@ -7,7 +7,8 @@ struct FileSyncView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
-    @State private var statuses: [MonthSyncStatus] = []
+    @State private var expenseStatuses: [MonthSyncStatus] = []
+    @State private var reconciliationStatuses: [MonthSyncStatus] = []
     @State private var prompt: SyncPrompt?
     @State private var resultMessage: String?
     @State private var showingPicker = false
@@ -98,36 +99,21 @@ struct FileSyncView: View {
 
     private var listContent: some View {
         List {
-            Section {
-                if statuses.isEmpty {
+            if expenseStatuses.isEmpty && reconciliationStatuses.isEmpty {
+                Section {
                     Text("맞출 달이 없어요.")
                         .foregroundStyle(.secondary)
-                } else {
-                    ForEach(statuses) { status in
-                        if status.needsResolution {
-                            Button {
-                                prompt = .month(status)
-                            } label: {
-                                MonthSyncRow(
-                                    label: monthLabel(status.monthKey),
-                                    kindLabel: status.kind.label,
-                                    state: status.state
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            // 최신·내려받는 중 — 맞출 게 없어 상태만 표시 (탭 액션 없음)
-                            MonthSyncRow(
-                                label: monthLabel(status.monthKey),
-                                kindLabel: status.kind.label,
-                                state: status.state
-                            )
-                        }
-                    }
+                } footer: {
+                    Text(syncGuide)
                 }
-            } footer: {
-                Text("차이가 있는 달을 눌러 그 달의 지출·정산 CSV와 앱 내용을 맞춰요. "
-                    + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요.")
+            } else {
+                // 정산 섹션이 있으면 그쪽이 마지막이라 안내 푸터를 정산에, 없으면 지출에 둔다.
+                statusSection(
+                    title: "지출",
+                    statuses: expenseStatuses,
+                    showsGuide: reconciliationStatuses.isEmpty
+                )
+                statusSection(title: "정산", statuses: reconciliationStatuses, showsGuide: true)
             }
 
             Section {
@@ -142,6 +128,47 @@ struct FileSyncView: View {
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
+    }
+
+    @ViewBuilder
+    private func statusSection(
+        title: String,
+        statuses: [MonthSyncStatus],
+        showsGuide: Bool
+    ) -> some View {
+        if !statuses.isEmpty {
+            Section {
+                ForEach(statuses) { status in
+                    statusRow(for: status)
+                }
+            } header: {
+                Text(title)
+            } footer: {
+                if showsGuide {
+                    Text(syncGuide)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statusRow(for status: MonthSyncStatus) -> some View {
+        if status.needsResolution {
+            Button {
+                prompt = .month(status)
+            } label: {
+                MonthSyncRow(label: monthLabel(status.monthKey), state: status.state)
+            }
+            .buttonStyle(.plain)
+        } else {
+            // 최신·내려받는 중 — 맞출 게 없어 상태만 표시 (탭 액션 없음)
+            MonthSyncRow(label: monthLabel(status.monthKey), state: status.state)
+        }
+    }
+
+    private var syncGuide: String {
+        "차이가 있는 달을 눌러 그 달의 지출·정산 CSV와 앱 내용을 맞춰요. "
+            + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요."
     }
 
     private func handlePickedFolder(_ url: URL) {
@@ -196,10 +223,15 @@ struct FileSyncView: View {
         let sync = SyncCoordinator()
         let reachable = sync.isFolderReachable(in: modelContext) ?? false
         let newStatuses = await sync.monthStatuses(in: modelContext)
+        // monthStatuses는 이미 종류·월(내림차순) 정렬 → 종류별로 갈라도 각 섹션 내 순서가 유지된다.
+        // ForEach에서 inline filter하면 identity가 흔들리므로 미리 갈라 @State에 캐시한다.
+        let expenses = newStatuses.filter { $0.kind == .expenses }
+        let reconciliations = newStatuses.filter { $0.kind == .reconciliation }
         // 화면 전환(폴더 없음 ↔ 목록)과 월별 상태 변화(배지·탭가능 전환)를 부드럽게.
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             folderReachable = reachable
-            statuses = newStatuses
+            expenseStatuses = expenses
+            reconciliationStatuses = reconciliations
         }
     }
 
@@ -227,17 +259,11 @@ struct FileSyncView: View {
 
 private struct MonthSyncRow: View {
     let label: String
-    let kindLabel: String
     let state: MonthSyncStatus.State
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                Text(kindLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(label)
             Spacer()
             Text(badgeText)
                 .font(.caption.weight(.medium))
