@@ -60,7 +60,7 @@ struct SyncCoordinatorReconciliationTests {
 
         try writeCSV(
             dir, "reconciliations-2026-05.csv",
-            "\u{FEFF}종류,날짜,계좌,항목,방향,금액,메모\n월급,,,월급,,3000000,\n"
+            "\u{FEFF}종류,항목,계좌,방향,금액,메모\n수입,월급,,,3000000,\n"
         )
 
         let statuses = await SyncCoordinator().monthStatuses(in: context)
@@ -103,11 +103,11 @@ struct SyncCoordinatorReconciliationTests {
             encoding: .utf8
         )
         // 레거시 단일 salaryAmount는 "수입" 행으로 폴백 export된다.
-        #expect(content.contains("수입,,,월급,,3000000,"))
-        #expect(content.contains("저축액,,,저축액,,500000,"))
-        #expect(content.contains("기초잔액,,입출금,,,1000000,"))
+        #expect(content.contains("수입,월급,,,3000000,"))
+        #expect(content.contains("저축액,저축액,,,500000,"))
+        #expect(content.contains("기초잔액,,입출금,,1000000,"))
         // 항목 없는 레거시 creditCardAmount는 단일 카드 행으로 폴백 export된다.
-        #expect(content.contains("카드사용액,,,카드 사용액,,450000,"))
+        #expect(content.contains("카드사용액,카드 사용액,,,450000,"))
 
         let statuses = await sync.monthStatuses(in: context)
         let reconciliation = try #require(
@@ -134,8 +134,8 @@ struct SyncCoordinatorReconciliationTests {
             encoding: .utf8
         )
         // 카드 항목은 각각 별도 카드사용액 행으로 export된다.
-        #expect(content.contains("카드사용액,,,신한,,300000,"))
-        #expect(content.contains("카드사용액,,,현대,,200000,"))
+        #expect(content.contains("카드사용액,신한,,,300000,"))
+        #expect(content.contains("카드사용액,현대,,,200000,"))
     }
 
     @Test func importReconciliationMonthReplacesExistingMonth() throws {
@@ -161,15 +161,15 @@ struct SyncCoordinatorReconciliationTests {
         try writeCSV(
             dir, "reconciliations-2026-05.csv",
             """
-            \u{FEFF}종류,날짜,계좌,항목,방향,금액,메모
-            월급,,,월급,,3000000,
-            카드사용액,,,카드 사용액,,450000,
-            저축액,,,적금,,300000,
-            저축액,,,펀드,,200000,
-            기초잔액,,입출금,,,1000000,
-            기말잔액,,입출금,,,2000000,
-            이자,,입출금,,,1200,
-            자금변동,2026-05-15,,환급,입금,30000,교통비
+            \u{FEFF}종류,항목,계좌,방향,금액,메모
+            수입,월급,,,3000000,
+            카드사용액,카드 사용액,,,450000,
+            저축액,적금,,,300000,
+            저축액,펀드,,,200000,
+            기초잔액,,입출금,,1000000,
+            기말잔액,,입출금,,2000000,
+            이자,,입출금,,1200,
+            자금변동,환급,,입금,30000,교통비
             """
         )
 
@@ -177,7 +177,7 @@ struct SyncCoordinatorReconciliationTests {
         #expect(summary.totalRows == 8)
         #expect(summary.skippedRows == 0)
 
-        // 레거시 월급 행은 수입 항목(IncomeItem)으로 흡수되고, 단일 salaryAmount는 더 이상 쓰지 않는다.
+        // "수입" 행은 IncomeItem으로 import되고, 단일 salaryAmount는 더 이상 쓰지 않는다.
         let reconciliation = try #require(
             try context.fetch(FetchDescriptor<MonthlyReconciliation>()).first { $0.monthKey == 202_605 }
         )
