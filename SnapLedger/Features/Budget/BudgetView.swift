@@ -381,7 +381,8 @@ private struct ReconciliationSummaryRow: View {
 
     private var accessibilityText: String {
         let amounts = "실제 쓴 돈 \(summary.actualSpending.formatted(.number))원, 기록한 돈 \(summary.recordedSpending.formatted(.number))원"
-        return "\(verdict.headline), \(verdict.detail), \(amounts)"
+        let detail = verdict.detail.isEmpty ? "" : "\(verdict.detail), "
+        return "\(verdict.headline), \(detail)\(amounts)"
     }
 
     private func amountBlock(title: String, amount: Int) -> some View {
