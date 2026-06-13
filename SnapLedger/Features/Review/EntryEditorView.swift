@@ -66,7 +66,7 @@ struct EntryEditorView: View {
                         .id(Field.category)
                     presetChips
                     if CategoryValidation.isOffPreset(entry.category, presets: presets) {
-                        offPresetWarning(for: entry.category ?? "")
+                        offPresetWarning
                     }
                 }
 
@@ -298,27 +298,10 @@ struct EntryEditorView: View {
         }
     }
 
-    @ViewBuilder
-    private func offPresetWarning(for category: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("목록에 없는 카테고리예요. 통계·예산에서 따로 잡혀요.",
-                  systemImage: "exclamationmark.triangle.fill")
-                .font(.footnote)
-                .foregroundStyle(.orange)
-            Button("이 카테고리를 목록에 추가") { addCategoryToPresets(category) }
-                .font(.footnote)
-                .buttonStyle(.borderless)
-        }
-    }
-
-    /// off-list 값을 사용자 presets에 추가해 통계·예산에 정상 편입시킨다.
-    private func addCategoryToPresets(_ category: String) {
-        guard let settings = settingsList.first,
-              !settings.categoryPresets.contains(category) else { return }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.append(category)
-            try? modelContext.save()
-        }
+    private var offPresetWarning: some View {
+        Label("목록에 없는 카테고리예요.", systemImage: "exclamationmark.triangle.fill")
+            .font(.footnote)
+            .foregroundStyle(.orange)
     }
 
     private func save() {
