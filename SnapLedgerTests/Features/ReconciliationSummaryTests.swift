@@ -264,6 +264,36 @@ struct ReconciliationSummaryTests {
         #expect(recordedHeavy.detail == "기록한 돈이 더 커요")
     }
 
+    @Test func sumsCardItems() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                cardItems: [
+                    CardUsageItem(monthKey: 202_606, title: "신한", amount: 300_000),
+                    CardUsageItem(monthKey: 202_606, title: "현대", amount: 200_000),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.creditCardAmount == 500_000)
+    }
+
+    @Test func usesLegacyCreditCardAmountWhenNoCardItems() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606, creditCardAmount: 450_000)
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.creditCardAmount == 450_000)
+    }
+
     @Test func sumsSavingsItems() {
         let summary = ReconciliationSummary.compute(
             entries: [],

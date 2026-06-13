@@ -5,7 +5,7 @@ import SwiftData
 /// DB·CSV에 아무것도 쓰지 않고 이 값만 들고 있다 (지출 입력 폼과 동일한 방식).
 struct ReconciliationDraft: Equatable {
     var salary: Int = 0
-    var creditCard: Int = 0
+    var cards: [CardUsageItemDraft] = []
     var savings: [SavingsItemDraft] = []
     var note: String = ""
     var balances: [BalanceDraft] = []
@@ -13,13 +13,20 @@ struct ReconciliationDraft: Equatable {
 
     /// 저장할 의미 있는 내용이 하나도 없으면 true (저장 시 그 달을 비운다).
     var isEmpty: Bool {
-        salary == 0 && creditCard == 0 && savings.isEmpty
+        salary == 0 && cards.isEmpty && savings.isEmpty
             && note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && balances.isEmpty && adjustments.isEmpty
     }
 }
 
 struct SavingsItemDraft: Identifiable, Equatable {
+    var id = UUID()
+    var title: String
+    var amount: Int
+    var sortOrder: Int = 0
+}
+
+struct CardUsageItemDraft: Identifiable, Equatable {
     var id = UUID()
     var title: String
     var amount: Int
@@ -78,17 +85,18 @@ struct ReconciliationStore {
         let balances = fetchBalances(month, in: context)
         let adjustments = fetchAdjustments(month, in: context)
         let savingsItems = fetchSavings(month, in: context)
+        let cardItems = fetchCards(month, in: context)
 
-        if reconciliation == nil, balances.isEmpty, adjustments.isEmpty, savingsItems.isEmpty {
+        if reconciliation == nil, balances.isEmpty, adjustments.isEmpty, savingsItems.isEmpty, cardItems.isEmpty {
             return carryForwardDraft(for: month, in: context)
         }
 
         var draft = ReconciliationDraft()
         if let reconciliation {
             draft.salary = reconciliation.salaryAmount
-            draft.creditCard = reconciliation.creditCardAmount
             draft.note = reconciliation.note ?? ""
         }
+        draft.cards = cardDrafts(reconciliation: reconciliation, items: cardItems)
         draft.savings = savingsItems.map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
         }
@@ -116,11 +124,12 @@ struct ReconciliationStore {
     /// 전월 정산을 바탕으로 한 미리 채움 값 (영속화하지 않음). 잔액은 전월 기말을 이번 달 기초로 이월한다.
     private func carryForwardDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
         let previous = Self.previousMonthKey(month)
+        let prevReconciliation = fetchReconciliation(previous, in: context)
         var draft = ReconciliationDraft()
-        if let prev = fetchReconciliation(previous, in: context) {
-            draft.salary = prev.salaryAmount
-            draft.creditCard = prev.creditCardAmount
+        if let prevReconciliation {
+            draft.salary = prevReconciliation.salaryAmount
         }
+        draft.cards = cardDrafts(reconciliation: prevReconciliation, items: fetchCards(previous, in: context))
         draft.savings = fetchSavings(previous, in: context).map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
         }
@@ -135,6 +144,20 @@ struct ReconciliationStore {
         }
         return draft
     }
+
+    /// 카드 항목을 draft로 변환한다. 항목이 없고 레거시 단일 `creditCardAmount`만 있으면
+    /// 한 항목으로 흡수해 과거 데이터가 사라지지 않게 한다.
+    private func cardDrafts(reconciliation: MonthlyReconciliation?, items: [CardUsageItem]) -> [CardUsageItemDraft] {
+        if !items.isEmpty {
+            return items.map { CardUsageItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
+        }
+        if let amount = reconciliation?.creditCardAmount, amount != 0 {
+            return [CardUsageItemDraft(title: Self.legacyCardTitle, amount: amount)]
+        }
+        return []
+    }
+
+    static let legacyCardTitle = "카드 사용액"
 
     // MARK: - 저장 (편집 폼 → DB + CSV)
 
@@ -172,6 +195,7 @@ struct ReconciliationStore {
         let balances = fetchBalances(month, in: context)
         let adjustments = fetchAdjustments(month, in: context)
         let savingsItems = fetchSavings(month, in: context)
+        let cardItems = fetchCards(month, in: context)
 
         var rows: [ReconciliationCSVRow] = []
         if let reconciliation {
@@ -183,8 +207,10 @@ struct ReconciliationStore {
                     note: reconciliation.note
                 )
             )
+        }
+        for card in cardDrafts(reconciliation: reconciliation, items: cardItems) {
             rows.append(
-                ReconciliationCSVRow(kind: .creditCard, title: "카드 사용액", amount: reconciliation.creditCardAmount)
+                ReconciliationCSVRow(kind: .creditCard, title: card.title, amount: card.amount)
             )
         }
         for item in savingsItems {
@@ -240,6 +266,9 @@ struct ReconciliationStore {
         for item in fetchAllSavings(in: context) where item.monthKey == month {
             context.delete(item)
         }
+        for item in fetchAllCards(in: context) where item.monthKey == month {
+            context.delete(item)
+        }
     }
 
     static func monthString(from key: Int) -> String {
@@ -274,10 +303,21 @@ struct ReconciliationStore {
             MonthlyReconciliation(
                 monthKey: month,
                 salaryAmount: draft.salary,
-                creditCardAmount: draft.creditCard,
+                // 카드는 항목(CardUsageItem)으로 관리. 레거시 단일 필드는 0으로 비운다.
+                creditCardAmount: 0,
                 note: trimmedNote.isEmpty ? nil : trimmedNote
             )
         )
+        for (index, item) in draft.cards.enumerated() {
+            context.insert(
+                CardUsageItem(
+                    monthKey: month,
+                    title: item.title,
+                    amount: item.amount,
+                    sortOrder: index
+                )
+            )
+        }
         for (index, item) in draft.savings.enumerated() {
             context.insert(
                 SavingsItem(
@@ -347,6 +387,12 @@ struct ReconciliationStore {
             .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
     }
 
+    private func fetchCards(_ month: Int, in context: ModelContext) -> [CardUsageItem] {
+        fetchAllCards(in: context)
+            .filter { $0.monthKey == month }
+            .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
+    }
+
     private func fetchAllReconciliations(in context: ModelContext) -> [MonthlyReconciliation] {
         (try? context.fetch(FetchDescriptor<MonthlyReconciliation>())) ?? []
     }
@@ -361,6 +407,10 @@ struct ReconciliationStore {
 
     private func fetchAllSavings(in context: ModelContext) -> [SavingsItem] {
         (try? context.fetch(FetchDescriptor<SavingsItem>())) ?? []
+    }
+
+    private func fetchAllCards(in context: ModelContext) -> [CardUsageItem] {
+        (try? context.fetch(FetchDescriptor<CardUsageItem>())) ?? []
     }
 
     private func withFolder<T>(
@@ -401,7 +451,7 @@ extension ReconciliationDraft {
             reconciliation: MonthlyReconciliation(
                 monthKey: month,
                 salaryAmount: salary,
-                creditCardAmount: creditCard,
+                creditCardAmount: 0,
                 note: trimmedNote.isEmpty ? nil : trimmedNote
             ),
             balances: balances.map {
@@ -426,6 +476,9 @@ extension ReconciliationDraft {
             },
             savingsItems: savings.enumerated().map { index, item in
                 SavingsItem(monthKey: month, title: item.title, amount: item.amount, sortOrder: index)
+            },
+            cardItems: cards.enumerated().map { index, item in
+                CardUsageItem(monthKey: month, title: item.title, amount: item.amount, sortOrder: index)
             }
         )
     }

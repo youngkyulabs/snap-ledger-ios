@@ -17,6 +17,7 @@ struct SyncCoordinatorReconciliationTests {
             AccountMonthlyBalance.self,
             CashAdjustment.self,
             SavingsItem.self,
+            CardUsageItem.self,
         ])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
@@ -154,7 +155,12 @@ struct SyncCoordinatorReconciliationTests {
             try context.fetch(FetchDescriptor<MonthlyReconciliation>()).first { $0.monthKey == 202_605 }
         )
         #expect(reconciliation.salaryAmount == 3_000_000)
-        #expect(reconciliation.creditCardAmount == 450_000)
+
+        // 카드 행은 항목(CardUsageItem)으로 import된다 (단일 creditCardAmount는 더 이상 쓰지 않음).
+        let cards = try context.fetch(FetchDescriptor<CardUsageItem>())
+            .filter { $0.monthKey == 202_605 }
+        #expect(cards.map(\.title) == ["카드 사용액"])
+        #expect(cards.map(\.amount) == [450_000])
 
         let savings = try context.fetch(FetchDescriptor<SavingsItem>())
             .filter { $0.monthKey == 202_605 }
