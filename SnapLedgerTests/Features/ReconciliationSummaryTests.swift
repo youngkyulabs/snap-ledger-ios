@@ -33,6 +33,30 @@ struct ReconciliationSummaryTests {
         )
     }
 
+    @Test func displayVerdictShowsNotReconciledWhenNoSavedData() {
+        // 전월 값으로 프리필만 돼 큰 차이가 계산되더라도, 저장 전이면 '아직 정산 전'으로 표시한다.
+        let balances = [
+            AccountMonthlyBalance(
+                monthKey: 202_604,
+                accountName: "통장",
+                openingBalance: 1_000_000,
+                closingBalance: 1_000_000
+            ),
+        ]
+        let incomes = [IncomeItem(monthKey: 202_604, title: "월급", amount: 3_000_000)]
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(balances: balances, incomeItems: incomes),
+            targetMonth: 202_604,
+            calendar: kst
+        )
+
+        #expect(summary.difference != 0)
+        #expect(summary.displayVerdict(status: .closed, isReconciled: false) == .notReconciled)
+        // 저장된 데이터로 간주하면 기존 차이 판정을 그대로 보여준다.
+        #expect(summary.displayVerdict(status: .closed, isReconciled: true).tone == .off)
+    }
+
     @Test func computesActualRecordedAndDifference() {
         let reconciliation = MonthlyReconciliation(monthKey: 202_606)
         let balances = [

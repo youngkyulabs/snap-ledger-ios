@@ -139,7 +139,13 @@ struct MonthlyReconciliationView: View {
     // MARK: - 섹션
 
     private var summarySection: some View {
-        let verdict = summary.verdict(status: periodStatus, revealInProgressDifference: true)
+        // 전월 값으로 프리필만 된(아직 저장 안 된) 달은 '아직 정산 전'으로 — 빈 DB를 읽는 예산 탭과
+        // 결론이 어긋나지 않게 한다. 한 번이라도 편집해 저장하면 isCarriedForward가 풀려 실제 차이를 보여준다.
+        let verdict = summary.displayVerdict(
+            status: periodStatus,
+            isReconciled: !draft.isCarriedForward && !draft.isEmpty,
+            revealInProgressDifference: true
+        )
         return Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
@@ -425,6 +431,8 @@ extension MonthlyReconciliationView {
     }
 
     private func save(ignoringConflict: Bool = false) {
+        // 한 번이라도 편집하면 더 이상 '이월 프리필'이 아니라 사용자가 확정하는 정산이다.
+        draft.isCarriedForward = false
         do {
             // 편집할 때마다 조용히 자동 저장한다 (지출 기록과 동일). 성공 토스트는 띄우지 않는다.
             try ReconciliationStore().save(

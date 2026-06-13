@@ -326,6 +326,12 @@ struct SyncCoordinator {
                         continue
                     }
                     let parsed = replaceMonthFromCSV(kind: kind, monthKey: key, text: content.text, in: ctx)
+                    // 모든 행이 형식 불일치라 그 달을 건드리지 않았으면(applied=false) 깨진 파일로 보고하고
+                    // 앱 데이터를 보존한다 (지문도 갱신하지 않아 다음에 다시 시도할 수 있다).
+                    guard parsed.applied else {
+                        summary.malformedMonths.append(key)
+                        continue
+                    }
                     upsertFileState(filename: filename, hash: content.hash, modified: content.modified, in: ctx)
                     summary.importedMonths.append(key)
                     summary.totalRows += parsed.imported
@@ -473,6 +479,9 @@ extension SyncCoordinator {
     private struct ParsedSyncRows {
         let imported: Int
         let skipped: Int
+        /// 그 달을 실제로 교체했는지. 내용이 있는데 모든 행이 형식 불일치(파싱 0행)면 false —
+        /// 기존 데이터를 비우지 않고 건너뛴다.
+        var applied = true
     }
 
     private func replaceMonthFromCSV(
@@ -484,10 +493,17 @@ extension SyncCoordinator {
         switch kind {
         case .expenses:
             let parsed = CSVRowParser.parse(text)
+            // 내용이 있는데 모든 행이 형식 불일치면(파싱 0행·건너뜀>0) 그 달을 비우지 않고 건너뛴다 — 데이터 유실 방지.
+            guard !(parsed.rows.isEmpty && parsed.skipped > 0) else {
+                return ParsedSyncRows(imported: 0, skipped: parsed.skipped, applied: false)
+            }
             replaceMonthEntries(monthKey: key, rows: parsed.rows, in: context)
             return ParsedSyncRows(imported: parsed.rows.count, skipped: parsed.skipped)
         case .reconciliation:
             let parsed = ReconciliationCSVParser.parse(text)
+            guard !(parsed.rows.isEmpty && parsed.skipped > 0) else {
+                return ParsedSyncRows(imported: 0, skipped: parsed.skipped, applied: false)
+            }
             replaceReconciliationMonth(monthKey: key, rows: parsed.rows, in: context)
             return ParsedSyncRows(imported: parsed.rows.count, skipped: parsed.skipped)
         }
@@ -499,29 +515,6 @@ extension SyncCoordinator {
             replaceMonthEntries(monthKey: key, rows: [], in: context)
         case .reconciliation:
             replaceReconciliationMonth(monthKey: key, rows: [], in: context)
-        }
-    }
-
-    private func replaceMonthEntries(monthKey key: String, rows: [SavedRow], in context: ModelContext) {
-        let filename = CSVWriter.filename(forMonthKey: key)
-        let all = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
-        for entry in all where CSVWriter.monthKey(for: entry.date) == key {
-            context.delete(entry)
-        }
-        // 행 순서를 보존하기 위해 savedAt을 행 순서대로 증가시켜 부여 (재export 시 동일 순서).
-        let base = Date()
-        for (index, row) in rows.enumerated() {
-            context.insert(
-                SavedEntry(
-                    date: row.date,
-                    amount: row.amount,
-                    merchant: row.description,
-                    category: row.category,
-                    note: row.note,
-                    savedAt: base.addingTimeInterval(Double(index)),
-                    csvFile: filename
-                )
-            )
         }
     }
 
