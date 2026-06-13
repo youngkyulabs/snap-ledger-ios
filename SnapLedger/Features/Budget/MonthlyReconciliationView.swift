@@ -137,7 +137,7 @@ struct MonthlyReconciliationView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(verdict.headline)
                         .font(.title3.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(verdictColor(verdict.tone))
+                        .foregroundStyle(verdict.tone.color)
                     Spacer()
                     Text(verdict.detail)
                         .font(.caption)
@@ -321,14 +321,6 @@ extension MonthlyReconciliationView {
                 .focused($focusedField, equals: field)
             Text("원")
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private func verdictColor(_ tone: ReconciliationVerdict.Tone) -> Color {
-        switch tone {
-        case .balanced: .green
-        case .off: .orange
-        case .inProgress: .secondary
         }
     }
 

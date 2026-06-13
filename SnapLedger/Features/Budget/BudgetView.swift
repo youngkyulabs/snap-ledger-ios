@@ -259,14 +259,6 @@ private func budgetStateColor(_ state: BudgetProgress.State) -> Color {
     }
 }
 
-private func reconciliationVerdictColor(_ tone: ReconciliationVerdict.Tone) -> Color {
-    switch tone {
-    case .balanced: return .green
-    case .off: return .orange
-    case .inProgress: return .secondary
-    }
-}
-
 private func budgetRemainingColor(_ state: BudgetProgress.State) -> Color {
     switch state {
     case .under: return .secondary
@@ -367,7 +359,7 @@ private struct ReconciliationSummaryRow: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(verdict.headline)
                     .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(reconciliationVerdictColor(verdict.tone))
+                    .foregroundStyle(verdict.tone.color)
                 Spacer()
                 Text(verdict.detail)
                     .font(.caption)
