@@ -103,17 +103,18 @@ struct FileSyncView: View {
                 Section {
                     Text("맞출 달이 없어요.")
                         .foregroundStyle(.secondary)
-                } footer: {
-                    Text(syncGuide)
                 }
             } else {
-                // 정산 섹션이 있으면 그쪽이 마지막이라 안내 푸터를 정산에, 없으면 지출에 둔다.
-                statusSection(
-                    title: "지출",
-                    statuses: expenseStatuses,
-                    showsGuide: reconciliationStatuses.isEmpty
-                )
-                statusSection(title: "정산", statuses: reconciliationStatuses, showsGuide: true)
+                // 화면 전체 사용법 안내 — 특정 종류 섹션에 종속돼 보이지 않게 데이터 섹션 위에 한 번 둔다.
+                Section {
+                    Text(syncGuide)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+                statusSection(title: "지출", statuses: expenseStatuses)
+                statusSection(title: "정산", statuses: reconciliationStatuses)
             }
 
             Section {
@@ -131,11 +132,7 @@ struct FileSyncView: View {
     }
 
     @ViewBuilder
-    private func statusSection(
-        title: String,
-        statuses: [MonthSyncStatus],
-        showsGuide: Bool
-    ) -> some View {
+    private func statusSection(title: String, statuses: [MonthSyncStatus]) -> some View {
         if !statuses.isEmpty {
             Section {
                 ForEach(statuses) { status in
@@ -143,10 +140,6 @@ struct FileSyncView: View {
                 }
             } header: {
                 Text(title)
-            } footer: {
-                if showsGuide {
-                    Text(syncGuide)
-                }
             }
         }
     }
