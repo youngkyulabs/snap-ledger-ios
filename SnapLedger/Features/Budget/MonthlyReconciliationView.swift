@@ -66,13 +66,6 @@ struct MonthlyReconciliationView: View {
                     )
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    save()
-                } label: {
-                    Label("저장", systemImage: "square.and.arrow.down")
-                }
-            }
         }
         .task {
             guard !didLoad else { return }
@@ -183,7 +176,10 @@ struct MonthlyReconciliationView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .onDelete { draft.balances.remove(atOffsets: $0) }
+            .onDelete { offsets in
+                draft.balances.remove(atOffsets: offsets)
+                save()
+            }
             addButton("계좌 추가") { activeSheet = .account(nil) }
         } header: {
             Text("계좌별 잔액").textCase(nil)
@@ -200,7 +196,10 @@ struct MonthlyReconciliationView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .onDelete { draft.incomes.remove(atOffsets: $0) }
+            .onDelete { offsets in
+                draft.incomes.remove(atOffsets: offsets)
+                save()
+            }
             addButton("수입 추가") { activeSheet = .income(nil) }
         } header: {
             Text("수입").textCase(nil)
@@ -219,7 +218,10 @@ struct MonthlyReconciliationView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .onDelete { draft.savings.remove(atOffsets: $0) }
+            .onDelete { offsets in
+                draft.savings.remove(atOffsets: offsets)
+                save()
+            }
             addButton("저축 항목 추가") { activeSheet = .savings(nil) }
         } header: {
             Text("저축").textCase(nil)
@@ -238,7 +240,10 @@ struct MonthlyReconciliationView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .onDelete { draft.cards.remove(atOffsets: $0) }
+            .onDelete { offsets in
+                draft.cards.remove(atOffsets: offsets)
+                save()
+            }
             addButton("카드 추가") { activeSheet = .card(nil) }
         } header: {
             Text("카드 사용액").textCase(nil)
@@ -257,7 +262,10 @@ struct MonthlyReconciliationView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .onDelete { draft.adjustments.remove(atOffsets: $0) }
+            .onDelete { offsets in
+                draft.adjustments.remove(atOffsets: offsets)
+                save()
+            }
             addButton("자금변동 추가") { activeSheet = .adjustment(nil) }
         } header: {
             Text("자금변동").textCase(nil)
@@ -350,6 +358,7 @@ extension MonthlyReconciliationView {
         }
         // 추가·수정한 금액을 바로 확인할 수 있도록 가리기를 해제한다.
         amountsHidden = false
+        save()
     }
 
     private func saveIncome(existing: IncomeItemDraft?, title: String, amount: Int) {
@@ -361,6 +370,7 @@ extension MonthlyReconciliationView {
             draft.incomes.append(IncomeItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
         amountsHidden = false
+        save()
     }
 
     private func saveSavings(existing: SavingsItemDraft?, title: String, amount: Int) {
@@ -372,6 +382,7 @@ extension MonthlyReconciliationView {
             draft.savings.append(SavingsItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
         amountsHidden = false
+        save()
     }
 
     private func saveCard(existing: CardUsageItemDraft?, title: String, amount: Int) {
@@ -383,6 +394,7 @@ extension MonthlyReconciliationView {
             draft.cards.append(CardUsageItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
         amountsHidden = false
+        save()
     }
 
     private func saveAdjustment(
@@ -409,19 +421,18 @@ extension MonthlyReconciliationView {
         }
         draft.adjustments.sort { $0.date == $1.date ? $0.title < $1.title : $0.date < $1.date }
         amountsHidden = false
+        save()
     }
 
     private func save(ignoringConflict: Bool = false) {
         do {
-            let exported = try ReconciliationStore().save(
+            // 편집할 때마다 조용히 자동 저장한다 (지출 기록과 동일). 성공 토스트는 띄우지 않는다.
+            try ReconciliationStore().save(
                 draft,
                 month: month,
                 ignoringConflict: ignoringConflict,
                 in: modelContext
             )
-            resultMessage = exported
-                ? "앱과 CSV 파일에 저장했어요."
-                : "앱에 저장했어요. 저장 폴더를 설정하면 CSV로도 저장돼요."
         } catch ReconciliationStore.StoreError.externalConflict(let months) {
             conflict = SyncConflict(
                 months: months,
