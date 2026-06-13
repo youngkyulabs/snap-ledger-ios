@@ -2,6 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct BudgetView: View {
+    /// ContentView가 예산 탭 재선택 시 올리는 신호. 바뀌면 선택 월을 비워 현재 월로 되돌린다.
+    var resetNonce: Int = 0
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
@@ -80,6 +83,10 @@ struct BudgetView: View {
                         focusCategory: category
                     )
                 }
+        }
+        // 탭 재선택 → 선택 월을 비워 현재 달로 복귀 (effectiveMonthKey가 currentMonthKey로 폴백).
+        .onChange(of: resetNonce) { _, _ in
+            selectedMonthKey = nil
         }
     }
 
