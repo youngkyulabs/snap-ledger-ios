@@ -49,6 +49,6 @@ final class AppSettings {
     }
 
     static let defaultPresets: [String] = [
-        "식비", "카페", "교통", "쇼핑", "공과금", "의료", "문화", "기타"
+        "식비", "카페", "생활", "교통", "쇼핑", "공과금", "구독", "의료", "문화", "기타"
     ]
 }
