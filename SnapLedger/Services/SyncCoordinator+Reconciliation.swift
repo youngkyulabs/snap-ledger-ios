@@ -3,9 +3,12 @@ import SwiftData
 
 @MainActor
 extension SyncCoordinator {
-    private struct BalanceImportState {
+    private struct ImportState {
         var byAccount: [String: AccountMonthlyBalance] = [:]
         var accountOrder: [String] = []
+        var incomeOrder = 0
+        var savingsOrder = 0
+        var cardOrder = 0
     }
 
     func exportReconciliationMonths(_ keys: [String], folderURL: URL, in context: ModelContext) throws {
@@ -27,64 +30,15 @@ extension SyncCoordinator {
         guard !rows.isEmpty else { return }
 
         let reconciliation = MonthlyReconciliation(monthKey: month)
-        var balanceState = BalanceImportState()
-        var savingsOrder = 0
-        var cardOrder = 0
-        var incomeOrder = 0
+        var state = ImportState()
 
         for row in rows {
-            switch row.kind {
-            case .income:
-                context.insert(
-                    IncomeItem(
-                        monthKey: month,
-                        title: row.title ?? ReconciliationCSVKind.income.rawValue,
-                        amount: row.amount,
-                        sortOrder: incomeOrder
-                    )
-                )
-                incomeOrder += 1
-            case .salary:
-                // 레거시 월급 행은 수입 항목으로 흡수한다 (월 단위 메모는 보존).
-                context.insert(
-                    IncomeItem(
-                        monthKey: month,
-                        title: row.title ?? ReconciliationStore.legacyIncomeTitle,
-                        amount: row.amount,
-                        sortOrder: incomeOrder
-                    )
-                )
-                incomeOrder += 1
-                if let note = row.note { reconciliation.note = note }
-            case .savings:
-                context.insert(
-                    SavingsItem(
-                        monthKey: month,
-                        title: row.title ?? ReconciliationCSVKind.savings.rawValue,
-                        amount: row.amount,
-                        sortOrder: savingsOrder
-                    )
-                )
-                savingsOrder += 1
-            case .creditCard:
-                context.insert(
-                    CardUsageItem(
-                        monthKey: month,
-                        // title 없는 행은 레거시 단일 카드와 같은 이름으로 흡수 (export 명칭과 일치).
-                        title: row.title ?? ReconciliationStore.legacyCardTitle,
-                        amount: row.amount,
-                        sortOrder: cardOrder
-                    )
-                )
-                cardOrder += 1
-            default:
-                apply(row, to: reconciliation, month: month, balanceState: &balanceState, in: context)
-            }
+            applyItemRow(row, to: reconciliation, month: month, state: &state, in: context)
         }
 
         context.insert(reconciliation)
-        for account in balanceState.accountOrder {
-            if let balance = balanceState.byAccount[account] {
+        for account in state.accountOrder {
+            if let balance = state.byAccount[account] {
                 context.insert(balance)
             }
         }
@@ -106,52 +60,91 @@ extension SyncCoordinator {
         return Set(reconciliationKeys + balanceKeys + adjustmentKeys + savingsKeys + cardKeys + incomeKeys)
     }
 
-    private func apply(
+    private func applyItemRow(
         _ row: ReconciliationCSVRow,
         to reconciliation: MonthlyReconciliation,
         month: Int,
-        balanceState: inout BalanceImportState,
+        state: inout ImportState,
         in context: ModelContext
     ) {
         switch row.kind {
-        case .salary, .income, .creditCard, .savings:
-            // 월급·수입·카드·저축 항목은 replaceReconciliationMonth 루프에서 직접 처리한다.
-            break
-        case .openingBalance, .closingBalance, .interest:
-            applyBalanceRow(row, month: month, balanceState: &balanceState)
-        case .cashAdjustment:
-            insertAdjustment(row, month: month, in: context)
+        case .income:
+            guard let amount = row.amount else { break }
+            context.insert(
+                IncomeItem(
+                    monthKey: month,
+                    title: row.title ?? ReconciliationCSVKind.income.rawValue,
+                    amount: amount,
+                    sortOrder: state.incomeOrder
+                )
+            )
+            state.incomeOrder += 1
+        case .savings:
+            guard let amount = row.amount else { break }
+            context.insert(
+                SavingsItem(
+                    monthKey: month,
+                    title: row.title ?? ReconciliationCSVKind.savings.rawValue,
+                    amount: amount,
+                    sortOrder: state.savingsOrder
+                )
+            )
+            state.savingsOrder += 1
+        case .creditCard:
+            guard let amount = row.amount else { break }
+            context.insert(
+                CardUsageItem(
+                    monthKey: month,
+                    title: row.title ?? ReconciliationStore.legacyCardTitle,
+                    amount: amount,
+                    sortOrder: state.cardOrder
+                )
+            )
+            state.cardOrder += 1
+        case .monthNote:
+            if let note = row.note { reconciliation.note = note }
+        default:
+            switch row.kind {
+            case .openingBalance, .closingBalance, .interest:
+                applyBalanceRow(row, month: month, state: &state)
+            case .cashAdjustment:
+                insertAdjustment(row, month: month, in: context)
+            default:
+                break
+            }
         }
     }
 
     private func applyBalanceRow(
         _ row: ReconciliationCSVRow,
         month: Int,
-        balanceState: inout BalanceImportState
+        state: inout ImportState
     ) {
         guard let account = row.account else { return }
-        let balance = balance(account, month: month, balanceState: &balanceState)
+        let balance = balance(account, month: month, state: &state)
+        guard let amount = row.amount else { return }
         switch row.kind {
         case .openingBalance:
-            balance.openingBalance = row.amount
+            balance.openingBalance = amount
         case .closingBalance:
-            balance.closingBalance = row.amount
+            balance.closingBalance = amount
         case .interest:
-            balance.interestAmount = row.amount
-        case .salary, .income, .creditCard, .savings, .cashAdjustment:
+            balance.interestAmount = amount
+        case .income, .creditCard, .savings, .cashAdjustment, .monthNote:
             break
         }
     }
 
     private func insertAdjustment(_ row: ReconciliationCSVRow, month: Int, in context: ModelContext) {
-        guard let date = row.date, let direction = row.direction else { return }
+        guard let direction = row.direction, let amount = row.amount else { return }
         context.insert(
             CashAdjustment(
                 monthKey: month,
-                date: date,
+                // CSV는 자금변동 날짜를 담지 않는다(정산은 월 단위) — import 시 그 달 1일로 합성.
+                date: ReconciliationStore.date(month: month),
                 title: row.title ?? row.kind.rawValue,
                 direction: direction,
-                amount: row.amount,
+                amount: amount,
                 note: row.note
             )
         )
@@ -160,14 +153,14 @@ extension SyncCoordinator {
     private func balance(
         _ account: String,
         month: Int,
-        balanceState: inout BalanceImportState
+        state: inout ImportState
     ) -> AccountMonthlyBalance {
-        if let existing = balanceState.byAccount[account] {
+        if let existing = state.byAccount[account] {
             return existing
         }
-        let created = AccountMonthlyBalance(monthKey: month, accountName: account, sortOrder: balanceState.accountOrder.count)
-        balanceState.byAccount[account] = created
-        balanceState.accountOrder.append(account)
+        let created = AccountMonthlyBalance(monthKey: month, accountName: account, sortOrder: state.accountOrder.count)
+        state.byAccount[account] = created
+        state.accountOrder.append(account)
         return created
     }
 }

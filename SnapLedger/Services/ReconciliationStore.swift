@@ -258,13 +258,15 @@ struct ReconciliationStore {
             rows.append(
                 ReconciliationCSVRow(
                     kind: .cashAdjustment,
-                    date: adjustment.date,
                     title: adjustment.title,
                     direction: adjustment.direction,
                     amount: adjustment.amount,
                     note: adjustment.note
                 )
             )
+        }
+        if let note = reconciliation?.note, !note.isEmpty {
+            rows.append(ReconciliationCSVRow(kind: .monthNote, note: note))
         }
         return rows
     }
