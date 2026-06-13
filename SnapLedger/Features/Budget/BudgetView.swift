@@ -118,11 +118,14 @@ struct BudgetView: View {
     }
 
     private func reconciliationSection(_ summary: ReconciliationSummary) -> some View {
-        Section {
+        // 상세 화면과 같은 판정(진행 중/정상/차이)을 재사용 — 현재·미래 달은 '진행 중'이라
+        // 빈 다음 달이 '정상'으로 오표기되지 않는다.
+        let status = ReconciliationSummary.periodStatus(month: effectiveMonthKey, today: Date())
+        return Section {
             NavigationLink {
                 MonthlyReconciliationView(month: effectiveMonthKey)
             } label: {
-                ReconciliationSummaryRow(summary: summary)
+                ReconciliationSummaryRow(summary: summary, verdict: summary.verdict(status: status))
             }
         } header: {
             Text("\(Self.monthLabel(effectiveMonthKey)) 정산").textCase(nil)
@@ -256,6 +259,14 @@ private func budgetStateColor(_ state: BudgetProgress.State) -> Color {
     }
 }
 
+private func reconciliationVerdictColor(_ tone: ReconciliationVerdict.Tone) -> Color {
+    switch tone {
+    case .balanced: return .green
+    case .off: return .orange
+    case .inProgress: return .secondary
+    }
+}
+
 private func budgetRemainingColor(_ state: BudgetProgress.State) -> Color {
     switch state {
     case .under: return .secondary
@@ -349,14 +360,18 @@ private struct LineRow: View {
 
 private struct ReconciliationSummaryRow: View {
     let summary: ReconciliationSummary
+    let verdict: ReconciliationVerdict
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text(summary.hasReconciliationData ? "이번 달 정산" : "이번 달 정산을 시작하세요")
-                    .font(.subheadline.weight(.medium))
+                Text(verdict.headline)
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(reconciliationVerdictColor(verdict.tone))
                 Spacer()
-                differenceLabel
+                Text(verdict.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             HStack(spacing: 12) {
                 amountBlock(title: "실제 쓴 돈", amount: summary.actualSpending)
@@ -369,23 +384,8 @@ private struct ReconciliationSummaryRow: View {
     }
 
     private var accessibilityText: String {
-        let title = summary.hasReconciliationData ? "이번 달 정산" : "이번 달 정산을 시작하세요"
-        let status = summary.isBalanced ? "정상" : "\(abs(summary.difference).formatted(.number))원 차이"
         let amounts = "실제 쓴 돈 \(summary.actualSpending.formatted(.number))원, 기록한 돈 \(summary.recordedSpending.formatted(.number))원"
-        return "\(title), \(amounts), \(status)"
-    }
-
-    private var differenceLabel: some View {
-        Group {
-            if summary.isBalanced {
-                Label("정상", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Text("\(abs(summary.difference).formatted(.number))원 차이")
-                    .foregroundStyle(.orange)
-            }
-        }
-        .font(.caption.weight(.medium).monospacedDigit())
+        return "\(verdict.headline), \(verdict.detail), \(amounts)"
     }
 
     private func amountBlock(title: String, amount: Int) -> some View {
