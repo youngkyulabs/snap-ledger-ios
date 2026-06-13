@@ -173,6 +173,8 @@ struct MonthlyReconciliationView: View {
                     .focused($focusedField, equals: .salary)
                     .opacity(focusedField == .salary ? 1 : 0)
                     .accessibilityLabel("월급")
+                    // 마스킹 중에는 VoiceOver에서도 숨겨 금액이 읽히지 않게 한다 (시각 마스킹과 일관).
+                    .accessibilityHidden(focusedField != .salary)
                 if focusedField != .salary {
                     Button {
                         focusedField = .salary
