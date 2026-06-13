@@ -105,13 +105,17 @@ struct FileSyncView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                // 화면 전체 사용법 안내 — 특정 종류 섹션에 종속돼 보이지 않게 데이터 섹션 위에 한 번 둔다.
+                // 화면 전체 사용법 안내 — 특정 종류 섹션에 종속되지 않게 데이터 섹션 위에
+                // 액션 없는 정보 항목으로 한 번 둔다. info 아이콘으로 탭 가능 행과 구분.
                 Section {
-                    Text(syncGuide)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                    Label {
+                        Text(syncGuide)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 statusSection(title: "지출", statuses: expenseStatuses)
                 statusSection(title: "정산", statuses: reconciliationStatuses)
