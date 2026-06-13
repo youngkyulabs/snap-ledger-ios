@@ -478,7 +478,7 @@ extension ReconciliationStore {
 }
 
 extension ReconciliationDraft {
-    /// 편집 중인 (아직 저장 안 된) 값으로 대사 요약을 계산한다. 임시 모델 인스턴스를 만들어
+    /// 편집 중인 (아직 저장 안 된) 값으로 정산 요약을 계산한다. 임시 모델 인스턴스를 만들어
     /// `ReconciliationSummary.compute`에 넘긴다 (context에 삽입하지 않으므로 영속화되지 않는다).
     func summary(entries: [SavedEntry], month: Int, calendar: Calendar = .current) -> ReconciliationSummary {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)

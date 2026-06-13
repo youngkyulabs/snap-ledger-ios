@@ -104,13 +104,13 @@ struct ReconciliationSummary: Equatable {
 }
 
 /// 정산 대상 달이 아직 진행 중(현재·미래 달)인지, 이미 마감된 과거 달인지.
-/// 진행 중인 달은 기말 잔액이 아직 안 채워져 대사 차이가 의미 없으므로 문구를 다르게 한다.
+/// 진행 중인 달은 기말 잔액이 아직 안 채워져 정산 차이가 의미 없으므로 문구를 다르게 한다.
 enum ReconciliationPeriodStatus: Equatable {
     case inProgress
     case closed
 }
 
-/// 대사 결과를 사용자에게 보여줄 한 줄 판정 (제목 + 보조 설명 + 색상 톤).
+/// 정산 결과를 사용자에게 보여줄 한 줄 판정 (제목 + 보조 설명 + 색상 톤).
 struct ReconciliationVerdict: Equatable {
     enum Tone: Equatable {
         case balanced
@@ -135,7 +135,7 @@ extension ReconciliationSummary {
             return ReconciliationVerdict(
                 tone: .inProgress,
                 headline: "진행 중",
-                detail: "기말 잔액을 채우면 대사돼요"
+                detail: "기말 잔액을 채우면 정산돼요"
             )
         case .closed:
             if isBalanced {

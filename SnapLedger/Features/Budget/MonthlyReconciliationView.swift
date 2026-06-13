@@ -10,7 +10,7 @@ struct MonthlyReconciliationView: View {
     @State private var draft = ReconciliationDraft()
     @State private var didLoad = false
     @State private var activeSheet: ActiveSheet?
-    /// 대사 결과를 제외한 금액(계좌별 잔액·수입·저축·카드·자금변동)을 가린다.
+    /// 정산 결과를 제외한 금액(계좌별 잔액·수입·저축·카드·자금변동)을 가린다.
     @State private var amountsHidden = false
     @State private var conflict: SyncConflict?
     @State private var resultMessage: String?
@@ -169,7 +169,7 @@ struct MonthlyReconciliationView: View {
             }
             .padding(.vertical, 4)
         } header: {
-            Text("대사 결과").textCase(nil)
+            Text("정산 결과").textCase(nil)
         }
     }
 
