@@ -164,7 +164,9 @@ private func reconciliationMoneyField(_ title: String, value: Binding<Int>) -> s
     HStack {
         Text(title)
         Spacer()
-        TextField("0", text: reconciliationAmountBinding(value))
+        // 검토·수정 팝업과 동일한 value+format 방식. 입력 중에도 천 단위 콤마가 즉시 적용된다.
+        // (이전의 text 바인딩 방식은 편집 중 포맷 문자열이 필드에 다시 반영되지 않아 콤마가 안 보였다.)
+        TextField("0", value: reconciliationAmountValue(value), format: .number)
             .keyboardType(.numberPad)
             .multilineTextAlignment(.trailing)
             .frame(maxWidth: 150)
@@ -173,13 +175,10 @@ private func reconciliationMoneyField(_ title: String, value: Binding<Int>) -> s
     }
 }
 
-private func reconciliationAmountBinding(_ value: Binding<Int>) -> Binding<String> {
+/// 0을 빈 칸(placeholder "0")으로 보여주려고 Int?로 감싼다 (검토·수정 팝업의 amountBinding과 동일).
+private func reconciliationAmountValue(_ value: Binding<Int>) -> Binding<Int?> {
     Binding(
-        get: {
-            value.wrappedValue == 0 ? "" : value.wrappedValue.formatted(.number)
-        },
-        set: { newValue in
-            value.wrappedValue = Int(newValue.filter(\.isNumber)) ?? 0
-        }
+        get: { value.wrappedValue == 0 ? nil : value.wrappedValue },
+        set: { value.wrappedValue = $0 ?? 0 }
     )
 }

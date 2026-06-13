@@ -9,6 +9,7 @@ extension SyncCoordinator {
         var incomeOrder = 0
         var savingsOrder = 0
         var cardOrder = 0
+        var adjustmentOrder = 0
     }
 
     func exportReconciliationMonths(_ keys: [String], folderURL: URL, in context: ModelContext) throws {
@@ -108,7 +109,7 @@ extension SyncCoordinator {
             case .openingBalance, .closingBalance, .interest:
                 applyBalanceRow(row, month: month, state: &state)
             case .cashAdjustment:
-                insertAdjustment(row, month: month, in: context)
+                insertAdjustment(row, month: month, state: &state, in: context)
             default:
                 break
             }
@@ -135,7 +136,12 @@ extension SyncCoordinator {
         }
     }
 
-    private func insertAdjustment(_ row: ReconciliationCSVRow, month: Int, in context: ModelContext) {
+    private func insertAdjustment(
+        _ row: ReconciliationCSVRow,
+        month: Int,
+        state: inout ImportState,
+        in context: ModelContext
+    ) {
         guard let direction = row.direction, let amount = row.amount else { return }
         context.insert(
             CashAdjustment(
@@ -143,9 +149,11 @@ extension SyncCoordinator {
                 title: row.title ?? row.kind.rawValue,
                 direction: direction,
                 amount: amount,
+                sortOrder: state.adjustmentOrder,
                 note: row.note
             )
         )
+        state.adjustmentOrder += 1
     }
 
     private func balance(

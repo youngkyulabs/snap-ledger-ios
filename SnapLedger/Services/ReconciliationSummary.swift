@@ -74,8 +74,11 @@ struct ReconciliationSummary: Equatable {
             }
         }
         let recordedExpense = monthEntries.reduce(0) { $0 + $1.amount }
-        let actual = opening + salary + interest + adjustmentNet + card - closing
-        let recorded = recordedExpense + savings
+        // 저축은 "실제 쓴 돈"(실제 소비)에서 제외한다. 저축으로 빠진 돈은 소비가 아니므로 잔액 변화에서
+        // 차감하고, "기록한 돈"에는 지출 기록만 남긴다. 저축을 actual에서 빼든 recorded에 더하든
+        // difference(정산 차이·판정)는 동일하게 유지된다 — 표시 숫자만 바뀐다.
+        let actual = opening + salary + interest + adjustmentNet + card - closing - savings
+        let recorded = recordedExpense
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
             || !monthAdjustments.isEmpty || !monthSavings.isEmpty || !monthCards.isEmpty
             || !monthIncomes.isEmpty

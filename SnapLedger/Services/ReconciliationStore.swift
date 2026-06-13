@@ -59,6 +59,7 @@ struct AdjustmentDraft: Identifiable, Equatable {
     var direction: CashAdjustmentDirection
     var amount: Int
     var note: String?
+    var sortOrder: Int = 0
 }
 
 @MainActor
@@ -126,7 +127,8 @@ struct ReconciliationStore {
                 title: $0.title,
                 direction: $0.direction,
                 amount: $0.amount,
-                note: $0.note
+                note: $0.note,
+                sortOrder: $0.sortOrder
             )
         }
         return draft
@@ -351,13 +353,14 @@ struct ReconciliationStore {
                 )
             )
         }
-        for adjustment in draft.adjustments {
+        for (index, adjustment) in draft.adjustments.enumerated() {
             context.insert(
                 CashAdjustment(
                     monthKey: month,
                     title: adjustment.title,
                     direction: adjustment.direction,
                     amount: adjustment.amount,
+                    sortOrder: index,
                     note: adjustment.note
                 )
             )
@@ -392,7 +395,7 @@ extension ReconciliationStore {
     private func fetchAdjustments(_ month: Int, in context: ModelContext) -> [CashAdjustment] {
         fetchAllAdjustments(in: context)
             .filter { $0.monthKey == month }
-            .sorted { $0.title < $1.title }
+            .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
     }
 
     private func fetchSavings(_ month: Int, in context: ModelContext) -> [SavingsItem] {
@@ -492,6 +495,7 @@ extension ReconciliationDraft {
                     title: $0.title,
                     direction: $0.direction,
                     amount: $0.amount,
+                    sortOrder: $0.sortOrder,
                     note: $0.note
                 )
             },

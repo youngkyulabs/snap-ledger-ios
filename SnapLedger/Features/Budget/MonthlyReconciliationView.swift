@@ -186,6 +186,10 @@ struct MonthlyReconciliationView: View {
                 draft.balances.remove(atOffsets: offsets)
                 save()
             }
+            .onMove { source, destination in
+                draft.balances.move(fromOffsets: source, toOffset: destination)
+                save()
+            }
             addButton("계좌 추가") { activeSheet = .account(nil) }
         } header: {
             Text("계좌별 잔액").textCase(nil)
@@ -204,6 +208,10 @@ struct MonthlyReconciliationView: View {
             }
             .onDelete { offsets in
                 draft.incomes.remove(atOffsets: offsets)
+                save()
+            }
+            .onMove { source, destination in
+                draft.incomes.move(fromOffsets: source, toOffset: destination)
                 save()
             }
             addButton("수입 추가") { activeSheet = .income(nil) }
@@ -228,6 +236,10 @@ struct MonthlyReconciliationView: View {
                 draft.savings.remove(atOffsets: offsets)
                 save()
             }
+            .onMove { source, destination in
+                draft.savings.move(fromOffsets: source, toOffset: destination)
+                save()
+            }
             addButton("저축 항목 추가") { activeSheet = .savings(nil) }
         } header: {
             Text("저축").textCase(nil)
@@ -250,6 +262,10 @@ struct MonthlyReconciliationView: View {
                 draft.cards.remove(atOffsets: offsets)
                 save()
             }
+            .onMove { source, destination in
+                draft.cards.move(fromOffsets: source, toOffset: destination)
+                save()
+            }
             addButton("카드 추가") { activeSheet = .card(nil) }
         } header: {
             Text("카드 사용액").textCase(nil)
@@ -270,6 +286,10 @@ struct MonthlyReconciliationView: View {
             }
             .onDelete { offsets in
                 draft.adjustments.remove(atOffsets: offsets)
+                save()
+            }
+            .onMove { source, destination in
+                draft.adjustments.move(fromOffsets: source, toOffset: destination)
                 save()
             }
             addButton("자금변동 추가") { activeSheet = .adjustment(nil) }
@@ -415,16 +435,17 @@ extension MonthlyReconciliationView {
             draft.adjustments[index].direction = direction
             draft.adjustments[index].amount = amount
         } else {
+            let nextOrder = (draft.adjustments.map(\.sortOrder).max() ?? -1) + 1
             draft.adjustments.append(
                 AdjustmentDraft(
                     title: resolvedTitle,
                     direction: direction,
                     amount: amount,
-                    note: nil
+                    note: nil,
+                    sortOrder: nextOrder
                 )
             )
         }
-        draft.adjustments.sort { $0.title < $1.title }
         amountsHidden = false
         save()
     }

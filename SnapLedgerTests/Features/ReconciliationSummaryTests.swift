@@ -95,8 +95,10 @@ struct ReconciliationSummaryTests {
             calendar: kst
         )
 
-        #expect(summary.actualSpending == 910_000)
-        #expect(summary.recordedSpending == 950_000)
+        // 저축 500,000은 "실제 쓴 돈"에서 차감되고 "기록한 돈"에는 들어가지 않는다.
+        // (이전: actual 910,000 / recorded 950,000 — 차이는 그대로 -40,000.)
+        #expect(summary.actualSpending == 410_000)
+        #expect(summary.recordedSpending == 450_000)
         #expect(summary.difference == -40_000)
     }
 
@@ -173,9 +175,11 @@ struct ReconciliationSummaryTests {
             calendar: kst
         )
 
+        // 저축 100,000은 "실제 쓴 돈"에서 차감(900,000→800,000)되고 "기록한 돈"에서 빠진다(400,000→300,000).
+        // 차이는 그대로 500,000.
         #expect(summary.adjustmentNetAmount == 100_000)
-        #expect(summary.actualSpending == 900_000)
-        #expect(summary.recordedSpending == 400_000)
+        #expect(summary.actualSpending == 800_000)
+        #expect(summary.recordedSpending == 300_000)
         #expect(summary.difference == 500_000)
     }
 
@@ -215,7 +219,8 @@ struct ReconciliationSummaryTests {
         )
 
         #expect(summary.recordedExpenseAmount == 2_000)
-        #expect(summary.recordedSpending == 5_000)
+        // "기록한 돈"은 지출 기록만 — 6월 저축 3,000은 이제 actual 쪽에서 차감된다.
+        #expect(summary.recordedSpending == 2_000)
         #expect(summary.openingBalanceTotal == 10)
         #expect(summary.adjustmentNetAmount == 100)
     }
@@ -368,7 +373,10 @@ struct ReconciliationSummaryTests {
         )
 
         #expect(summary.savingsAmount == 500_000)
-        #expect(summary.recordedSpending == 500_000)
+        // 저축은 "기록한 돈"이 아니라 "실제 쓴 돈"에서 차감된다. 잔액·수입이 없는 단독 입력이라
+        // actual은 -500,000이 된다(실사용에선 잔액 감소·수입이 출처가 되어 양수로 남는다).
+        #expect(summary.recordedSpending == 0)
+        #expect(summary.actualSpending == -500_000)
         #expect(summary.hasReconciliationData == true)
     }
 

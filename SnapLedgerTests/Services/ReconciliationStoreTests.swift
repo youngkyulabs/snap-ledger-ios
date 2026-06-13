@@ -159,6 +159,30 @@ struct ReconciliationStoreTests {
         #expect(incomes.map(\.amount) == [3_000_000, 500_000])
     }
 
+    @Test func adjustmentsPersistDraftOrderAndSurviveReorder() throws {
+        let context = try makeContext()
+        var draft = ReconciliationDraft()
+        draft.adjustments = [
+            AdjustmentDraft(title: "환급", direction: .deposit, amount: 30_000, note: nil, sortOrder: 0),
+            AdjustmentDraft(title: "전월 카드대금", direction: .withdrawal, amount: 400_000, note: nil, sortOrder: 1),
+            AdjustmentDraft(title: "가족 송금", direction: .deposit, amount: 50_000, note: nil, sortOrder: 2),
+        ]
+
+        // 폴더 미설정이라 앱에만 저장되지만 DB 영속화·정렬은 동일하게 검증된다.
+        try ReconciliationStore().save(draft, month: 202_606, in: context)
+
+        // draft 배열 순서가 sortOrder로 보존돼 같은 순서로 다시 불러와진다 (이름순 자동정렬 아님).
+        let reloaded = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        #expect(reloaded.adjustments.map(\.title) == ["환급", "전월 카드대금", "가족 송금"])
+
+        // 첫 항목을 끝으로 옮긴 뒤 저장 → 새 순서가 그대로 보존된다.
+        var moved = reloaded
+        moved.adjustments.append(moved.adjustments.removeFirst())
+        try ReconciliationStore().save(moved, month: 202_606, in: context)
+        let after = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        #expect(after.adjustments.map(\.title) == ["전월 카드대금", "가족 송금", "환급"])
+    }
+
     @Test func loadDraftReadsExistingMonth() throws {
         let context = try makeContext()
         context.insert(MonthlyReconciliation(monthKey: 202_606, note: "메모"))

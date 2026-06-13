@@ -11,27 +11,49 @@ struct ContentView: View {
     @State private var syncResultMessage: String?
     /// "나중에"로 미룬 달 — 이번 세션 동안 같은 달을 매 포그라운드마다 다시 묻지 않도록.
     @State private var snoozedMonths: Set<String> = []
+    @State private var selectedTab: AppTab = .review
+    /// 이미 선택된 통계·예산 탭을 한 번 더 탭하면 그 탭을 현재 월로 되돌리기 위한 신호(카운터).
+    @State private var statsResetNonce = 0
+    @State private var budgetResetNonce = 0
 
     private var pendingReviewCount: Int {
         allParsedEntries.filter { $0.status == .pending }.count
     }
 
+    /// 탭 선택 바인딩. 이미 선택된 탭을 다시 탭하면 같은 값으로 set이 호출되는데,
+    /// 그때 통계·예산이면 리셋 신호를 올려 해당 화면을 현재 월로 되돌린다.
+    private var tabSelection: Binding<AppTab> {
+        Binding(
+            get: { selectedTab },
+            set: { newValue in
+                if newValue == selectedTab {
+                    switch newValue {
+                    case .statistics: statsResetNonce += 1
+                    case .budget: budgetResetNonce += 1
+                    default: break
+                    }
+                }
+                selectedTab = newValue
+            }
+        )
+    }
+
     var body: some View {
-        TabView {
-            Tab("검토", systemImage: "tray.full") {
+        TabView(selection: tabSelection) {
+            Tab("검토", systemImage: "tray.full", value: AppTab.review) {
                 ReviewListView()
             }
             .badge(pendingReviewCount)
-            Tab("최근 기록", systemImage: "list.bullet.rectangle") {
+            Tab("최근 기록", systemImage: "list.bullet.rectangle", value: AppTab.history) {
                 HistoryView()
             }
-            Tab("통계", systemImage: "chart.pie") {
-                StatisticsView()
+            Tab("통계", systemImage: "chart.pie", value: AppTab.statistics) {
+                StatisticsView(resetNonce: statsResetNonce)
             }
-            Tab("예산", systemImage: "wonsign.circle") {
-                BudgetView()
+            Tab("예산", systemImage: "wonsign.circle", value: AppTab.budget) {
+                BudgetView(resetNonce: budgetResetNonce)
             }
-            Tab("설정", systemImage: "gear") {
+            Tab("설정", systemImage: "gear", value: AppTab.settings) {
                 SettingsView()
             }
         }
@@ -169,6 +191,11 @@ struct ContentView: View {
     private func refreshReminder() async {
         await ReminderRefresher.refresh(in: modelContext)
     }
+}
+
+/// TabView 선택 식별자 (재선택 감지를 위해 값 기반 Tab으로 둔다).
+private enum AppTab: Hashable {
+    case review, history, statistics, budget, settings
 }
 
 #Preview {

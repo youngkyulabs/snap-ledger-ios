@@ -3,6 +3,9 @@ import SwiftData
 import Charts
 
 struct StatisticsView: View {
+    /// ContentView가 통계 탭 재선택 시 올리는 신호. 바뀌면 선택 월을 비워 최신(현재) 월로 되돌린다.
+    var resetNonce: Int = 0
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
     @Query private var settingsList: [AppSettings]
@@ -65,6 +68,10 @@ struct StatisticsView: View {
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
             .navigationTitle("통계")
+        }
+        // 탭 재선택 → 선택 월을 비워 최신 달로 복귀 (selectedMonth가 months.first로 폴백).
+        .onChange(of: resetNonce) { _, _ in
+            selectedMonthID = nil
         }
     }
 
