@@ -87,3 +87,50 @@ struct ReconciliationSummary: Equatable {
         )
     }
 }
+
+/// 정산 대상 달이 아직 진행 중(현재·미래 달)인지, 이미 마감된 과거 달인지.
+/// 진행 중인 달은 기말 잔액이 아직 안 채워져 대사 차이가 의미 없으므로 문구를 다르게 한다.
+enum ReconciliationPeriodStatus: Equatable {
+    case inProgress
+    case closed
+}
+
+/// 대사 결과를 사용자에게 보여줄 한 줄 판정 (제목 + 보조 설명 + 색상 톤).
+struct ReconciliationVerdict: Equatable {
+    enum Tone: Equatable {
+        case balanced
+        case off
+        case inProgress
+    }
+
+    let tone: Tone
+    let headline: String
+    let detail: String
+}
+
+extension ReconciliationSummary {
+    static func periodStatus(month: Int, today: Date, calendar: Calendar = .current) -> ReconciliationPeriodStatus {
+        let currentMonth = CategoryBudgetStore.monthKey(from: today, calendar: calendar)
+        return month >= currentMonth ? .inProgress : .closed
+    }
+
+    func verdict(status: ReconciliationPeriodStatus) -> ReconciliationVerdict {
+        switch status {
+        case .inProgress:
+            return ReconciliationVerdict(
+                tone: .inProgress,
+                headline: "진행 중",
+                detail: "기말 잔액을 채우면 대사돼요"
+            )
+        case .closed:
+            if isBalanced {
+                return ReconciliationVerdict(tone: .balanced, headline: "정상", detail: "차이 없음")
+            }
+            return ReconciliationVerdict(
+                tone: .off,
+                headline: "\(abs(difference).formatted(.number))원 차이",
+                detail: difference > 0 ? "실제 쓴 돈이 더 커요" : "기록한 돈이 더 커요"
+            )
+        }
+    }
+}
