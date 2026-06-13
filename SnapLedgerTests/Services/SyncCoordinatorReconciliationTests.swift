@@ -18,6 +18,7 @@ struct SyncCoordinatorReconciliationTests {
             CashAdjustment.self,
             SavingsItem.self,
             CardUsageItem.self,
+            IncomeItem.self,
         ])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
@@ -101,7 +102,8 @@ struct SyncCoordinatorReconciliationTests {
             contentsOf: dir.appendingPathComponent("reconciliations-2026-05.csv"),
             encoding: .utf8
         )
-        #expect(content.contains("월급,,,월급,,3000000,"))
+        // 레거시 단일 salaryAmount는 "수입" 행으로 폴백 export된다.
+        #expect(content.contains("수입,,,월급,,3000000,"))
         #expect(content.contains("저축액,,,저축액,,500000,"))
         #expect(content.contains("기초잔액,,입출금,,,1000000,"))
         // 항목 없는 레거시 creditCardAmount는 단일 카드 행으로 폴백 export된다.
@@ -175,10 +177,15 @@ struct SyncCoordinatorReconciliationTests {
         #expect(summary.totalRows == 8)
         #expect(summary.skippedRows == 0)
 
+        // 레거시 월급 행은 수입 항목(IncomeItem)으로 흡수되고, 단일 salaryAmount는 더 이상 쓰지 않는다.
         let reconciliation = try #require(
             try context.fetch(FetchDescriptor<MonthlyReconciliation>()).first { $0.monthKey == 202_605 }
         )
-        #expect(reconciliation.salaryAmount == 3_000_000)
+        #expect(reconciliation.salaryAmount == 0)
+        let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
+            .filter { $0.monthKey == 202_605 }
+        #expect(incomes.map(\.title) == ["월급"])
+        #expect(incomes.map(\.amount) == [3_000_000])
 
         // 카드 행은 항목(CardUsageItem)으로 import된다 (단일 creditCardAmount는 더 이상 쓰지 않음).
         let cards = try context.fetch(FetchDescriptor<CardUsageItem>())

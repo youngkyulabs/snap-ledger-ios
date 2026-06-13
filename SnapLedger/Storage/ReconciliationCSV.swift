@@ -1,7 +1,9 @@
 import Foundation
 
 enum ReconciliationCSVKind: String, CaseIterable, Sendable {
+    /// 레거시 단일 월급 행. 더 이상 쓰지 않지만 과거 CSV를 읽기 위해 유지한다 (수입 항목으로 흡수).
     case salary = "월급"
+    case income = "수입"
     case creditCard = "카드사용액"
     case savings = "저축액"
     case openingBalance = "기초잔액"

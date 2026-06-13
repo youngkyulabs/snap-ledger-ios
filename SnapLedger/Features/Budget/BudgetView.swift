@@ -12,6 +12,7 @@ struct BudgetView: View {
     @Query private var cashAdjustments: [CashAdjustment]
     @Query private var savingsItems: [SavingsItem]
     @Query private var cardUsageItems: [CardUsageItem]
+    @Query private var incomeItems: [IncomeItem]
 
     @State private var selectedMonthKey: Int?
     @State private var showingLimitEditor = false
@@ -46,7 +47,8 @@ struct BudgetView: View {
                 balances: accountBalances,
                 adjustments: cashAdjustments,
                 savingsItems: savingsItems,
-                cardItems: cardUsageItems
+                cardItems: cardUsageItems,
+                incomeItems: incomeItems
             ),
             targetMonth: effectiveMonthKey
         )
@@ -130,7 +132,7 @@ struct BudgetView: View {
                 ReconciliationSummaryRow(summary: summary, verdict: summary.verdict(status: status))
             }
         } header: {
-            Text("\(Self.monthLabel(effectiveMonthKey)) 정산").textCase(nil)
+            Text("정산하기").textCase(nil)
         }
     }
 
@@ -169,7 +171,7 @@ struct BudgetView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(summaryAccessibilityText(summary))
         } header: {
-            Text(Self.monthLabel(summary.month)).textCase(nil)
+            Text("전체 진행률").textCase(nil)
         }
     }
 
@@ -511,6 +513,7 @@ private struct BudgetLimitEditView: View {
                 CashAdjustment.self,
                 SavingsItem.self,
                 CardUsageItem.self,
+                IncomeItem.self,
             ],
             inMemory: true
         )

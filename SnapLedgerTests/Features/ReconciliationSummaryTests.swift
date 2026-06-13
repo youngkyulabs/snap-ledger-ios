@@ -331,4 +331,37 @@ struct ReconciliationSummaryTests {
         #expect(summary.recordedSpending == 500_000)
         #expect(summary.hasReconciliationData == true)
     }
+
+    @Test func sumsIncomeItems() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606),
+                incomeItems: [
+                    IncomeItem(monthKey: 202_606, title: "월급", amount: 3_000_000),
+                    IncomeItem(monthKey: 202_606, title: "보너스", amount: 500_000),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        // 수입은 actualSpending 계산식의 항 — 잔액·카드·자금변동이 0이면 수입 합계와 같다.
+        #expect(summary.salaryAmount == 3_500_000)
+        #expect(summary.actualSpending == 3_500_000)
+        #expect(summary.hasReconciliationData == true)
+    }
+
+    @Test func usesLegacySalaryAmountWhenNoIncomeItems() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                reconciliation: MonthlyReconciliation(monthKey: 202_606, salaryAmount: 2_000_000)
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+
+        #expect(summary.salaryAmount == 2_000_000)
+    }
 }

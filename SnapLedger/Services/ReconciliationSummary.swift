@@ -6,19 +6,22 @@ struct ReconciliationSummaryInput {
     var adjustments: [CashAdjustment]
     var savingsItems: [SavingsItem]
     var cardItems: [CardUsageItem]
+    var incomeItems: [IncomeItem]
 
     init(
         reconciliation: MonthlyReconciliation? = nil,
         balances: [AccountMonthlyBalance] = [],
         adjustments: [CashAdjustment] = [],
         savingsItems: [SavingsItem] = [],
-        cardItems: [CardUsageItem] = []
+        cardItems: [CardUsageItem] = [],
+        incomeItems: [IncomeItem] = []
     ) {
         self.reconciliation = reconciliation
         self.balances = balances
         self.adjustments = adjustments
         self.savingsItems = savingsItems
         self.cardItems = cardItems
+        self.incomeItems = incomeItems
     }
 }
 
@@ -52,12 +55,16 @@ struct ReconciliationSummary: Equatable {
         let monthAdjustments = input.adjustments.filter { $0.monthKey == targetMonth }
         let monthSavings = input.savingsItems.filter { $0.monthKey == targetMonth }
         let monthCards = input.cardItems.filter { $0.monthKey == targetMonth }
+        let monthIncomes = input.incomeItems.filter { $0.monthKey == targetMonth }
         let monthReconciliation = input.reconciliation?.monthKey == targetMonth ? input.reconciliation : nil
 
         let opening = monthBalances.reduce(0) { $0 + $1.openingBalance }
         let closing = monthBalances.reduce(0) { $0 + $1.closingBalance }
         let interest = monthBalances.reduce(0) { $0 + $1.interestAmount }
-        let salary = monthReconciliation?.salaryAmount ?? 0
+        // 수입은 항목별 합계. 항목이 없는 레거시 데이터는 단일 salaryAmount로 폴백.
+        let salary = monthIncomes.isEmpty
+            ? (monthReconciliation?.salaryAmount ?? 0)
+            : monthIncomes.reduce(0) { $0 + $1.amount }
         // 카드는 항목별 합계. 항목이 없는 레거시 데이터는 단일 creditCardAmount로 폴백.
         let card = monthCards.isEmpty
             ? (monthReconciliation?.creditCardAmount ?? 0)
@@ -76,6 +83,7 @@ struct ReconciliationSummary: Equatable {
         let recorded = recordedExpense + savings
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
             || !monthAdjustments.isEmpty || !monthSavings.isEmpty || !monthCards.isEmpty
+            || !monthIncomes.isEmpty
 
         return ReconciliationSummary(
             month: targetMonth,

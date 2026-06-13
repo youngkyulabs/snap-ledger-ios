@@ -11,7 +11,7 @@ struct AppSchemaTests {
         #expect(names == [
             "PendingImage", "ParsedEntry", "SavedEntry", "MerchantCategory", "AppSettings",
             "CSVFileState", "CategoryBudget", "MonthlyReconciliation", "AccountMonthlyBalance",
-            "CashAdjustment", "SavingsItem", "CardUsageItem",
+            "CashAdjustment", "SavingsItem", "CardUsageItem", "IncomeItem",
         ])
     }
 }

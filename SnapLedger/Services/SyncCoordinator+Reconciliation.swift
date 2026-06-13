@@ -30,9 +30,32 @@ extension SyncCoordinator {
         var balanceState = BalanceImportState()
         var savingsOrder = 0
         var cardOrder = 0
+        var incomeOrder = 0
 
         for row in rows {
             switch row.kind {
+            case .income:
+                context.insert(
+                    IncomeItem(
+                        monthKey: month,
+                        title: row.title ?? ReconciliationCSVKind.income.rawValue,
+                        amount: row.amount,
+                        sortOrder: incomeOrder
+                    )
+                )
+                incomeOrder += 1
+            case .salary:
+                // 레거시 월급 행은 수입 항목으로 흡수한다 (월 단위 메모는 보존).
+                context.insert(
+                    IncomeItem(
+                        monthKey: month,
+                        title: row.title ?? ReconciliationStore.legacyIncomeTitle,
+                        amount: row.amount,
+                        sortOrder: incomeOrder
+                    )
+                )
+                incomeOrder += 1
+                if let note = row.note { reconciliation.note = note }
             case .savings:
                 context.insert(
                     SavingsItem(
@@ -78,7 +101,9 @@ extension SyncCoordinator {
             .map { Self.monthKeyString(from: $0.monthKey) }
         let cardKeys = ((try? context.fetch(FetchDescriptor<CardUsageItem>())) ?? [])
             .map { Self.monthKeyString(from: $0.monthKey) }
-        return Set(reconciliationKeys + balanceKeys + adjustmentKeys + savingsKeys + cardKeys)
+        let incomeKeys = ((try? context.fetch(FetchDescriptor<IncomeItem>())) ?? [])
+            .map { Self.monthKeyString(from: $0.monthKey) }
+        return Set(reconciliationKeys + balanceKeys + adjustmentKeys + savingsKeys + cardKeys + incomeKeys)
     }
 
     private func apply(
@@ -89,11 +114,8 @@ extension SyncCoordinator {
         in context: ModelContext
     ) {
         switch row.kind {
-        case .salary:
-            reconciliation.salaryAmount = row.amount
-            reconciliation.note = row.note
-        case .creditCard, .savings:
-            // 카드·저축 항목은 replaceReconciliationMonth 루프에서 직접 처리한다.
+        case .salary, .income, .creditCard, .savings:
+            // 월급·수입·카드·저축 항목은 replaceReconciliationMonth 루프에서 직접 처리한다.
             break
         case .openingBalance, .closingBalance, .interest:
             applyBalanceRow(row, month: month, balanceState: &balanceState)
@@ -116,7 +138,7 @@ extension SyncCoordinator {
             balance.closingBalance = row.amount
         case .interest:
             balance.interestAmount = row.amount
-        case .salary, .creditCard, .savings, .cashAdjustment:
+        case .salary, .income, .creditCard, .savings, .cashAdjustment:
             break
         }
     }
