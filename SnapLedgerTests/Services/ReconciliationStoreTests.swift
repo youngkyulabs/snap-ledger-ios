@@ -16,13 +16,8 @@ struct ReconciliationStoreTests {
 
     @Test func loadDraftCarriesForwardPreviousMonthWithoutPersisting() throws {
         let context = try makeContext()
-        context.insert(
-            MonthlyReconciliation(
-                monthKey: 202_605,
-                salaryAmount: 3_000_000,
-                creditCardAmount: 450_000
-            )
-        )
+        context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000, sortOrder: 0))
+        context.insert(CardUsageItem(monthKey: 202_605, title: "신한카드", amount: 450_000, sortOrder: 0))
         context.insert(SavingsItem(monthKey: 202_605, title: "적금", amount: 500_000))
         context.insert(
             AccountMonthlyBalance(
@@ -38,10 +33,10 @@ struct ReconciliationStoreTests {
 
         let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
 
-        // 레거시 단일 월급 금액이 "월급" 한 항목으로 흡수되어 이월된다.
+        // 전월 수입 항목이 이름·금액 그대로 이월된다.
         #expect(draft.incomes.map(\.amount).reduce(0, +) == 3_000_000)
         #expect(draft.incomes.first?.title == "월급")
-        // 레거시 단일 카드 금액이 한 항목으로 흡수되어 이월된다.
+        // 전월 카드 항목이 이름·금액 그대로 이월된다.
         #expect(draft.cards.map(\.amount).reduce(0, +) == 450_000)
         #expect(draft.savings.map(\.amount).reduce(0, +) == 500_000)
         #expect(draft.savings.first?.title == "적금")
@@ -63,7 +58,7 @@ struct ReconciliationStoreTests {
 
     @Test func cardItemsCarryForwardAndPersistOnSave() throws {
         let context = try makeContext()
-        context.insert(MonthlyReconciliation(monthKey: 202_605, salaryAmount: 1))
+        context.insert(MonthlyReconciliation(monthKey: 202_605))
         context.insert(CardUsageItem(monthKey: 202_605, title: "신한", amount: 300_000, sortOrder: 0))
         context.insert(CardUsageItem(monthKey: 202_605, title: "현대", amount: 200_000, sortOrder: 1))
         try context.save()
@@ -73,17 +68,13 @@ struct ReconciliationStoreTests {
         #expect(draft.cards.map(\.title) == ["신한", "현대"])
         #expect(draft.cards.map(\.amount) == [300_000, 200_000])
 
-        // 저장하면 항목으로 영속화되고, 레거시 단일 필드는 0으로 비워둔다.
+        // 저장하면 카드 항목으로 영속화된다.
         try ReconciliationStore().save(draft, month: 202_606, in: context)
         let cards = try context.fetch(FetchDescriptor<CardUsageItem>())
             .filter { $0.monthKey == 202_606 }
             .sorted { $0.sortOrder < $1.sortOrder }
         #expect(cards.map(\.title) == ["신한", "현대"])
         #expect(cards.map(\.amount) == [300_000, 200_000])
-        let reconciliation = try #require(
-            try context.fetch(FetchDescriptor<MonthlyReconciliation>()).first { $0.monthKey == 202_606 }
-        )
-        #expect(reconciliation.creditCardAmount == 0)
     }
 
     @Test func incomeItemsCarryForwardAndPersistOnSave() throws {
@@ -98,22 +89,19 @@ struct ReconciliationStoreTests {
         #expect(draft.incomes.map(\.title) == ["월급", "보너스"])
         #expect(draft.incomes.map(\.amount) == [3_000_000, 500_000])
 
-        // 저장하면 항목으로 영속화되고, 레거시 단일 필드는 0으로 비워둔다.
+        // 저장하면 수입 항목으로 영속화된다.
         try ReconciliationStore().save(draft, month: 202_606, in: context)
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
             .filter { $0.monthKey == 202_606 }
             .sorted { $0.sortOrder < $1.sortOrder }
         #expect(incomes.map(\.title) == ["월급", "보너스"])
         #expect(incomes.map(\.amount) == [3_000_000, 500_000])
-        let reconciliation = try #require(
-            try context.fetch(FetchDescriptor<MonthlyReconciliation>()).first { $0.monthKey == 202_606 }
-        )
-        #expect(reconciliation.salaryAmount == 0)
     }
 
     @Test func loadDraftReadsExistingMonth() throws {
         let context = try makeContext()
-        context.insert(MonthlyReconciliation(monthKey: 202_606, salaryAmount: 1, note: "메모"))
+        context.insert(MonthlyReconciliation(monthKey: 202_606, note: "메모"))
+        context.insert(IncomeItem(monthKey: 202_606, title: "월급", amount: 1))
         context.insert(AccountMonthlyBalance(monthKey: 202_606, accountName: "통장", openingBalance: 10))
         try context.save()
 
@@ -134,11 +122,9 @@ struct ReconciliationStoreTests {
         let exported = try ReconciliationStore().save(draft, month: 202_606, in: context)
 
         #expect(exported == false) // 폴더 미설정 → 앱에만 저장
-        // 수입은 항목으로 영속화되고, 레거시 단일 salaryAmount는 0으로 비워둔다.
+        // 수입은 항목으로 영속화된다.
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
         #expect(incomes.first { $0.monthKey == 202_606 }?.amount == 2_000_000)
-        let reconciliations = try context.fetch(FetchDescriptor<MonthlyReconciliation>())
-        #expect(reconciliations.first { $0.monthKey == 202_606 }?.salaryAmount == 0)
         let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
         #expect(balances.first { $0.monthKey == 202_606 }?.closingBalance == 200)
         let savings = try context.fetch(FetchDescriptor<SavingsItem>())
@@ -148,7 +134,7 @@ struct ReconciliationStoreTests {
 
     @Test func saveEmptyDraftClearsExistingMonth() throws {
         let context = try makeContext()
-        context.insert(MonthlyReconciliation(monthKey: 202_606, salaryAmount: 5))
+        context.insert(MonthlyReconciliation(monthKey: 202_606))
         context.insert(AccountMonthlyBalance(monthKey: 202_606, accountName: "통장"))
         context.insert(SavingsItem(monthKey: 202_606, title: "적금", amount: 100))
         try context.save()

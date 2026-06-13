@@ -78,13 +78,9 @@ struct SyncCoordinatorReconciliationTests {
         try configureFolder(dir, in: context)
         let sync = SyncCoordinator()
 
-        context.insert(
-            MonthlyReconciliation(
-                monthKey: 202_605,
-                salaryAmount: 3_000_000,
-                creditCardAmount: 450_000
-            )
-        )
+        context.insert(MonthlyReconciliation(monthKey: 202_605))
+        context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000))
+        context.insert(CardUsageItem(monthKey: 202_605, title: "카드 사용액", amount: 450_000))
         context.insert(SavingsItem(monthKey: 202_605, title: "저축액", amount: 500_000))
         context.insert(
             AccountMonthlyBalance(
@@ -102,11 +98,11 @@ struct SyncCoordinatorReconciliationTests {
             contentsOf: dir.appendingPathComponent("reconciliations-2026-05.csv"),
             encoding: .utf8
         )
-        // 레거시 단일 salaryAmount는 "수입" 행으로 폴백 export된다.
+        // 수입 항목은 "수입" 행으로 export된다.
         #expect(content.contains("수입,월급,,,3000000,"))
         #expect(content.contains("저축액,저축액,,,500000,"))
         #expect(content.contains("기초잔액,,입출금,,1000000,"))
-        // 항목 없는 레거시 creditCardAmount는 단일 카드 행으로 폴백 export된다.
+        // 카드 항목은 카드사용액 행으로 export된다.
         #expect(content.contains("카드사용액,카드 사용액,,,450000,"))
 
         let statuses = await sync.monthStatuses(in: context)
@@ -122,7 +118,7 @@ struct SyncCoordinatorReconciliationTests {
         try configureFolder(dir, in: context)
         let sync = SyncCoordinator()
 
-        context.insert(MonthlyReconciliation(monthKey: 202_605, salaryAmount: 3_000_000))
+        context.insert(MonthlyReconciliation(monthKey: 202_605))
         context.insert(CardUsageItem(monthKey: 202_605, title: "신한", amount: 300_000, sortOrder: 0))
         context.insert(CardUsageItem(monthKey: 202_605, title: "현대", amount: 200_000, sortOrder: 1))
         try context.save()
@@ -144,7 +140,7 @@ struct SyncCoordinatorReconciliationTests {
         try configureFolder(dir, in: context)
         let sync = SyncCoordinator()
 
-        context.insert(MonthlyReconciliation(monthKey: 202_605, salaryAmount: 1))
+        context.insert(MonthlyReconciliation(monthKey: 202_605))
         context.insert(AccountMonthlyBalance(monthKey: 202_605, accountName: "기존", openingBalance: 1))
         context.insert(SavingsItem(monthKey: 202_605, title: "기존저축", amount: 1))
         context.insert(
@@ -177,17 +173,13 @@ struct SyncCoordinatorReconciliationTests {
         #expect(summary.totalRows == 8)
         #expect(summary.skippedRows == 0)
 
-        // "수입" 행은 IncomeItem으로 import되고, 단일 salaryAmount는 더 이상 쓰지 않는다.
-        let reconciliation = try #require(
-            try context.fetch(FetchDescriptor<MonthlyReconciliation>()).first { $0.monthKey == 202_605 }
-        )
-        #expect(reconciliation.salaryAmount == 0)
+        // "수입" 행은 IncomeItem으로 import된다.
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
             .filter { $0.monthKey == 202_605 }
         #expect(incomes.map(\.title) == ["월급"])
         #expect(incomes.map(\.amount) == [3_000_000])
 
-        // 카드 행은 항목(CardUsageItem)으로 import된다 (단일 creditCardAmount는 더 이상 쓰지 않음).
+        // 카드 행은 항목(CardUsageItem)으로 import된다.
         let cards = try context.fetch(FetchDescriptor<CardUsageItem>())
             .filter { $0.monthKey == 202_605 }
         #expect(cards.map(\.title) == ["카드 사용액"])

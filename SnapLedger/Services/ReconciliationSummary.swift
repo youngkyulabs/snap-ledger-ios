@@ -61,14 +61,9 @@ struct ReconciliationSummary: Equatable {
         let opening = monthBalances.reduce(0) { $0 + $1.openingBalance }
         let closing = monthBalances.reduce(0) { $0 + $1.closingBalance }
         let interest = monthBalances.reduce(0) { $0 + $1.interestAmount }
-        // 수입은 항목별 합계. 항목이 없는 레거시 데이터는 단일 salaryAmount로 폴백.
-        let salary = monthIncomes.isEmpty
-            ? (monthReconciliation?.salaryAmount ?? 0)
-            : monthIncomes.reduce(0) { $0 + $1.amount }
-        // 카드는 항목별 합계. 항목이 없는 레거시 데이터는 단일 creditCardAmount로 폴백.
-        let card = monthCards.isEmpty
-            ? (monthReconciliation?.creditCardAmount ?? 0)
-            : monthCards.reduce(0) { $0 + $1.amount }
+        // 수입·카드는 항목별 합계.
+        let salary = monthIncomes.reduce(0) { $0 + $1.amount }
+        let card = monthCards.reduce(0) { $0 + $1.amount }
         let savings = monthSavings.reduce(0) { $0 + $1.amount }
         let adjustmentNet = monthAdjustments.reduce(0) { partial, adjustment in
             switch adjustment.direction {

@@ -104,8 +104,8 @@ struct ReconciliationStore {
         if let reconciliation {
             draft.note = reconciliation.note ?? ""
         }
-        draft.incomes = incomeDrafts(reconciliation: reconciliation, items: incomeItems)
-        draft.cards = cardDrafts(reconciliation: reconciliation, items: cardItems)
+        draft.incomes = incomeDrafts(items: incomeItems)
+        draft.cards = cardDrafts(items: cardItems)
         draft.savings = savingsItems.map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
         }
@@ -133,10 +133,9 @@ struct ReconciliationStore {
     /// 전월 정산을 바탕으로 한 미리 채움 값 (영속화하지 않음). 잔액은 전월 월말을 이번 달 월초로 이월한다.
     private func carryForwardDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
         let previous = Self.previousMonthKey(month)
-        let prevReconciliation = fetchReconciliation(previous, in: context)
         var draft = ReconciliationDraft()
-        draft.incomes = incomeDrafts(reconciliation: prevReconciliation, items: fetchIncomes(previous, in: context))
-        draft.cards = cardDrafts(reconciliation: prevReconciliation, items: fetchCards(previous, in: context))
+        draft.incomes = incomeDrafts(items: fetchIncomes(previous, in: context))
+        draft.cards = cardDrafts(items: fetchCards(previous, in: context))
         draft.savings = fetchSavings(previous, in: context).map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
         }
@@ -152,32 +151,15 @@ struct ReconciliationStore {
         return draft
     }
 
-    /// 카드 항목을 draft로 변환한다. 항목이 없고 레거시 단일 `creditCardAmount`만 있으면
-    /// 한 항목으로 흡수해 과거 데이터가 사라지지 않게 한다.
-    private func cardDrafts(reconciliation: MonthlyReconciliation?, items: [CardUsageItem]) -> [CardUsageItemDraft] {
-        if !items.isEmpty {
-            return items.map { CardUsageItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
-        }
-        if let amount = reconciliation?.creditCardAmount, amount != 0 {
-            return [CardUsageItemDraft(title: Self.legacyCardTitle, amount: amount)]
-        }
-        return []
+    /// 카드 항목을 draft로 변환한다.
+    private func cardDrafts(items: [CardUsageItem]) -> [CardUsageItemDraft] {
+        items.map { CardUsageItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
     }
 
-    /// 수입 항목을 draft로 변환한다. 항목이 없고 레거시 단일 `salaryAmount`만 있으면
-    /// "월급" 한 항목으로 흡수해 과거 데이터가 사라지지 않게 한다.
-    private func incomeDrafts(reconciliation: MonthlyReconciliation?, items: [IncomeItem]) -> [IncomeItemDraft] {
-        if !items.isEmpty {
-            return items.map { IncomeItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
-        }
-        if let amount = reconciliation?.salaryAmount, amount != 0 {
-            return [IncomeItemDraft(title: Self.legacyIncomeTitle, amount: amount)]
-        }
-        return []
+    /// 수입 항목을 draft로 변환한다.
+    private func incomeDrafts(items: [IncomeItem]) -> [IncomeItemDraft] {
+        items.map { IncomeItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
     }
-
-    static let legacyCardTitle = "카드 사용액"
-    static let legacyIncomeTitle = "월급"
 
     // MARK: - 저장 (편집 폼 → DB + CSV)
 
@@ -220,12 +202,12 @@ struct ReconciliationStore {
         let incomeItems = fetchIncomes(month, in: context)
 
         var rows: [ReconciliationCSVRow] = []
-        for income in incomeDrafts(reconciliation: reconciliation, items: incomeItems) {
+        for income in incomeDrafts(items: incomeItems) {
             rows.append(
                 ReconciliationCSVRow(kind: .income, title: income.title, amount: income.amount)
             )
         }
-        for card in cardDrafts(reconciliation: reconciliation, items: cardItems) {
+        for card in cardDrafts(items: cardItems) {
             rows.append(
                 ReconciliationCSVRow(kind: .creditCard, title: card.title, amount: card.amount)
             )
@@ -324,9 +306,6 @@ struct ReconciliationStore {
         context.insert(
             MonthlyReconciliation(
                 monthKey: month,
-                // 수입·카드는 항목(IncomeItem·CardUsageItem)으로 관리. 레거시 단일 필드는 0으로 비운다.
-                salaryAmount: 0,
-                creditCardAmount: 0,
                 note: trimmedNote.isEmpty ? nil : trimmedNote
             )
         )
@@ -496,9 +475,6 @@ extension ReconciliationDraft {
         ReconciliationSummaryInput(
             reconciliation: MonthlyReconciliation(
                 monthKey: month,
-                // 수입은 incomeItems로 넘기므로 레거시 salaryAmount는 0.
-                salaryAmount: 0,
-                creditCardAmount: 0,
                 note: trimmedNote.isEmpty ? nil : trimmedNote
             ),
             balances: balances.map {
