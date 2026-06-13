@@ -129,23 +129,32 @@ extension ReconciliationSummary {
         return month >= currentMonth ? .inProgress : .closed
     }
 
-    func verdict(status: ReconciliationPeriodStatus) -> ReconciliationVerdict {
+    /// `revealInProgressDifference`가 true면 진행 중인 달이라도 차이가 있을 때 그 차이를 보여준다
+    /// (정산 화면 전용 — 입력하면서 차이를 바로 확인). 톤은 '진행 중'(중립)으로 두어 확정 전임을 알린다.
+    /// 차이가 0이면 빈 달이 '정상'으로 오표기되지 않도록 '진행 중'으로 표시한다.
+    func verdict(
+        status: ReconciliationPeriodStatus,
+        revealInProgressDifference: Bool = false
+    ) -> ReconciliationVerdict {
         switch status {
         case .inProgress:
-            return ReconciliationVerdict(
-                tone: .inProgress,
-                headline: "진행 중",
-                detail: ""
-            )
+            if revealInProgressDifference && !isBalanced {
+                return differenceVerdict(tone: .inProgress)
+            }
+            return ReconciliationVerdict(tone: .inProgress, headline: "진행 중", detail: "")
         case .closed:
             if isBalanced {
                 return ReconciliationVerdict(tone: .balanced, headline: "정상", detail: "차이 없음")
             }
-            return ReconciliationVerdict(
-                tone: .off,
-                headline: "\(abs(difference).formatted(.number))원 차이",
-                detail: difference > 0 ? "실제 쓴 돈이 더 커요" : "기록한 돈이 더 커요"
-            )
+            return differenceVerdict(tone: .off)
         }
+    }
+
+    private func differenceVerdict(tone: ReconciliationVerdict.Tone) -> ReconciliationVerdict {
+        ReconciliationVerdict(
+            tone: tone,
+            headline: "\(abs(difference).formatted(.number))원 차이",
+            detail: difference > 0 ? "실제 쓴 돈이 더 커요" : "기록한 돈이 더 커요"
+        )
     }
 }

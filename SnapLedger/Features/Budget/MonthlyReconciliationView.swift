@@ -146,7 +146,7 @@ struct MonthlyReconciliationView: View {
     // MARK: - 섹션
 
     private var summarySection: some View {
-        let verdict = summary.verdict(status: periodStatus)
+        let verdict = summary.verdict(status: periodStatus, revealInProgressDifference: true)
         return Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
@@ -348,6 +348,8 @@ extension MonthlyReconciliationView {
                 BalanceDraft(accountName: name, sortOrder: nextOrder, opening: opening, closing: closing, interest: interest)
             )
         }
+        // 추가·수정한 금액을 바로 확인할 수 있도록 가리기를 해제한다.
+        amountsHidden = false
     }
 
     private func saveIncome(existing: IncomeItemDraft?, title: String, amount: Int) {
@@ -358,6 +360,7 @@ extension MonthlyReconciliationView {
             let nextOrder = (draft.incomes.map(\.sortOrder).max() ?? -1) + 1
             draft.incomes.append(IncomeItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
+        amountsHidden = false
     }
 
     private func saveSavings(existing: SavingsItemDraft?, title: String, amount: Int) {
@@ -368,6 +371,7 @@ extension MonthlyReconciliationView {
             let nextOrder = (draft.savings.map(\.sortOrder).max() ?? -1) + 1
             draft.savings.append(SavingsItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
+        amountsHidden = false
     }
 
     private func saveCard(existing: CardUsageItemDraft?, title: String, amount: Int) {
@@ -378,6 +382,7 @@ extension MonthlyReconciliationView {
             let nextOrder = (draft.cards.map(\.sortOrder).max() ?? -1) + 1
             draft.cards.append(CardUsageItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
+        amountsHidden = false
     }
 
     private func saveAdjustment(
@@ -403,6 +408,7 @@ extension MonthlyReconciliationView {
             )
         }
         draft.adjustments.sort { $0.date == $1.date ? $0.title < $1.title : $0.date < $1.date }
+        amountsHidden = false
     }
 
     private func save(ignoringConflict: Bool = false) {
