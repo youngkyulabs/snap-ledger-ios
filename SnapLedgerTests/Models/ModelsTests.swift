@@ -156,5 +156,9 @@ struct ModelsTests {
         #expect(fetched.first?.csvFolderBookmark == nil)
         #expect(fetched.first?.categoryPresets.contains("식비") == true)
         #expect(fetched.first?.categoryPresets.contains("기타") == true)
+        // 2026-06 기본값 8→10 (생활·구독 추가, 리서치 기반).
+        #expect(fetched.first?.categoryPresets.contains("생활") == true)
+        #expect(fetched.first?.categoryPresets.contains("구독") == true)
+        #expect(fetched.first?.categoryPresets.count == 10)
     }
 }
