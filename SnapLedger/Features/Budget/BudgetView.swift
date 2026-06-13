@@ -11,6 +11,7 @@ struct BudgetView: View {
     @Query private var accountBalances: [AccountMonthlyBalance]
     @Query private var cashAdjustments: [CashAdjustment]
     @Query private var savingsItems: [SavingsItem]
+    @Query private var cardUsageItems: [CardUsageItem]
 
     @State private var selectedMonthKey: Int?
     @State private var showingLimitEditor = false
@@ -44,7 +45,8 @@ struct BudgetView: View {
                 reconciliation: reconciliations.first { $0.monthKey == effectiveMonthKey },
                 balances: accountBalances,
                 adjustments: cashAdjustments,
-                savingsItems: savingsItems
+                savingsItems: savingsItems,
+                cardItems: cardUsageItems
             ),
             targetMonth: effectiveMonthKey
         )
