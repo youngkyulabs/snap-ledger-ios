@@ -40,7 +40,8 @@ struct BudgetView: View {
         let cal = Calendar.current
         for entry in entries { keys.insert(CategoryBudgetStore.monthKey(from: entry.date, calendar: cal)) }
         for budget in budgets where budget.monthlyLimit > 0 { keys.insert(budget.effectiveFrom) }
-        return keys.sorted(by: >)
+        // 다음 달 미리보기 제거: 현재 달 이후는 노출하지 않는다(레거시 미래 effectiveFrom 포함).
+        return keys.filter { $0 <= currentMonthKey }.sorted(by: >)
     }
 
     private var summary: BudgetProgress.Summary {
@@ -131,7 +132,7 @@ struct BudgetView: View {
                 title: Self.monthLabel(effectiveMonthKey),
                 options: availableMonthKeys.map { .init(key: $0, title: Self.monthLabel($0)) },
                 canStepBackward: effectiveMonthKey > (availableMonthKeys.min() ?? currentMonthKey),
-                canStepForward: effectiveMonthKey < CategoryBudgetStore.nextMonthKey(currentMonthKey),
+                canStepForward: effectiveMonthKey < currentMonthKey,
                 stepBackward: { selectedMonthKey = CategoryBudgetStore.previousMonthKey(effectiveMonthKey) },
                 stepForward: { selectedMonthKey = CategoryBudgetStore.nextMonthKey(effectiveMonthKey) },
                 select: { selectedMonthKey = $0 }
