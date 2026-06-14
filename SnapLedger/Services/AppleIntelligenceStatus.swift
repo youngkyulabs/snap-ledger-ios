@@ -52,7 +52,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
         case .appleIntelligenceOff:
             return "설정 → Apple Intelligence 및 Siri에서 켜 주세요. iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 쓸 수 있어요."
         case .deviceNotEligible:
-            return "자동 추출은 iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 동작해요. 그 외 기기에서는 검토 탭의 + 버튼으로 직접 입력해서 추가하세요."
+            return "자동 추출은 iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 동작해요. 그 외 기기에서는 검토 탭 + 버튼의 ‘수동 입력’으로 직접 추가하세요."
         case .modelNotReady:
             return "Apple Intelligence가 백그라운드에서 준비 중이에요. 충전 중이거나 Wi-Fi에 연결된 상태로 잠시 기다리면 자동으로 켜져요."
         }

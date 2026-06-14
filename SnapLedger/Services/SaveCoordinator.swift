@@ -28,7 +28,7 @@ struct SaveCoordinator {
 
         var errorDescription: String? {
             switch self {
-            case .noCSVFolder: "CSV 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 골라 주세요."
+            case .noCSVFolder: "CSV 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 선택해 주세요."
             case .bookmarkResolveFailed(let err): "폴더 권한을 복구하지 못했어요: \(err.localizedDescription)"
             case .externalConflict(let months):
                 "\(CSVWriter.monthLabels(months)) 파일이 앱 밖에서 변경됐어요. 먼저 가져오거나 덮어쓸지 선택해 주세요."

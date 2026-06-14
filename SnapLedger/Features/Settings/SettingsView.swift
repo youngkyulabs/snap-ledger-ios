@@ -293,7 +293,7 @@ struct SettingsView: View {
                 Button {
                     openSystemSettingsURL()
                 } label: {
-                    Label("설정 앱 열기", systemImage: "arrow.up.right.square")
+                    Label("설정 열기", systemImage: "arrow.up.right.square")
                         .foregroundStyle(.primary)
                 }
             }
