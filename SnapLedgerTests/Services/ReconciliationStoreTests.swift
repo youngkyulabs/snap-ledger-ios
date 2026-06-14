@@ -14,23 +14,6 @@ struct ReconciliationStoreTests {
         return ModelContext(container)
     }
 
-    @Test func loadDraftMarksCarriedForwardDraft() throws {
-        let context = try makeContext()
-        context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000, sortOrder: 0))
-        try context.save()
-
-        // 전월 값으로 프리필된 빈 달 → 이월 초안으로 표시된다.
-        let carried = ReconciliationStore().loadDraft(for: 202_606, in: context)
-        #expect(carried.isCarriedForward)
-
-        // 저장된 데이터가 있는 달 → 이월 초안이 아니다.
-        context.insert(MonthlyReconciliation(monthKey: 202_607))
-        context.insert(IncomeItem(monthKey: 202_607, title: "월급", amount: 1, sortOrder: 0))
-        try context.save()
-        let loaded = ReconciliationStore().loadDraft(for: 202_607, in: context)
-        #expect(!loaded.isCarriedForward)
-    }
-
     @Test func saveRollsBackWhenCSVWriteFails() throws {
         let schema = Schema([
             PendingImage.self, ParsedEntry.self, SavedEntry.self, MerchantCategory.self,

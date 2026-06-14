@@ -454,8 +454,6 @@ extension MonthlyReconciliationView {
     }
 
     private func save(ignoringConflict: Bool = false) {
-        // 한 번이라도 편집하면 더 이상 '이월 프리필'이 아니라 사용자가 확정하는 정산이다.
-        draft.isCarriedForward = false
         do {
             // 편집할 때마다 조용히 자동 저장한다 (지출 기록과 동일). 성공 토스트는 띄우지 않는다.
             try ReconciliationStore().save(

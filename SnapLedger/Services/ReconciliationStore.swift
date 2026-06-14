@@ -11,10 +11,6 @@ struct ReconciliationDraft: Equatable {
     var balances: [BalanceDraft] = []
     var adjustments: [AdjustmentDraft] = []
 
-    /// 전월 값으로 프리필된(아직 저장하지 않은) 초안인지. true면 화면은 차이 판정 대신
-    /// '아직 정산 전'을 보여줘, 빈 DB를 읽는 예산 탭과 결론이 어긋나지 않게 한다.
-    var isCarriedForward = false
-
     /// 저장할 의미 있는 내용이 하나도 없으면 true (저장 시 그 달을 비운다).
     var isEmpty: Bool {
         incomes.isEmpty && cards.isEmpty && savings.isEmpty
@@ -165,7 +161,6 @@ struct ReconciliationStore {
                 interest: 0
             )
         }
-        draft.isCarriedForward = true
         return draft
     }
 
