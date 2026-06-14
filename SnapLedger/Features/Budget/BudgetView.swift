@@ -40,7 +40,8 @@ struct BudgetView: View {
         let cal = Calendar.current
         for entry in entries { keys.insert(CategoryBudgetStore.monthKey(from: entry.date, calendar: cal)) }
         for budget in budgets where budget.monthlyLimit > 0 { keys.insert(budget.effectiveFrom) }
-        return keys.sorted(by: >)
+        // 다음 달 미리보기 제거: 현재 달 이후는 노출하지 않는다(레거시 미래 effectiveFrom 포함).
+        return keys.filter { $0 <= currentMonthKey }.sorted(by: >)
     }
 
     private var summary: BudgetProgress.Summary {
@@ -124,14 +125,14 @@ struct BudgetView: View {
     }
 
     // 화살표는 달력 인접 이동 (한도는 매달 이어지므로 기록 없는 달도 의미가 있다).
-    // 다음 달까지 허용 — 다음 달 예산을 미리 세팅하는 용도.
+    // 앞으로는 현재 달까지만 허용 (다음 달 미리보기 제거 — 한도는 자동 이월됨).
     private var monthPickerSection: some View {
         Section {
             MonthNavigationRow(
                 title: Self.monthLabel(effectiveMonthKey),
                 options: availableMonthKeys.map { .init(key: $0, title: Self.monthLabel($0)) },
                 canStepBackward: effectiveMonthKey > (availableMonthKeys.min() ?? currentMonthKey),
-                canStepForward: effectiveMonthKey < CategoryBudgetStore.nextMonthKey(currentMonthKey),
+                canStepForward: effectiveMonthKey < currentMonthKey,
                 stepBackward: { selectedMonthKey = CategoryBudgetStore.previousMonthKey(effectiveMonthKey) },
                 stepForward: { selectedMonthKey = CategoryBudgetStore.nextMonthKey(effectiveMonthKey) },
                 select: { selectedMonthKey = $0 }
@@ -140,14 +141,16 @@ struct BudgetView: View {
     }
 
     private func reconciliationSection(_ summary: ReconciliationSummary) -> some View {
-        // 상세 화면과 같은 판정을 재사용한다. 저장된 정산 데이터가 없으면 '아직 정산 전'으로 보여줘
-        // (displayVerdict) 빈 달이 '정상'이나 큰 '차이'로 오표기되지 않고, 정산 상세 화면과도 일치한다.
+        // 상세 화면과 같은 판정을 재사용한다. 진행 중인 달은 사용자가 실제 값을 입력해야,
+        // 마감된 달은 저장 데이터가 있어야 확정으로 본다(isReconciled). 정산 상세 화면과 일치한다.
         let status = ReconciliationSummary.periodStatus(month: effectiveMonthKey, today: Date())
+        let isReconciled = summary.isReconciled(status: status)
         return Section {
             NavigationLink(value: Route.reconciliation(month: effectiveMonthKey)) {
                 ReconciliationSummaryRow(
                     summary: summary,
-                    verdict: summary.displayVerdict(status: status, isReconciled: summary.hasReconciliationData)
+                    verdict: summary.displayVerdict(status: status, isReconciled: isReconciled),
+                    displayedActual: isReconciled ? summary.actualSpending : 0
                 )
             }
         } header: {
@@ -376,6 +379,7 @@ private struct LineRow: View {
 private struct ReconciliationSummaryRow: View {
     let summary: ReconciliationSummary
     let verdict: ReconciliationVerdict
+    let displayedActual: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -389,7 +393,7 @@ private struct ReconciliationSummaryRow: View {
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 12) {
-                amountBlock(title: "실제 쓴 돈", amount: summary.actualSpending)
+                amountBlock(title: "실제 쓴 돈", amount: displayedActual)
                 amountBlock(title: "기록한 돈", amount: summary.recordedSpending)
             }
         }
@@ -399,7 +403,7 @@ private struct ReconciliationSummaryRow: View {
     }
 
     private var accessibilityText: String {
-        let amounts = "실제 쓴 돈 \(summary.actualSpending.formatted(.number))원, 기록한 돈 \(summary.recordedSpending.formatted(.number))원"
+        let amounts = "실제 쓴 돈 \(displayedActual.formatted(.number))원, 기록한 돈 \(summary.recordedSpending.formatted(.number))원"
         let detail = verdict.detail.isEmpty ? "" : "\(verdict.detail), "
         return "\(verdict.headline), \(detail)\(amounts)"
     }
