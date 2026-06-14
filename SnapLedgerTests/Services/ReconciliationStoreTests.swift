@@ -97,8 +97,9 @@ struct ReconciliationStoreTests {
         // 전월 수입 항목이 이름·금액 그대로 이월된다.
         #expect(draft.incomes.map(\.amount).reduce(0, +) == 3_000_000)
         #expect(draft.incomes.first?.title == "월급")
-        // 전월 카드 항목이 이름·금액 그대로 이월된다.
-        #expect(draft.cards.map(\.amount).reduce(0, +) == 450_000)
+        // 전월 카드는 이름만 이월되고 금액은 0으로 비운다(매월 변동).
+        #expect(draft.cards.first?.title == "신한카드")
+        #expect(draft.cards.map(\.amount).reduce(0, +) == 0)
         #expect(draft.savings.map(\.amount).reduce(0, +) == 500_000)
         #expect(draft.savings.first?.title == "적금")
         #expect(draft.balances.count == 1)
@@ -124,10 +125,10 @@ struct ReconciliationStoreTests {
         context.insert(CardUsageItem(monthKey: 202_605, title: "현대", amount: 200_000, sortOrder: 1))
         try context.save()
 
-        // 다음 달은 비어 있으므로 카드 항목이 이름·금액 그대로 이월된다.
+        // 다음 달은 비어 있으므로 카드 항목은 이름만 이월되고 금액은 0으로 비운다.
         let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(draft.cards.map(\.title) == ["신한", "현대"])
-        #expect(draft.cards.map(\.amount) == [300_000, 200_000])
+        #expect(draft.cards.map(\.amount) == [0, 0])
 
         // 저장하면 카드 항목으로 영속화된다.
         try ReconciliationStore().save(draft, month: 202_606, in: context)
@@ -135,7 +136,7 @@ struct ReconciliationStoreTests {
             .filter { $0.monthKey == 202_606 }
             .sorted { $0.sortOrder < $1.sortOrder }
         #expect(cards.map(\.title) == ["신한", "현대"])
-        #expect(cards.map(\.amount) == [300_000, 200_000])
+        #expect(cards.map(\.amount) == [0, 0])
     }
 
     @Test func incomeItemsCarryForwardAndPersistOnSave() throws {
@@ -232,5 +233,23 @@ struct ReconciliationStoreTests {
         #expect(!balances.contains { $0.monthKey == 202_606 })
         let savings = try context.fetch(FetchDescriptor<SavingsItem>())
         #expect(!savings.contains { $0.monthKey == 202_606 })
+    }
+
+    @Test func adjustmentsCarryForwardNamesAndDirectionWithZeroAmount() throws {
+        let context = try makeContext()
+        context.insert(MonthlyReconciliation(monthKey: 202_605))
+        context.insert(
+            CashAdjustment(monthKey: 202_605, title: "전월 카드대금", direction: .withdrawal, amount: 400_000)
+        )
+        context.insert(
+            CashAdjustment(monthKey: 202_605, title: "환급", direction: .deposit, amount: 100_000)
+        )
+        try context.save()
+
+        let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        // 이름·방향은 이월되고 금액은 0으로 비운다.
+        #expect(draft.adjustments.map(\.title) == ["전월 카드대금", "환급"])
+        #expect(draft.adjustments.map(\.direction) == [.withdrawal, .deposit])
+        #expect(draft.adjustments.map(\.amount) == [0, 0])
     }
 }

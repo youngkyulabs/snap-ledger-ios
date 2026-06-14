@@ -139,7 +139,20 @@ struct ReconciliationStore {
         let previous = Self.previousMonthKey(month)
         var draft = ReconciliationDraft()
         draft.incomes = incomeDrafts(items: fetchIncomes(previous, in: context))
-        draft.cards = cardDrafts(items: fetchCards(previous, in: context))
+        // 카드는 매월 변동하므로 이름만 이월하고 금액은 0으로 비운다.
+        draft.cards = fetchCards(previous, in: context).map {
+            CardUsageItemDraft(title: $0.title, amount: 0, sortOrder: $0.sortOrder)
+        }
+        // 자금변동도 이름·방향만 이월하고 금액은 0으로 비운다.
+        draft.adjustments = fetchAdjustments(previous, in: context).map {
+            AdjustmentDraft(
+                title: $0.title,
+                direction: $0.direction,
+                amount: 0,
+                note: nil,
+                sortOrder: $0.sortOrder
+            )
+        }
         draft.savings = fetchSavings(previous, in: context).map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
         }
