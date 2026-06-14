@@ -64,8 +64,9 @@ struct SavedEntryEditorView: View {
                         .onSubmit { focusedField = nil }
                         .id(Field.category)
                     presetChips
-                    if CategoryValidation.isOffPreset(category, presets: presets) {
+                    if isOffPreset {
                         offPresetWarning
+                            .transition(.opacity)
                     }
                 }
 
@@ -85,6 +86,7 @@ struct SavedEntryEditorView: View {
                     }
                 }
             }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isOffPreset)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
@@ -149,6 +151,10 @@ struct SavedEntryEditorView: View {
 
     private var presets: [String] {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
+    }
+
+    private var isOffPreset: Bool {
+        CategoryValidation.isOffPreset(category, presets: presets)
     }
 
     private var amountBinding: Binding<Int?> {

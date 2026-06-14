@@ -65,8 +65,9 @@ struct EntryEditorView: View {
                         .onSubmit { focusedField = nil }
                         .id(Field.category)
                     presetChips
-                    if CategoryValidation.isOffPreset(entry.category, presets: presets) {
+                    if isOffPreset {
                         offPresetWarning
+                            .transition(.opacity)
                     }
                 }
 
@@ -95,6 +96,7 @@ struct EntryEditorView: View {
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: entry.confidence < 0.8)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isOffPreset)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
@@ -188,6 +190,10 @@ struct EntryEditorView: View {
 
     private var presets: [String] {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
+    }
+
+    private var isOffPreset: Bool {
+        CategoryValidation.isOffPreset(entry.category, presets: presets)
     }
 
     private var presetChips: some View {
@@ -305,6 +311,7 @@ struct EntryEditorView: View {
     }
 
     private func save() {
+        NotificationScheduler().clearDelivered()
         if insertOnSave {
             modelContext.insert(entry)
         }

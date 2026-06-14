@@ -31,6 +31,12 @@ struct NotificationScheduler {
         center.removePendingNotificationRequests(withIdentifiers: [ReminderContent.identifier])
     }
 
+    /// 검토 항목을 저장하기 시작하면 알림 센터에 이미 도착해 있는 리마인더를 지운다.
+    /// 예약(pending)이 아니라 이미 발사돼 알림 센터에 떠 있는(delivered) 알림 대상.
+    func clearDelivered() {
+        center.removeDeliveredNotifications(withIdentifiers: [ReminderContent.identifier])
+    }
+
     func syncIconBadge(count: Int) async {
         try? await center.setBadgeCount(max(0, count))
     }
