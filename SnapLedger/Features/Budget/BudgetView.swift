@@ -125,7 +125,7 @@ struct BudgetView: View {
     }
 
     // 화살표는 달력 인접 이동 (한도는 매달 이어지므로 기록 없는 달도 의미가 있다).
-    // 다음 달까지 허용 — 다음 달 예산을 미리 세팅하는 용도.
+    // 앞으로는 현재 달까지만 허용 (다음 달 미리보기 제거 — 한도는 자동 이월됨).
     private var monthPickerSection: some View {
         Section {
             MonthNavigationRow(
