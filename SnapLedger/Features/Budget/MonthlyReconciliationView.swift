@@ -139,13 +139,16 @@ struct MonthlyReconciliationView: View {
     // MARK: - 섹션
 
     private var summarySection: some View {
-        // 전월 값으로 프리필만 된(아직 저장 안 된) 달은 '아직 정산 전'으로 — 빈 DB를 읽는 예산 탭과
-        // 결론이 어긋나지 않게 한다. 한 번이라도 편집해 저장하면 isCarriedForward가 풀려 실제 차이를 보여준다.
+        // 진행 중인 달은 사용자가 실제 값을 입력해야, 마감된 달은 저장 데이터가 있어야 확정으로 본다.
+        // 빈 DB를 읽는 예산 탭과 결론이 어긋나지 않게 한다.
+        let isReconciled = summary.isReconciled(status: periodStatus)
         let verdict = summary.displayVerdict(
             status: periodStatus,
-            isReconciled: !draft.isCarriedForward && !draft.isEmpty,
+            isReconciled: isReconciled,
             revealInProgressDifference: true
         )
+        // 아직 정산 전이면 프리필 값으로 계산한 '실제 쓴 돈'을 0으로 가린다(예산 탭과 일치).
+        let displayedActual = isReconciled ? summary.actualSpending : 0
         return Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
@@ -158,7 +161,7 @@ struct MonthlyReconciliationView: View {
                         .foregroundStyle(.secondary)
                 }
                 LabeledContent("실제 쓴 돈") {
-                    Text("\(summary.actualSpending.formatted(.number))원")
+                    Text("\(displayedActual.formatted(.number))원")
                         .monospacedDigit()
                 }
                 LabeledContent("기록한 돈") {
