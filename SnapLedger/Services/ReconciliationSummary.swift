@@ -39,6 +39,8 @@ struct ReconciliationSummary: Equatable {
     let recordedSpending: Int
     let difference: Int
     let hasReconciliationData: Bool
+    /// 사용자가 실제 정산값을 입력했는지(월초≠월말 또는 카드 금액 입력). 프리필/빈 상태는 false.
+    let hasStartedReconciliation: Bool
 
     var isBalanced: Bool { difference == 0 }
 
@@ -82,6 +84,7 @@ struct ReconciliationSummary: Equatable {
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
             || !monthAdjustments.isEmpty || !monthSavings.isEmpty || !monthCards.isEmpty
             || !monthIncomes.isEmpty
+        let started = monthBalances.contains { $0.openingBalance != $0.closingBalance } || card > 0
 
         return ReconciliationSummary(
             month: targetMonth,
@@ -96,7 +99,8 @@ struct ReconciliationSummary: Equatable {
             actualSpending: actual,
             recordedSpending: recorded,
             difference: actual - recorded,
-            hasReconciliationData: hasData
+            hasReconciliationData: hasData,
+            hasStartedReconciliation: started
         )
     }
 }
@@ -125,6 +129,16 @@ extension ReconciliationSummary {
     static func periodStatus(month: Int, today: Date, calendar: Calendar = .current) -> ReconciliationPeriodStatus {
         let currentMonth = CategoryBudgetStore.monthKey(from: today, calendar: calendar)
         return month >= currentMonth ? .inProgress : .closed
+    }
+
+    /// 화면에 정산 결과를 '확정값'으로 보여줄지 여부.
+    /// - 마감된 달: 저장된 정산 데이터가 있으면 확정(잔액 변화가 없어 '정상'이어도 표시).
+    /// - 진행 중인 달: 사용자가 실제 값을 입력했을 때만 확정(프리필 노이즈 차단).
+    func isReconciled(status: ReconciliationPeriodStatus) -> Bool {
+        switch status {
+        case .closed:     return hasReconciliationData
+        case .inProgress: return hasStartedReconciliation
+        }
     }
 
     /// `revealInProgressDifference`가 true면 진행 중인 달이라도 차이가 있을 때 그 차이를 보여준다

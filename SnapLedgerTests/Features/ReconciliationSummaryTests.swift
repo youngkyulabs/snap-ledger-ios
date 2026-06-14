@@ -400,3 +400,126 @@ struct ReconciliationSummaryTests {
         #expect(summary.hasReconciliationData == true)
     }
 }
+
+// MARK: - hasStartedReconciliation / isReconciled(status:)
+
+@MainActor
+struct ReconciliationSummaryStartedTests {
+    let kst: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        cal.locale = Locale(identifier: "ko_KR")
+        return cal
+    }()
+
+    @Test func hasStartedReconciliationFalseWhenPrefill() {
+        // 프리필 상태: 모든 계좌 월초=월말, 카드 금액 0 → 진행 안 함.
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                balances: [
+                    AccountMonthlyBalance(
+                        monthKey: 202_606, accountName: "통장",
+                        openingBalance: 1_000_000, closingBalance: 1_000_000
+                    ),
+                ],
+                cardItems: [CardUsageItem(monthKey: 202_606, title: "신한", amount: 0)],
+                incomeItems: [IncomeItem(monthKey: 202_606, title: "월급", amount: 3_000_000)]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        #expect(summary.hasStartedReconciliation == false)
+    }
+
+    @Test func hasStartedReconciliationTrueWhenClosingDiffers() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                balances: [
+                    AccountMonthlyBalance(
+                        monthKey: 202_606, accountName: "통장",
+                        openingBalance: 1_000_000, closingBalance: 900_000
+                    ),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        #expect(summary.hasStartedReconciliation == true)
+    }
+
+    @Test func hasStartedReconciliationTrueWhenCardEntered() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                cardItems: [CardUsageItem(monthKey: 202_606, title: "신한", amount: 50_000)]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        #expect(summary.hasStartedReconciliation == true)
+    }
+
+    @Test func isReconciledClosedMonthUsesSavedData() {
+        // 마감 달 + 저장 데이터 있음(월초=월말이라 진행 신호는 없음) → 확정으로 본다.
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                balances: [
+                    AccountMonthlyBalance(
+                        monthKey: 202_605, accountName: "통장",
+                        openingBalance: 1_000_000, closingBalance: 1_000_000
+                    ),
+                ]
+            ),
+            targetMonth: 202_605,
+            calendar: kst
+        )
+        #expect(summary.hasStartedReconciliation == false)
+        #expect(summary.hasReconciliationData == true)
+        #expect(summary.isReconciled(status: .closed) == true)
+    }
+
+    @Test func isReconciledClosedMonthFalseWhenNoData() {
+        let summary = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(),
+            targetMonth: 202_605,
+            calendar: kst
+        )
+        #expect(summary.isReconciled(status: .closed) == false)
+    }
+
+    @Test func isReconciledInProgressUsesStartedFlag() {
+        let prefill = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                balances: [
+                    AccountMonthlyBalance(
+                        monthKey: 202_606, accountName: "통장",
+                        openingBalance: 500_000, closingBalance: 500_000
+                    ),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        #expect(prefill.isReconciled(status: .inProgress) == false)
+
+        let started = ReconciliationSummary.compute(
+            entries: [],
+            input: ReconciliationSummaryInput(
+                balances: [
+                    AccountMonthlyBalance(
+                        monthKey: 202_606, accountName: "통장",
+                        openingBalance: 500_000, closingBalance: 400_000
+                    ),
+                ]
+            ),
+            targetMonth: 202_606,
+            calendar: kst
+        )
+        #expect(started.isReconciled(status: .inProgress) == true)
+    }
+}
