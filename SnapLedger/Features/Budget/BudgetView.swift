@@ -239,7 +239,7 @@ struct BudgetView: View {
         } header: {
             Text("한도를 정하지 않은 지출").textCase(nil)
         } footer: {
-            Text("카테고리를 누르면 항목을 볼 수 있어요. 한도는 왼쪽으로 밀거나 오른쪽 위 '한도 편집'에서 정할 수 있어요.")
+            Text("카테고리를 누르면 항목을 볼 수 있어요. 한도는 왼쪽으로 밀거나 오른쪽 위 ‘한도 편집’에서 정할 수 있어요.")
         }
     }
 
@@ -518,7 +518,7 @@ private struct BudgetLimitEditView: View {
                         try store.setLimit(amount, for: category, effectiveFrom: month, in: modelContext)
                     }
                 } catch {
-                    saveError = "한도를 저장하지 못했어요. 다시 시도해주세요."
+                    saveError = "한도를 저장하지 못했어요. 다시 시도해 주세요."
                 }
             }
         )

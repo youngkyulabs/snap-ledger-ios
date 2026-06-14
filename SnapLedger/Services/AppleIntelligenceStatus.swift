@@ -50,7 +50,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
         case .available:
             return "결제 알림 스크린샷이나 영수증 사진을 공유하면 Apple Intelligence가 금액·가맹점·날짜를 자동 추출해서 검토 목록에 채워 넣어요. 사진은 기기 안에서만 처리되고 외부로 전송되지 않아요."
         case .appleIntelligenceOff:
-            return "설정 앱 → Apple Intelligence 및 Siri에서 켜주세요. iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 쓸 수 있어요."
+            return "설정 → Apple Intelligence 및 Siri에서 켜 주세요. iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 쓸 수 있어요."
         case .deviceNotEligible:
             return "자동 추출은 iPhone 15 Pro·Pro Max, iPhone 16 시리즈 이상에서 동작해요. 그 외 기기에서는 검토 탭의 + 버튼으로 직접 입력해서 추가하세요."
         case .modelNotReady:
@@ -64,7 +64,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
         case .available:
             return "Apple Intelligence가 켜져 있어요"
         case .appleIntelligenceOff:
-            return "설정 → Apple Intelligence 및 Siri에서 켜주세요"
+            return "설정 → Apple Intelligence 및 Siri에서 켜 주세요"
         case .deviceNotEligible:
             return "이 기기에서는 지원되지 않아요"
         case .modelNotReady:

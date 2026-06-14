@@ -35,7 +35,7 @@ struct FileSyncView: View {
                 ContentUnavailableView {
                     Label("폴더 미설정", systemImage: "folder.badge.plus")
                 } description: {
-                    Text("저장 폴더를 먼저 골라주세요.")
+                    Text("저장 폴더를 먼저 골라 주세요.")
                 } actions: {
                     Button("폴더 선택") { showingPicker = true }
                 }
