@@ -51,7 +51,7 @@ struct AppleIntelligenceStatusTests {
 
         let ineligible = AppleIntelligenceStatus.deviceNotEligible.detailMessage
         #expect(ineligible.contains("iPhone 15 Pro"))
-        #expect(ineligible.contains("직접 입력"))
+        #expect(ineligible.contains("수동 입력") || ineligible.contains("직접 추가"))
 
         let available = AppleIntelligenceStatus.available.detailMessage
         #expect(available.contains("기기 안에서"))

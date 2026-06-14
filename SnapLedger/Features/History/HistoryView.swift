@@ -113,7 +113,7 @@ struct HistoryView: View {
             }
         } else {
             Section {
-                Text("처음 기록까지 표시됨")
+                Text("처음 기록까지 모두 봤어요")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)

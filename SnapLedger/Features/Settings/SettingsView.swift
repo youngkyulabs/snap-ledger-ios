@@ -87,7 +87,7 @@ struct SettingsView: View {
                 Button("설정 열기") { openSystemSettingsURL() }
                 Button("취소", role: .cancel) { }
             } message: {
-                Text("알림을 받으려면 설정 → \(Self.appDisplayName) → 알림에서 켜주세요.")
+                Text("알림을 받으려면 설정 → \(Self.appDisplayName) → 알림에서 켜 주세요.")
             }
         }
         .sheet(isPresented: $showingPicker) {
@@ -293,7 +293,7 @@ struct SettingsView: View {
                 Button {
                     openSystemSettingsURL()
                 } label: {
-                    Label("설정 앱 열기", systemImage: "arrow.up.right.square")
+                    Label("설정 열기", systemImage: "arrow.up.right.square")
                         .foregroundStyle(.primary)
                 }
             }

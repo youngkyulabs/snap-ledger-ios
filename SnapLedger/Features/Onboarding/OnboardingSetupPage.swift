@@ -63,7 +63,7 @@ struct OnboardingSetupPage: View {
 
     private var ctaSection: some View {
         VStack(spacing: 8) {
-            Text("폴더를 먼저 선택해주세요.")
+            Text("폴더를 먼저 선택해 주세요.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .opacity(canProceed ? 0 : 1)
@@ -154,7 +154,7 @@ struct OnboardingSetupPage: View {
                 .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 4) {
                 Text("검토 알림").font(.headline)
-                Text("매일 저녁 검토 항목을 알려드려요.")
+                Text("매일 정한 시각에 검토할 항목을 알려드려요.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -257,7 +257,7 @@ private struct OnboardingSetupSheetsAndAlerts: ViewModifier {
                     }
                 }
             } message: {
-                Text("알림을 받으려면 설정 → \(Self.appDisplayName) → 알림에서 켜주세요.")
+                Text("알림을 받으려면 설정 → \(Self.appDisplayName) → 알림에서 켜 주세요.")
             }
     }
 
