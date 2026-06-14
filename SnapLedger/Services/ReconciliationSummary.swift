@@ -84,7 +84,8 @@ struct ReconciliationSummary: Equatable {
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
             || !monthAdjustments.isEmpty || !monthSavings.isEmpty || !monthCards.isEmpty
             || !monthIncomes.isEmpty
-        let started = monthBalances.contains { $0.openingBalance != $0.closingBalance } || card > 0
+        let started = monthBalances.contains { $0.openingBalance != $0.closingBalance }
+            || monthCards.contains { $0.amount != 0 }
 
         return ReconciliationSummary(
             month: targetMonth,
