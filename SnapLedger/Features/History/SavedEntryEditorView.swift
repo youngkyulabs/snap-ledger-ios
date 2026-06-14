@@ -64,8 +64,9 @@ struct SavedEntryEditorView: View {
                         .onSubmit { focusedField = nil }
                         .id(Field.category)
                     presetChips
-                    if CategoryValidation.isOffPreset(category, presets: presets) {
+                    if isOffPreset {
                         offPresetWarning
+                            .transition(.opacity)
                     }
                 }
 
@@ -85,6 +86,7 @@ struct SavedEntryEditorView: View {
                     }
                 }
             }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isOffPreset)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
@@ -151,6 +153,10 @@ struct SavedEntryEditorView: View {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
 
+    private var isOffPreset: Bool {
+        CategoryValidation.isOffPreset(category, presets: presets)
+    }
+
     private var amountBinding: Binding<Int?> {
         Binding(
             get: { amount == 0 ? nil : amount },
@@ -184,20 +190,29 @@ struct SavedEntryEditorView: View {
     @ViewBuilder
     private func presetChip(for preset: String) -> some View {
         let isSelected = category == preset
-        if isSelected {
-            Button {
-                category = preset
-            } label: {
-                Label(preset, systemImage: "checkmark")
+        Button {
+            category = preset
+        } label: {
+            HStack(spacing: 4) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .transition(.scale.combined(with: .opacity))
+                }
+                Text(preset)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-            .accessibilityAddTraits(.isSelected)
-        } else {
-            Button(preset) { category = preset }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+            .background {
+                Capsule().fill(
+                    isSelected ? Color.accentColor : Color.accentColor.opacity(0.15)
+                )
+            }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isSelected)
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var offPresetWarning: some View {

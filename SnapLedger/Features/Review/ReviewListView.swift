@@ -333,6 +333,7 @@ struct ReviewListView: View {
             swipeError = "이 항목은 비어 있어요. 항목을 눌러 값을 채운 뒤 저장하세요."
             return
         }
+        NotificationScheduler().clearDelivered()
         performSwipeSave(entry: entry, ignoringConflict: false)
     }
 

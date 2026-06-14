@@ -65,8 +65,9 @@ struct EntryEditorView: View {
                         .onSubmit { focusedField = nil }
                         .id(Field.category)
                     presetChips
-                    if CategoryValidation.isOffPreset(entry.category, presets: presets) {
+                    if isOffPreset {
                         offPresetWarning
+                            .transition(.opacity)
                     }
                 }
 
@@ -95,6 +96,7 @@ struct EntryEditorView: View {
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: entry.confidence < 0.8)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isOffPreset)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
@@ -190,6 +192,10 @@ struct EntryEditorView: View {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
 
+    private var isOffPreset: Bool {
+        CategoryValidation.isOffPreset(entry.category, presets: presets)
+    }
+
     private var presetChips: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -265,37 +271,55 @@ struct EntryEditorView: View {
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        if isSelected {
-            Button(action: action) {
-                Label(text, systemImage: "checkmark")
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .transition(.scale.combined(with: .opacity))
+                }
+                Text(text)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-            .accessibilityAddTraits(.isSelected)
-        } else {
-            Button(text, action: action)
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+            .background {
+                Capsule().fill(
+                    isSelected ? Color.accentColor : Color.accentColor.opacity(0.15)
+                )
+            }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isSelected)
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
     private func presetChip(for preset: String) -> some View {
         let isSelected = entry.category == preset
-        if isSelected {
-            Button {
-                entry.category = preset
-            } label: {
-                Label(preset, systemImage: "checkmark")
+        Button {
+            entry.category = preset
+        } label: {
+            HStack(spacing: 4) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .transition(.scale.combined(with: .opacity))
+                }
+                Text(preset)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-            .accessibilityAddTraits(.isSelected)
-        } else {
-            Button(preset) { entry.category = preset }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+            .background {
+                Capsule().fill(
+                    isSelected ? Color.accentColor : Color.accentColor.opacity(0.15)
+                )
+            }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isSelected)
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var offPresetWarning: some View {
@@ -305,6 +329,7 @@ struct EntryEditorView: View {
     }
 
     private func save() {
+        NotificationScheduler().clearDelivered()
         if insertOnSave {
             modelContext.insert(entry)
         }
