@@ -29,6 +29,16 @@ struct FileSyncView: View {
         settingsList.first?.csvFolderBookmark != nil
     }
 
+    private var autoSyncBinding: Binding<Bool> {
+        Binding(
+            get: { settingsList.first?.autoSyncEnabled ?? false },
+            set: { newValue in
+                settingsList.first?.autoSyncEnabled = newValue
+                try? modelContext.save()
+            }
+        )
+    }
+
     var body: some View {
         Group {
             if !hasFolder {
@@ -99,6 +109,12 @@ struct FileSyncView: View {
 
     private var listContent: some View {
         List {
+            Section {
+                Toggle("앱 진입 시 자동으로 가져오기", isOn: autoSyncBinding)
+            } footer: {
+                Text("켜면 앱을 열 때 파일이 앱 밖에서 바뀐 달을 자동으로 파일 내용으로 맞춰요(파일 → 앱). "
+                    + "끄면 바뀐 게 있을 때 알림으로 알려주고, 여기서 직접 맞출 수 있어요.")
+            }
             if expenseStatuses.isEmpty && reconciliationStatuses.isEmpty {
                 Section {
                     Text("맞출 달이 없어요.")
