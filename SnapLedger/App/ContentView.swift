@@ -12,6 +12,7 @@ struct ContentView: View {
     /// "나중에"로 미룬 달 — 이번 세션 동안 같은 달을 매 포그라운드마다 다시 묻지 않도록.
     @State private var snoozedMonths: Set<String> = []
     @State private var selectedTab: AppTab = .review
+    @State private var settingsPath: [SettingsRoute] = []
     /// 이미 선택된 통계·예산 탭을 한 번 더 탭하면 그 탭을 현재 월로 되돌리기 위한 신호(카운터).
     @State private var statsResetNonce = 0
     @State private var budgetResetNonce = 0
@@ -54,7 +55,7 @@ struct ContentView: View {
                 BudgetView(resetNonce: budgetResetNonce)
             }
             Tab("설정", systemImage: "gear", value: AppTab.settings) {
-                SettingsView()
+                SettingsView(path: $settingsPath)
             }
         }
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: pendingReviewCount)
@@ -77,7 +78,11 @@ struct ContentView: View {
                 set: { if !$0 { detectedChanges = [] } }
             )
         ) {
-            Button("파일 내용 가져오기") { importDetectedChanges() }
+            Button("확인하러 가기") {
+                detectedChanges = []
+                selectedTab = .settings
+                settingsPath = [.fileSync]
+            }
             Button("나중에", role: .cancel) {
                 snoozedMonths.formUnion(detectedChanges.map(\.monthKey))
                 detectedChanges = []
@@ -131,32 +136,25 @@ struct ContentView: View {
 
     @MainActor
     private func checkExternalChanges() async {
-        let sync = SyncCoordinator()
-        sync.establishBaselineIfNeeded(in: modelContext)
-        let changes = await sync.detectChanges(in: modelContext)
-            .filter { !snoozedMonths.contains($0.monthKey) }
-        if !changes.isEmpty {
-            detectedChanges = changes
+        let autoSync = allSettings.first?.autoSyncEnabled ?? false
+        let outcome = await SyncCoordinator()
+            .resolveExternalChangesOnLaunch(autoApply: autoSync, in: modelContext)
+        switch outcome {
+        case .applied(let summary):
+            // 자동 적용: 성공은 조용히, 건너뛴 달(형식 오류·읽기 실패·미다운로드)만 알린다.
+            syncResultMessage = summary.skipNotice
+        case .detected(let changes):
+            let fresh = changes.filter { !snoozedMonths.contains($0.monthKey) }
+            if !fresh.isEmpty {
+                detectedChanges = fresh
+            }
         }
     }
 
     private var detectedChangesMessage: String {
-        let months = CSVWriter.monthLabels(detectedChanges.map(\.monthKey))
-        return "\(months) 파일이 앱 밖에서 바뀌었어요. 가져오면 그 달 기록이 파일 내용으로 바뀌어요. "
-            + "앱 내용을 그대로 두려면 ‘나중에’를 누르고, 설정 → 저장 폴더 → 폴더 상태에서 맞춰 주세요."
-    }
-
-    @MainActor
-    private func importDetectedChanges() {
-        let keys = detectedChanges.map(\.monthKey)
-        detectedChanges = []
-        do {
-            let summary = try SyncCoordinator().importMonths(keys, in: modelContext)
-            syncResultMessage = summary.userMessage
-        } catch {
-            syncResultMessage = (error as? LocalizedError)?.errorDescription
-                ?? error.localizedDescription
-        }
+        let months = CSVWriter.monthLabels(Array(Set(detectedChanges.map(\.monthKey))).sorted(by: >))
+        return "\(months) 파일이 앱 밖에서 바뀌었어요. ‘확인하러 가기’를 누르면 "
+            + "폴더 상태 화면에서 어느 쪽 내용으로 맞출지 고를 수 있어요."
     }
 
     private var hasCompletedOnboarding: Bool {
