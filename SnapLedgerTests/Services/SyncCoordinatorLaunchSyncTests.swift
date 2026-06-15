@@ -73,4 +73,87 @@ struct SyncCoordinatorLaunchSyncTests {
         #expect(reconciliation.monthKey == "2026-05")
         #expect(reconciliation.kind == .modified)
     }
+
+    @Test func autoApplyImportsReconciliationFromFile() async throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        try seedReconciliationThenModifyFile(dir, in: context, sync: sync)
+
+        let outcome = await sync.resolveExternalChangesOnLaunch(autoApply: true, in: context)
+        guard case .applied(let summary) = outcome else {
+            Issue.record("autoApply가 .applied를 반환해야 함")
+            return
+        }
+        #expect(summary.importedMonths.contains("2026-05"))
+        // 파일 내용(7,777,777)이 앱에 반영돼야 한다.
+        let incomes = try context.fetch(FetchDescriptor<IncomeItem>()).filter { $0.monthKey == 202_605 }
+        #expect(incomes.map(\.amount) == [7_777_777])
+    }
+
+    @Test func autoApplyKeepsAppDataOnMalformedFile() async throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        context.insert(MonthlyReconciliation(monthKey: 202_605))
+        context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000, sortOrder: 0))
+        try context.save()
+        try sync.exportMonths(["2026-05"], kind: .reconciliation, in: context)
+        // 모든 행이 형식 불일치인(파싱 0행) 파일로 외부 변경.
+        try writeCSV(
+            dir, "reconciliations-2026-05.csv",
+            "\u{FEFF}종류,항목,계좌,방향,금액,메모\n수입,월급,,,망가짐,\n카드사용액,카드,,,또깨짐,\n"
+        )
+
+        let outcome = await sync.resolveExternalChangesOnLaunch(autoApply: true, in: context)
+        guard case .applied(let summary) = outcome else {
+            Issue.record("autoApply가 .applied를 반환해야 함")
+            return
+        }
+        #expect(summary.malformedMonths.contains("2026-05"))
+        #expect(!summary.importedMonths.contains("2026-05"))
+        // 앱 데이터는 보존된다.
+        let incomes = try context.fetch(FetchDescriptor<IncomeItem>()).filter { $0.monthKey == 202_605 }
+        #expect(incomes.map(\.amount) == [3_000_000])
+    }
+
+    @Test func autoApplyOffReturnsDetectedWithoutImporting() async throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        try seedReconciliationThenModifyFile(dir, in: context, sync: sync)
+
+        let outcome = await sync.resolveExternalChangesOnLaunch(autoApply: false, in: context)
+        guard case .detected(let changes) = outcome else {
+            Issue.record("autoApply=false는 .detected를 반환해야 함")
+            return
+        }
+        #expect(!changes.isEmpty)
+        // 자동 적용을 하지 않으므로 앱 데이터는 그대로(3,000,000).
+        let incomes = try context.fetch(FetchDescriptor<IncomeItem>()).filter { $0.monthKey == 202_605 }
+        #expect(incomes.map(\.amount) == [3_000_000])
+    }
+
+    @Test func noFalsePositiveAfterAppWrite() async throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+        context.insert(MonthlyReconciliation(monthKey: 202_605))
+        context.insert(IncomeItem(monthKey: 202_605, title: "월급", amount: 3_000_000, sortOrder: 0))
+        try context.save()
+        // 앱이 직접 파일을 쓴 직후(refreshFileState로 baseline 갱신됨).
+        try sync.exportMonths(["2026-05"], kind: .reconciliation, in: context)
+
+        let outcome = await sync.resolveExternalChangesOnLaunch(autoApply: true, in: context)
+        guard case .applied(let summary) = outcome else {
+            Issue.record("autoApply가 .applied를 반환해야 함")
+            return
+        }
+        // 외부 변경이 없으므로 가져온 달이 없어야 한다(false positive 없음).
+        #expect(summary.importedMonths.isEmpty)
+    }
 }

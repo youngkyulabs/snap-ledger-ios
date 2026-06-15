@@ -138,6 +138,16 @@ struct SyncCoordinator {
             }
             return userMessage
         }
+
+        /// 다른 요약을 이 요약에 합친다(종류별 import 결과 누적용).
+        mutating func merge(_ other: ImportSummary) {
+            importedMonths += other.importedMonths
+            totalRows += other.totalRows
+            skippedRows += other.skippedRows
+            notReadyMonths += other.notReadyMonths
+            unreadableMonths += other.unreadableMonths
+            malformedMonths += other.malformedMonths
+        }
     }
 
     /// 저장/수정/삭제 직전 충돌 검사 결과.
@@ -176,6 +186,34 @@ struct SyncCoordinator {
                 return $0.fileKind.sortOrder < $1.fileKind.sortOrder
             }
         }) ?? []
+    }
+
+    /// 앱 진입 시 외부 변경 처리 결과.
+    enum LaunchSyncOutcome: Equatable {
+        /// 자동 동기화 꺼짐 — 사용자에게 알릴 변경 목록.
+        case detected([DetectedChange])
+        /// 자동 동기화 켜짐 — 파일→앱 자동 가져오기 결과.
+        case applied(ImportSummary)
+    }
+
+    /// 앱 진입 시 한 번 호출. baseline을 보정하고 외부 변경을 감지한 뒤,
+    /// 자동 동기화가 켜져 있으면 종류별로 파일→앱 가져오기를 수행한다.
+    func resolveExternalChangesOnLaunch(
+        autoApply: Bool,
+        in context: ModelContext
+    ) async -> LaunchSyncOutcome {
+        establishBaselineIfNeeded(in: context)
+        let changes = await detectChanges(in: context)
+        guard autoApply else { return .detected(changes) }
+        var summary = ImportSummary()
+        let byKind = Dictionary(grouping: changes, by: \.fileKind)
+        for (kind, kindChanges) in byKind {
+            let keys = kindChanges.map(\.monthKey)
+            if let kindSummary = try? importMonths(keys, kind: kind, in: context) {
+                summary.merge(kindSummary)
+            }
+        }
+        return .applied(summary)
     }
 
     /// 파일 동기화 화면용 — 앱에 있는 달 ∪ 폴더에 있는 달 각각의 동기화 상태.
