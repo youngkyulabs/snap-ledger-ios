@@ -42,7 +42,7 @@ SwiftLint는 `brew install swiftlint`로 사전 설치. 미설치 시 빌드 페
 | 폴더 | 무엇이 들어가나 | 무엇이 들어가면 안 되나 |
 |---|---|---|
 | `App/` | 앱 진입점·셸·App Group 상수 | 비즈니스 로직, 도메인 모델 |
-| `Models/` | SwiftData `@Model` 6종 | 비-SwiftData DTO (그건 `Services/`) |
+| `Models/` | SwiftData `@Model` (가계부 5종 + 예산·정산 7종) | 비-SwiftData DTO (그건 `Services/`) |
 | `Services/` | 비즈니스 로직 (OCR·추출·저장 오케스트레이션·도메인 헬퍼) | UI, 파일·시스템 IO |
 | `Storage/` | 파일/클립보드/북마크 IO | 비즈니스 결정 (어떤 데이터를 저장할지는 `Services/`) |
 | `Features/` | UI 탭 화면 + 온보딩 (SwiftUI) | 시스템 통합(BGTask/Intent/Notification) → `System/` |
@@ -52,7 +52,8 @@ SwiftLint는 `brew install swiftlint`로 사전 설치. 미설치 시 빌드 페
 SnapLedger/                          # 메인 앱 타겟 (synchronized root group)
   App/                               # 앱 진입점
     SnapLedgerApp.swift              # @main, ModelContainer (groupContainer), BGTask register
-    ContentView.swift                # TabView 셸 (검토/기록/통계/설정) + scenePhase 옵저버 + 온보딩 게이트
+    ContentView.swift                # TabView 셸 (검토/최근 기록/통계/예산/설정) + scenePhase 옵저버 + 온보딩 게이트
+                                     #            + 통계·예산 탭 재선택 시 현재 월 복귀(resetNonce)
     AppGroup.swift                   # group.com.youngkyu.snapledger 컨테이너 / inbox URL
   Info.plist                         # 부분 plist: BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes
                                      #            + ITSAppUsesNonExemptEncryption
@@ -61,8 +62,16 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
 
   Models/                            # SwiftData @Model
     AppSettings.swift, ParsedEntry.swift, SavedEntry.swift, PendingImage.swift, MerchantCategory.swift
-    CSVFileState.swift               # 월별 CSV 파일의 마지막 동기화 지문 (해시+mtime) — 외부 변경 감지 기준
+    CSVFileState.swift               # 월별 CSV 파일의 마지막 동기화 지문 (해시+mtime) — 외부 변경 감지 기준 (지출·정산 공용)
     AppSchema.swift                  # ModelContainer 공유 스키마 (메인 앱·AppIntent가 같은 스토어를 열므로 필수 동일)
+    # --- 예산·정산 (예산 탭) ---
+    CategoryBudget.swift             # 카테고리별 월 한도 (effectiveFrom부터 자동 이월, monthlyLimit=0은 해제 tombstone)
+    MonthlyReconciliation.swift      # 월 정산 헤더 (monthKey + note). 금액 항목은 아래 모델들로 분리
+    IncomeItem.swift                 # 월별 수입 항목 (이름+금액, sortOrder)
+    CardUsageItem.swift              # 월별 카드 사용액 항목 (이름+금액)
+    SavingsItem.swift                # 월별 저축 항목 (이름+금액)
+    AccountMonthlyBalance.swift      # 계좌별 월초/월말 잔액 + 이자
+    CashAdjustment.swift             # 자금 변동 (입금/출금, 이름+금액+메모) — CashAdjustmentDirection enum 동거
 
   Services/                          # 비즈니스 로직 (전부 unit-testable)
     OCRService.swift                 # protocol + VisionKitOCRService (한·영 accurate)
@@ -73,10 +82,21 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     PendingProcessor.swift           # @MainActor 파이프라인: reconcile inbox → OCR → heuristic → extract → ParsedEntry
     SaveCoordinator.swift            # 검토 확정 → CSV append + SavedEntry 생성 + 학습
     CategoryLearner.swift            # 가맹점 → 카테고리 학습/조회
+    CategoryValidation.swift         # 카테고리가 프리셋 목록(off-list) 밖인지 판정 (경고용, pure)
     ImageImporter.swift              # + 메뉴에서 사진/클립보드/파일/드롭 → inbox 정규화
-    SyncCoordinator.swift            # 월 단위 동기화 오케스트레이션 (감지·충돌·import/export, monthStatuses·folderSyncSummary)
+    CandidateAutoFill.swift          # 검토 항목 신규 입력 시 가맹점 등으로 카테고리·금액 자동 채움 (pure)
+    EntryReorder.swift               # 항목 드래그 재정렬 → sortOrder 재계산 (pure, 정산 항목 공용)
+    EntrySaveValidation.swift        # 검토 저장 전 필수 필드 검증 (pure)
+    SyncCoordinator.swift            # 월 단위 동기화 오케스트레이션 (감지·충돌·folderSyncSummary). 지출+정산 양쪽
+    SyncCoordinator+Files.swift      # 폴더 접근·파일 열거·지문 갱신 헬퍼
+    SyncCoordinator+Import.swift     # 지출 CSV import/export (monthStatuses, importMonths)
+    SyncCoordinator+Reconciliation.swift # 정산 CSV import/export·monthKeys (도메인 ↔ ReconciliationCSV)
+    SyncFileKind.swift               # 동기화 대상 파일 종류 (.expenses / .reconciliation) 구분
     CSVFolderAccess.swift            # 저장 폴더 bookmark 해소 + 도달성 확인 래퍼
-    CSVRowParser.swift               # CSV 한 행 ↔ 도메인 필드 파싱 (저장·동기화 공용)
+    CSVRowParser.swift               # 지출 CSV 한 행 ↔ 도메인 필드 파싱 (저장·동기화 공용)
+    CategoryBudgetStore.swift        # 카테고리 한도 CRUD + effectiveLimit 이월 계산 (monthKey 헬퍼)
+    ReconciliationStore.swift        # 월 정산 draft 로드/저장/삭제·이월(carry-forward)·CSV 행 생성
+    ReconciliationSummary.swift      # 정산 요약 계산 (실제 쓴 돈/기록한 돈/차이, isReconciled 판정) — pure
 
   Storage/                           # 파일·클립보드·북마크 IO
     CSVWriter.swift                  # NSFileCoordinator 기반 월별 CSV (BOM + 헤더 + escape)
@@ -85,14 +105,21 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     FolderBookmarkHelper.swift       # BookmarkStore 래퍼 — URL → AppSettings.csvFolderBookmark 적용
     ClipboardExporter.swift          # 검토/기록 항목을 TSV(+HTML) 페이로드로 (Numbers paste용)
     FileFingerprint.swift            # 파일 내용 SHA-256 + mtime 지문 (외부 변경 감지·iCloud 다운로드 게이트)
+    ReconciliationCSV.swift          # 월 정산 CSV(reconciliations-YYYY-MM.csv) writer/parser — AI 분석 친화 + 무손실 round-trip
 
   Features/                          # UI 화면
+    MonthNavigationRow.swift         # ◀ 현재 월(메뉴) ▶ 월 선택 행 (예산·통계 탭 공용)
     Review/                          # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row), FailedImagesSection·InboxImage
     History/                         # HistoryView (@Query SavedEntry, 일별 섹션), SavedEntryEditorView,
                                      # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping (pure)
-    Statistics/                      # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure)
+    Statistics/                      # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure),
+                                     # CategoryColor (pure), CategoryEntriesSheet (도넛 조각 탭 → 그 카테고리 항목 목록)
+    Budget/                          # BudgetView (월 선택 → 정산 진입 + 카테고리별 한도 진행률), BudgetProgress (pure: 한도 대비 사용),
+                                     # MonthlyReconciliationView (수입/카드/저축/계좌잔액/자금변동 입력 + 월급 마스킹),
+                                     # ReconciliationEditors (계좌/항목 편집 행), ReconciliationVerdict+Color (정상/차이 색)
     Settings/                        # SettingsView (저장폴더 행=폴더이름+동기화 상태아이콘→폴더상태 / reminder / FM 상태),
-                                     # AdvancedSettingsView (카테고리 / 추출 가이드), FolderPicker, FeedbackMail (pure), MailComposeSheet
+                                     # AdvancedSettingsView (카테고리 / 추출 가이드), CategoryEditorView (프리셋 추가·삭제·재정렬),
+                                     # AboutView, FolderPicker, FeedbackMail (pure), MailComposeSheet
     Sync/                            # FileSyncView (폴더 상태=월별 최신/변경/단방향 + 폴더 변경), SyncConflictAlert (가져오기/덮어쓰기)
     Onboarding/                      # OnboardingView + ValuePage/SetupPage + AppearStep/PermissionAction (pure)
 
@@ -141,6 +168,14 @@ SnapLedgerTests/                     # Swift Testing — 소스 구조를 미러
    - **마이그레이션**: 기능 도입 전부터 있던 파일을 "외부 새 파일"로 오인하지 않도록, 폴더가 준비된 첫 진입에서 현재 지문을 baseline으로 기록 (`AppSettings.hasSyncBaseline`). 폴더 변경 시 `resetSyncState`로 지문을 비우고 baseline 리셋.
    - 모든 CSV 쓰기/import 후 지문을 갱신해 다음 감지의 기준으로 삼는다. 수동 동기화 진입점은 **설정 → 저장 폴더 행**: 폴더 이름 행 우측에 상태 아이콘(동기화됨=초록 체크 / 변경 있음=노랑 경고 / 폴더 없음=빨강 경고 / 데이터 없음=아이콘 없음, `SyncCoordinator.folderSyncSummary`)을 두고, 탭하면 `FileSyncView`("폴더 상태")로 이동. 그 화면에서 월별 상태(최신/파일 변경됨/파일에만 있음/앱에만 있음)를 보고 **달별로** 가져오기/저장(`SyncCoordinator.monthStatuses`, 월 탭 시 일반 alert), 하단에서 폴더 변경. (전체 일괄 동기화는 위험 대비 실효가 낮아 미제공 — importAll/exportAll은 테스트 전용 API로만 잔존.)
    - **폴더 삭제/이동 처리**: bookmark는 resolve돼도 실제 디렉토리가 없을 수 있음 → `BookmarkStore.isReachableDirectory`로 확인. `SyncCoordinator.withFolder`·`SaveCoordinator`(save/update/delete)는 `folderUnavailable`로 차단하고, `folderSyncSummary`는 `.folderMissing`(빨강 경고), `FileSyncView`는 "폴더를 찾을 수 없어요 + 폴더 변경" 화면을 노출.
+
+8. **카테고리 한도는 effectiveFrom으로 자동 이월** (`CategoryBudget` / `CategoryBudgetStore`)
+   한도는 달마다 row를 만들지 않는다. `CategoryBudget(category, monthlyLimit, effectiveFrom)`은 "이 달부터 다음 변경 전까지" 매월 자동 반복. 특정 달의 유효 한도는 `effectiveFrom <= month` 중 가장 최신 row (`CategoryBudgetStore.resolveLimit`). 한도 해제는 row 삭제가 아니라 `monthlyLimit = 0` tombstone으로 그 달부터 끄기 (과거 달 한도는 보존). 예산 탭은 한도가 자동 이월되므로 미래 달 보기를 막고 현재 달까지만 노출.
+
+9. **월 정산은 헤더 + 항목 모델 분리, CSV로 round-trip** (`MonthlyReconciliation` 외 6모델 / `ReconciliationStore` / `ReconciliationCSV`)
+   한 달의 정산은 `MonthlyReconciliation`(monthKey + 월 메모)을 헤더로 두고, 금액은 `IncomeItem`·`CardUsageItem`·`SavingsItem`·`AccountMonthlyBalance`·`CashAdjustment`로 분리 저장. 화면 진입 시 `ReconciliationStore.carryForwardDraft`가 전월 값을 "다음 달에도 안정적인 값"만 미리채움 (계좌 이름·잔액 기준선, 수입·저축 이름+금액, 카드·자금변동은 이름만 금액 0).
+   - **요약·판정은 `ReconciliationSummary`(pure)에 단일화**: `실제 쓴 돈`(actualSpending)·`기록한 돈`(recordedSpending)·차이와 `isReconciled(status:)` 판정을 한 곳에서 계산해 예산 탭과 정산 화면이 같은 결론을 낸다. 진행 중인 달은 사용자가 실제 값을 입력(월말≠월초 또는 카드)해야 "정산 진행"으로 보고, 그 전엔 `실제 쓴 돈`을 0으로 게이트(프리필 노이즈 차단). 마감된 달은 저장 데이터가 있으면 확정.
+   - **정산 CSV는 AI 분석 친화 + 무손실 round-trip** (`reconciliations-YYYY-MM.csv`): 헤더 `종류,항목,계좌,방향,금액,메모` 6칼럼, UTF-8+BOM, RFC4180 이스케이프. 소비자가 AI라 self-describing(한글 라벨)로 설계 — `날짜` 칼럼 없음(정산 모델은 전부 `monthKey` 단위라 일자 자체가 없음), 계좌 잔액은 기초/기말/이자 3행으로 펼침, `월메모` 종류로 헤더 메모까지 보존. 지출 CSV와 동일하게 `CSVFileState` 지문 기반 외부 변경 감지·충돌 가드·달별 가져오기/덮어쓰기가 얹힘 (`SyncCoordinator+Reconciliation`).
 
 ## 컨벤션 (지켜주세요)
 
