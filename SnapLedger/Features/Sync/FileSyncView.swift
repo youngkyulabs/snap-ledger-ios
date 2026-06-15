@@ -143,10 +143,10 @@ struct FileSyncView: View {
             }
 
             Section {
-                Toggle("앱 진입 시 자동으로 가져오기", isOn: autoSyncBinding)
+                Toggle("파일과 자동으로 동기화", isOn: autoSyncBinding)
             } footer: {
-                Text("켜면 앱을 열 때 파일이 앱 밖에서 바뀐 달을 자동으로 파일 내용으로 맞춰요(파일 → 앱). "
-                    + "끄면 바뀐 게 있을 때 알림으로 알려주고, 여기서 직접 맞출 수 있어요.")
+                Text("켜면 앱을 열 때 앱 밖에서 바뀐 파일을 자동으로 앱에 반영해요(파일 → 앱). "
+                    + "끄면 바뀐 게 있을 때 알림으로 알려드리고, 어느 쪽 내용으로 맞출지 이 화면에서 직접 고를 수 있어요.")
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
