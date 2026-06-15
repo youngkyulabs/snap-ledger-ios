@@ -14,6 +14,9 @@ final class AppSettings {
     /// 파일 동기화 도입 전부터 폴더에 있던 CSV를 "외부 새 파일"로 오인하지 않도록,
     /// 첫 진입 시 현재 파일 지문을 baseline으로 한 번 기록했는지 여부.
     var hasSyncBaseline: Bool = false
+    /// 앱 진입 시 외부에서 바뀐 CSV를 자동으로 파일→앱 가져올지. 기본 꺼짐(opt-in):
+    /// 자동 적용은 앱 데이터를 파일 내용으로 조용히 덮어쓰므로 사용자가 직접 켠다.
+    var autoSyncEnabled: Bool = false
 
     init(
         csvFolderBookmark: Data? = nil,
@@ -23,7 +26,8 @@ final class AppSettings {
         categoryPresets: [String] = AppSettings.defaultPresets,
         customExtractionGuide: String = "",
         hasCompletedOnboarding: Bool = false,
-        hasSyncBaseline: Bool = false
+        hasSyncBaseline: Bool = false,
+        autoSyncEnabled: Bool = false
     ) {
         self.csvFolderBookmark = csvFolderBookmark
         self.reminderEnabled = reminderEnabled
@@ -33,6 +37,7 @@ final class AppSettings {
         self.customExtractionGuide = customExtractionGuide
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.hasSyncBaseline = hasSyncBaseline
+        self.autoSyncEnabled = autoSyncEnabled
     }
 
     @MainActor
