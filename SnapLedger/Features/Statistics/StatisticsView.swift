@@ -241,14 +241,30 @@ private struct CategoryDonutChart: View {
         // 색이 흐르는 어색함의 원인이 된다.
         .chartForegroundStyleScale(mapping: color(for:))
         .chartLegend(position: .bottom, alignment: .center, spacing: 8)
-        .chartBackground { _ in
-            VStack(spacing: 2) {
-                Text("\(total.formatted(.number))원")
-                    .font(.headline.monospacedDigit())
-                    .contentTransition(.numericText())
-                Text("총 지출")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        .chartBackground { proxy in
+            // 범례(.chartLegend)가 차트 하단을 차지하므로, 차트 전체가 아니라
+            // 실제 도넛이 그려지는 plot 영역의 중심에 맞춰 정렬해야 텍스트가
+            // 도넛 한가운데에 온다. (proxy 없이 두면 범례 높이만큼 아래로 치우친다.)
+            GeometryReader { geo in
+                if let plotFrame = proxy.plotFrame {
+                    let frame = geo[plotFrame]
+                    // 금액 텍스트 자체가 도넛 중심에 오도록 amount를 plot 중심에
+                    // position하고, "총 지출" 라벨은 amount 레이아웃에 영향을 주지
+                    // 않는 overlay로 바로 아래에 띄운다. (금액+라벨을 VStack으로
+                    // 묶어 중심을 잡으면 금액이 살짝 위로 떠 보인다.)
+                    Text("\(total.formatted(.number))원")
+                        .font(.headline.monospacedDigit())
+                        .contentTransition(.numericText())
+                        .overlay(alignment: .bottom) {
+                            Text("총 지출")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize()
+                                .alignmentGuide(.bottom) { $0[.top] }
+                                .offset(y: 2)
+                        }
+                        .position(x: frame.midX, y: frame.midY)
+                }
             }
         }
     }

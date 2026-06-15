@@ -125,7 +125,7 @@ struct EntryEditorView: View {
                         .disabled(!EntrySaveValidation.canSaveReview(merchant: entry.merchant, amount: entry.amount))
                 }
             }
-            .navigationTitle("검토")
+            .navigationTitle(insertOnSave ? "수동 입력" : "검토")
             .navigationBarTitleDisplayMode(.inline)
             .alert(
                 "저장 실패",
