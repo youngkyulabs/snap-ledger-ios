@@ -143,10 +143,9 @@ struct FileSyncView: View {
             }
 
             Section {
-                Toggle("파일과 자동으로 동기화", isOn: autoSyncBinding)
+                Toggle("파일 내용으로 자동 동기화", isOn: autoSyncBinding)
             } footer: {
-                Text("켜면 앱을 열 때 앱 밖에서 바뀐 파일을 자동으로 앱에 반영해요(파일 → 앱). "
-                    + "끄면 바뀐 게 있을 때 알림으로 알려드리고, 어느 쪽 내용으로 맞출지 이 화면에서 직접 고를 수 있어요.")
+                Text("이 설정을 켜면 앱을 열 때 앱 밖에서 바뀐 파일을 자동으로 앱에 반영해요. 주의해서 사용해주세요.")
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
