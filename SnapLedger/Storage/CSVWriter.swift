@@ -87,8 +87,13 @@ struct CSVWriter {
     }
 
     /// 여러 월 키를 "2026년 5월, 2026년 6월"처럼 라벨로 이어 붙인다.
+    /// 같은 달이 종류별(지출·정산)로 중복돼 들어와도 라벨은 한 번만 보이게 입력 순서를 유지해 중복 제거한다.
     nonisolated static func monthLabels(_ keys: [String]) -> String {
-        keys.map { monthLabel(forMonthKey: $0) }.joined(separator: ", ")
+        var seen = Set<String>()
+        return keys
+            .filter { seen.insert($0).inserted }
+            .map { monthLabel(forMonthKey: $0) }
+            .joined(separator: ", ")
     }
 
     private func monthKey(for date: Date) -> String {

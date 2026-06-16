@@ -9,7 +9,8 @@ struct DetectedChange: Equatable, Identifiable {
     enum Kind: Equatable { case modified, externalNew }
     let monthKey: String
     let kind: Kind
-    var id: String { monthKey }
+    let fileKind: SyncFileKind
+    var id: String { "\(fileKind.rawValue)-\(monthKey)" }
 }
 
 /// 파일 동기화 화면에서 보여줄 월별 상태.
@@ -137,6 +138,16 @@ struct SyncCoordinator {
             }
             return userMessage
         }
+
+        /// 다른 요약을 이 요약에 합친다(종류별 import 결과 누적용).
+        mutating func merge(_ other: ImportSummary) {
+            importedMonths += other.importedMonths
+            totalRows += other.totalRows
+            skippedRows += other.skippedRows
+            notReadyMonths += other.notReadyMonths
+            unreadableMonths += other.unreadableMonths
+            malformedMonths += other.malformedMonths
+        }
     }
 
     /// 저장/수정/삭제 직전 충돌 검사 결과.
@@ -150,24 +161,30 @@ struct SyncCoordinator {
 
     /// 폴더의 월별 CSV를 스캔해 외부 변경된 달을 찾는다. 다운로드 안 된/읽지 못한 파일은 건너뛴다.
     /// 파일 해시 계산은 메인 액터 밖에서 수행한다 (런치/포그라운드 프레임을 막지 않도록).
-    /// 자동 변경 감지는 기존 지출 CSV에만 적용한다. 정산 CSV는 폴더 상태 화면에서 수동으로 맞춘다.
+    /// 자동 변경 감지는 지출·정산 CSV 둘 다에 적용한다. 결과에 `fileKind`를 태깅해
+    /// 진입 시 자동 적용(파일→앱)을 종류별로 수행할 수 있게 한다.
     func detectChanges(in context: ModelContext) async -> [DetectedChange] {
         (try? await withFolderAsync(in: context) { folderURL in
-            let readiness = await Self.scanReadiness(in: folderURL, kind: .expenses)
             let states = fileStatesByName(in: context)
             var changes: [DetectedChange] = []
-            for (key, reading) in readiness {
-                guard case .ready(let content) = reading else { continue }
-                let name = SyncFileKind.expenses.filename(forMonthKey: key)
-                if let state = states[name] {
-                    if state.lastSyncedHash != content.hash {
-                        changes.append(DetectedChange(monthKey: key, kind: .modified))
+            for kind in [SyncFileKind.expenses, .reconciliation] {
+                let readiness = await Self.scanReadiness(in: folderURL, kind: kind)
+                for (key, reading) in readiness {
+                    guard case .ready(let content) = reading else { continue }
+                    let name = kind.filename(forMonthKey: key)
+                    if let state = states[name] {
+                        if state.lastSyncedHash != content.hash {
+                            changes.append(DetectedChange(monthKey: key, kind: .modified, fileKind: kind))
+                        }
+                    } else {
+                        changes.append(DetectedChange(monthKey: key, kind: .externalNew, fileKind: kind))
                     }
-                } else {
-                    changes.append(DetectedChange(monthKey: key, kind: .externalNew))
                 }
             }
-            return changes.sorted { $0.monthKey > $1.monthKey }
+            return changes.sorted {
+                if $0.monthKey != $1.monthKey { return $0.monthKey > $1.monthKey }
+                return $0.fileKind.sortOrder < $1.fileKind.sortOrder
+            }
         }) ?? []
     }
 

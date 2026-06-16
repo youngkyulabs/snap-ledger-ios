@@ -3,7 +3,18 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+/// 설정 화면에서 프로그래매틱하게 푸시할 수 있는 하위 화면.
+enum SettingsRoute: Hashable {
+    case fileSync
+}
+
 struct SettingsView: View {
+    @Binding var path: [SettingsRoute]
+
+    init(path: Binding<[SettingsRoute]> = .constant([])) {
+        self._path = path
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
@@ -36,7 +47,7 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Form {
                 csvFolderSection
                 reminderSection
@@ -62,6 +73,11 @@ struct SettingsView: View {
                     } label: {
                         Label("정보", systemImage: "info.circle")
                     }
+                }
+            }
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .fileSync: FileSyncView()
                 }
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
@@ -125,9 +141,7 @@ struct SettingsView: View {
                     folderRowLabel.foregroundStyle(.primary)
                 }
             } else {
-                NavigationLink {
-                    FileSyncView()
-                } label: {
+                NavigationLink(value: SettingsRoute.fileSync) {
                     folderRowLabel
                 }
             }

@@ -29,6 +29,16 @@ struct FileSyncView: View {
         settingsList.first?.csvFolderBookmark != nil
     }
 
+    private var autoSyncBinding: Binding<Bool> {
+        Binding(
+            get: { settingsList.first?.autoSyncEnabled ?? false },
+            set: { newValue in
+                settingsList.first?.autoSyncEnabled = newValue
+                try? modelContext.save()
+            }
+        )
+    }
+
     var body: some View {
         Group {
             if !hasFolder {
@@ -130,6 +140,13 @@ struct FileSyncView: View {
                 }
             } footer: {
                 Text("다른 폴더를 고르면 그 폴더의 CSV를 기준으로 다시 맞춰요. 현재 앱 기록은 그대로 남아요.")
+            }
+
+            Section {
+                Toggle("파일 내용으로 자동 동기화", isOn: autoSyncBinding)
+            } footer: {
+                Text("이 설정을 켜면 앱을 열 때 앱 밖에서 바뀐 파일을 자동으로 앱에 반영해요. "
+                    + "그 달 앱 기록은 파일 내용으로 덮어써지니 주의해 주세요.")
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
