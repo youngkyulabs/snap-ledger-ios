@@ -27,4 +27,9 @@ struct AppSettingsOnboardingTests {
         let fetched = try context.fetch(FetchDescriptor<AppSettings>()).first
         #expect(fetched?.hasCompletedOnboarding == true)
     }
+
+    @Test func hasMigratedToCloudStoreDefaultsFalse() {
+        let settings = AppSettings()
+        #expect(settings.hasMigratedToCloudStore == false)
+    }
 }
