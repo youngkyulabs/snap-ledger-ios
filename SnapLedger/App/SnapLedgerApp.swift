@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import OSLog
 
 @main
 struct SnapLedgerApp: App {
@@ -10,27 +11,8 @@ struct SnapLedgerApp: App {
         //    (메인 컨테이너의 로컬 config는 CategoryBudget을 제외하므로 열면 그 테이블이 정리된다.)
         let legacy = Self.snapshotLegacyIfNeeded()
 
-        // 2) 2-스토어 컨테이너 생성.
-        let local = ModelConfiguration(
-            "local",
-            schema: Schema(AppSchema.localModels),
-            groupContainer: .identifier(AppGroup.identifier),
-            cloudKitDatabase: .none
-        )
-        let cloud = ModelConfiguration(
-            "cloud",
-            schema: Schema(AppSchema.cloudModels),
-            cloudKitDatabase: .private("iCloud.com.youngkyu.snapledger")
-        )
-        let container: ModelContainer
-        do {
-            container = try ModelContainer(
-                for: Schema(AppSchema.models),
-                configurations: local, cloud
-            )
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
+        // 2) 2-스토어 컨테이너 생성 (iCloud 미로그인 시 로컬 전용 폴백).
+        let container = Self.makeContainer()
 
         // 3) 스냅샷이 있으면 CloudKit 스토어로 이전하고 플래그를 세운다(멱등).
         if let legacy {
@@ -50,6 +32,53 @@ struct SnapLedgerApp: App {
 }
 
 private extension SnapLedgerApp {
+    static let logger = Logger(subsystem: "com.youngkyu.snapledger", category: "app")
+
+    /// 2-스토어 ModelContainer를 생성한다.
+    /// 1차 시도: CloudKit 동기화 포함 (iCloud 로그인 환경).
+    /// 2차 시도: cloud config도 로컬 전용으로 폴백 (iCloud 미로그인·테스트 클론 크래시 방지).
+    ///   설계 원칙 "iCloud 미로그인 → 로컬 전용 스토어, 동기화만 안 됨(크래시 없음)"을 구현한다.
+    static func makeContainer() -> ModelContainer {
+        let local = ModelConfiguration(
+            "local",
+            schema: Schema(AppSchema.localModels),
+            groupContainer: .identifier(AppGroup.identifier),
+            cloudKitDatabase: .none
+        )
+        let cloud = ModelConfiguration(
+            "cloud",
+            schema: Schema(AppSchema.cloudModels),
+            cloudKitDatabase: .private("iCloud.com.youngkyu.snapledger")
+        )
+
+        // 1차 시도: CloudKit 동기화 포함 컨테이너.
+        if let container = try? ModelContainer(
+            for: Schema(AppSchema.models),
+            configurations: local, cloud
+        ) {
+            return container
+        }
+
+        // 2차 시도: iCloud 미로그인 또는 시뮬레이터 등 CloudKit 초기화 실패 시 로컬 전용으로 폴백.
+        logger.warning("CloudKit 컨테이너 초기화 실패 — 로컬 전용 폴백으로 재시도합니다.")
+        let cloudFallback = ModelConfiguration(
+            "cloud",
+            schema: Schema(AppSchema.cloudModels),
+            groupContainer: .identifier(AppGroup.identifier),
+            cloudKitDatabase: .none
+        )
+        do {
+            let container = try ModelContainer(
+                for: Schema(AppSchema.models),
+                configurations: local, cloudFallback
+            )
+            logger.info("로컬 전용 폴백 컨테이너로 실행 중 (동기화 비활성).")
+            return container
+        } catch let fallbackError {
+            fatalError("Could not create ModelContainer (fallback also failed): \(fallbackError)")
+        }
+    }
+
     struct LegacySnapshot {
         let budgets: [BudgetSnapshot]
         let presets: [String]
