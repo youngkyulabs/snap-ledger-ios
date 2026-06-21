@@ -11,13 +11,13 @@ enum AppSchema {
     static let cloudModels: [any PersistentModel.Type] = [
         CategoryBudget.self,
         CategoryPreset.self,
+        SavedEntry.self,
     ]
 
     /// App Group 로컬 스토어 모델(인텐트와 공유).
     static let localModels: [any PersistentModel.Type] = [
         PendingImage.self,
         ParsedEntry.self,
-        SavedEntry.self,
         MerchantCategory.self,
         AppSettings.self,
         CSVFileState.self,
