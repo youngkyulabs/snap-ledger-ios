@@ -27,11 +27,10 @@ struct AddExpenseFromImageIntent: AppIntent {
         try image.data.write(to: destination, options: .atomic)
 
         // PendingImage는 로컬 모델이므로 로컬 스토어만 연다.
-        // 메인 앱의 로컬 config와 이름("local")·스키마·CloudKit 설정이 모두 같아야
-        // 같은 스토어 파일(local.store)을 충돌 없이 공유한다.
+        // 메인 앱의 로컬 config와 동일하게 이름 없이 열어 같은 default.store를
+        // (스키마·CloudKit 설정 모두 동일하게) 충돌 없이 공유한다.
         let schema = Schema(AppSchema.localModels)
         let configuration = ModelConfiguration(
-            "local",
             schema: schema,
             groupContainer: .identifier(AppGroup.identifier),
             cloudKitDatabase: .none

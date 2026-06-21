@@ -39,8 +39,9 @@ private extension SnapLedgerApp {
     /// 2차 시도: cloud config도 로컬 전용으로 폴백 (iCloud 미로그인·테스트 클론 크래시 방지).
     ///   설계 원칙 "iCloud 미로그인 → 로컬 전용 스토어, 동기화만 안 됨(크래시 없음)"을 구현한다.
     static func makeContainer() -> ModelContainer {
+        // 로컬 스토어는 이름을 주지 않아 기존 사용자의 default.store를 그대로 연다.
+        // (이름을 주면 새 빈 파일이 생겨 업데이트 시 기존 데이터가 고아가 된다.)
         let local = ModelConfiguration(
-            "local",
             schema: Schema(AppSchema.localModels),
             groupContainer: .identifier(AppGroup.identifier),
             cloudKitDatabase: .none
