@@ -13,7 +13,16 @@ struct CategoryLearner: Sendable {
         return result
     }
 
+    /// MerchantCategory가 이 컨텍스트의 컨테이너 스키마에 있는지.
+    /// Phase 3에서 MerchantCategory는 cloudModels로 이동했고, AppIntent는 localModels-only
+    /// 컨테이너를 연다 → 인텐트 경로에서는 학습 스토어가 없다. 스키마에 없는 엔티티 접근은
+    /// 조용히 건너뛴다(인텐트는 CloudKit 미접촉 — 카테고리 학습은 본체 앱에서만).
+    private static func hasMerchantStore(_ context: ModelContext) -> Bool {
+        context.container.schema.entities.contains { $0.name == "MerchantCategory" }
+    }
+
     func category(for merchant: String, in context: ModelContext) throws -> String? {
+        guard Self.hasMerchantStore(context) else { return nil }
         let normalized = Self.normalize(merchant)
         let descriptor = FetchDescriptor<MerchantCategory>(
             predicate: #Predicate { $0.merchantNormalized == normalized }
@@ -24,6 +33,7 @@ struct CategoryLearner: Sendable {
     }
 
     func learn(merchant: String, category: String, in context: ModelContext) throws {
+        guard Self.hasMerchantStore(context) else { return }
         let normalized = Self.normalize(merchant)
         let descriptor = FetchDescriptor<MerchantCategory>(
             predicate: #Predicate { $0.merchantNormalized == normalized }
