@@ -284,7 +284,10 @@ enum CloudStoreMigration {
                 row.monthKey = snap.monthKey; row.title = snap.title; row.amount = snap.amount
                 row.sortOrder = snap.sortOrder; row.updatedAt = snap.updatedAt
             } else {
-                let row = SavingsItem(id: snap.id, monthKey: snap.monthKey, title: snap.title, amount: snap.amount, sortOrder: snap.sortOrder, updatedAt: snap.updatedAt)
+                let row = SavingsItem(
+                    id: snap.id, monthKey: snap.monthKey, title: snap.title,
+                    amount: snap.amount, sortOrder: snap.sortOrder, updatedAt: snap.updatedAt
+                )
                 cloud.insert(row); byID[snap.id] = row
             }
         }
@@ -306,7 +309,10 @@ enum CloudStoreMigration {
                 row.monthKey = snap.monthKey; row.title = snap.title; row.amount = snap.amount
                 row.sortOrder = snap.sortOrder; row.updatedAt = snap.updatedAt
             } else {
-                let row = CardUsageItem(id: snap.id, monthKey: snap.monthKey, title: snap.title, amount: snap.amount, sortOrder: snap.sortOrder, updatedAt: snap.updatedAt)
+                let row = CardUsageItem(
+                    id: snap.id, monthKey: snap.monthKey, title: snap.title,
+                    amount: snap.amount, sortOrder: snap.sortOrder, updatedAt: snap.updatedAt
+                )
                 cloud.insert(row); byID[snap.id] = row
             }
         }
@@ -328,7 +334,10 @@ enum CloudStoreMigration {
                 row.monthKey = snap.monthKey; row.title = snap.title; row.amount = snap.amount
                 row.sortOrder = snap.sortOrder; row.updatedAt = snap.updatedAt
             } else {
-                let row = IncomeItem(id: snap.id, monthKey: snap.monthKey, title: snap.title, amount: snap.amount, sortOrder: snap.sortOrder, updatedAt: snap.updatedAt)
+                let row = IncomeItem(
+                    id: snap.id, monthKey: snap.monthKey, title: snap.title,
+                    amount: snap.amount, sortOrder: snap.sortOrder, updatedAt: snap.updatedAt
+                )
                 cloud.insert(row); byID[snap.id] = row
             }
         }

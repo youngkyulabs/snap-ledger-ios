@@ -134,12 +134,16 @@ struct CloudStoreMigrationTests {
         let cloud = try makeContext()
         CloudStoreMigration.copyReconciliations(
             [ReconciliationSnapshot(id: UUID(), monthKey: 202_606, note: "메모", updatedAt: .now)], into: cloud)
-        CloudStoreMigration.copyAccountBalances(
-            [AccountBalanceSnapshot(id: UUID(), monthKey: 202_606, accountName: "주거래",
-                                    sortOrder: 0, openingBalance: 100, closingBalance: 200, interestAmount: 5)], into: cloud)
-        CloudStoreMigration.copyCashAdjustments(
-            [CashAdjustmentSnapshot(id: UUID(), monthKey: 202_606, title: "환급",
-                                    direction: .deposit, amount: 3000, sortOrder: 0, note: nil)], into: cloud)
+        let balance = AccountBalanceSnapshot(
+            id: UUID(), monthKey: 202_606, accountName: "주거래",
+            sortOrder: 0, openingBalance: 100, closingBalance: 200, interestAmount: 5
+        )
+        CloudStoreMigration.copyAccountBalances([balance], into: cloud)
+        let cash = CashAdjustmentSnapshot(
+            id: UUID(), monthKey: 202_606, title: "환급",
+            direction: .deposit, amount: 3000, sortOrder: 0, note: nil
+        )
+        CloudStoreMigration.copyCashAdjustments([cash], into: cloud)
         CloudStoreMigration.copySavings(
             [LineItemSnapshot(id: UUID(), monthKey: 202_606, title: "적금", amount: 100_000, sortOrder: 0, updatedAt: .now)], into: cloud)
         CloudStoreMigration.copyCardUsage(

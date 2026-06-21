@@ -27,7 +27,7 @@ final class CashAdjustment {
     /// YYYYMM (예: 202606)
     var monthKey = 0
     var title = ""
-    var direction: CashAdjustmentDirection = CashAdjustmentDirection.withdrawal
+    var direction = CashAdjustmentDirection.withdrawal
     var amount = 0
     // 기존 모델에 추가된 속성 — 기존 데이터의 자동 경량 마이그레이션이 0으로 백필되도록 기본값을 둔다.
     var sortOrder = 0
