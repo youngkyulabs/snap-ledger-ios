@@ -110,12 +110,21 @@ private extension SnapLedgerApp {
         let budgets: [BudgetSnapshot]
         let presets: [String]
         let entries: [EntrySnapshot]
+        let reconciliations: [ReconciliationSnapshot]
+        let accountBalances: [AccountBalanceSnapshot]
+        let cashAdjustments: [CashAdjustmentSnapshot]
+        let savings: [LineItemSnapshot]
+        let cardUsage: [LineItemSnapshot]
+        let income: [LineItemSnapshot]
+        let merchants: [MerchantSnapshot]
         let migrateBudgets: Bool
         let migrateEntries: Bool
+        let migrateReconciliation: Bool
+        let migrateMerchants: Bool
     }
 
     /// 구 App Group 스토어를 전체 스키마로 한 번 열어, 아직 이전 안 된 데이터를 값으로 읽는다.
-    /// 예산·지출 둘 다 이전 완료면 nil(아무것도 하지 않음).
+    /// 예산·지출·정산·머천트 모두 이전 완료면 nil(아무것도 하지 않음).
     @MainActor
     static func snapshotLegacyIfNeeded() -> LegacySnapshot? {
         let schema = Schema(AppSchema.models)
@@ -130,16 +139,30 @@ private extension SnapLedgerApp {
         let settings = try? context.fetch(FetchDescriptor<AppSettings>()).first
         let needBudgets = settings?.hasMigratedToCloudStore != true
         let needEntries = settings?.hasMigratedEntriesToCloudStore != true
-        guard needBudgets || needEntries else { return nil }
+        let needReconciliation = settings?.hasMigratedReconciliationToCloudStore != true
+        let needMerchants = settings?.hasMigratedMerchantsToCloudStore != true
+        guard needBudgets || needEntries || needReconciliation || needMerchants else { return nil }
 
         let budgets = needBudgets ? CloudStoreMigration.snapshotBudgets(from: context) : []
         let presetsRaw = settings?.categoryPresets ?? AppSettings.defaultPresets
         let presets = presetsRaw.isEmpty ? AppSettings.defaultPresets : presetsRaw
         let entries = needEntries ? CloudStoreMigration.snapshotEntries(from: context) : []
 
+        let reconciliations = needReconciliation ? CloudStoreMigration.snapshotReconciliations(from: context) : []
+        let accountBalances = needReconciliation ? CloudStoreMigration.snapshotAccountBalances(from: context) : []
+        let cashAdjustments = needReconciliation ? CloudStoreMigration.snapshotCashAdjustments(from: context) : []
+        let savings = needReconciliation ? CloudStoreMigration.snapshotSavings(from: context) : []
+        let cardUsage = needReconciliation ? CloudStoreMigration.snapshotCardUsage(from: context) : []
+        let income = needReconciliation ? CloudStoreMigration.snapshotIncome(from: context) : []
+        let merchants = needMerchants ? CloudStoreMigration.snapshotMerchants(from: context) : []
+
         return LegacySnapshot(
             budgets: budgets, presets: presets, entries: entries,
-            migrateBudgets: needBudgets, migrateEntries: needEntries
+            reconciliations: reconciliations, accountBalances: accountBalances,
+            cashAdjustments: cashAdjustments, savings: savings, cardUsage: cardUsage,
+            income: income, merchants: merchants,
+            migrateBudgets: needBudgets, migrateEntries: needEntries,
+            migrateReconciliation: needReconciliation, migrateMerchants: needMerchants
         )
     }
 
@@ -154,6 +177,17 @@ private extension SnapLedgerApp {
         if legacy.migrateEntries {
             CloudStoreMigration.copyEntries(legacy.entries, into: context)
         }
+        if legacy.migrateReconciliation {
+            CloudStoreMigration.copyReconciliations(legacy.reconciliations, into: context)
+            CloudStoreMigration.copyAccountBalances(legacy.accountBalances, into: context)
+            CloudStoreMigration.copyCashAdjustments(legacy.cashAdjustments, into: context)
+            CloudStoreMigration.copySavings(legacy.savings, into: context)
+            CloudStoreMigration.copyCardUsage(legacy.cardUsage, into: context)
+            CloudStoreMigration.copyIncome(legacy.income, into: context)
+        }
+        if legacy.migrateMerchants {
+            CloudStoreMigration.copyMerchants(legacy.merchants, into: context)
+        }
 
         // 플래그는 로컬 AppSettings에 — 줄어든 로컬 스토어에서 읽고 쓴다.
         let settings: AppSettings
@@ -165,6 +199,8 @@ private extension SnapLedgerApp {
         }
         if legacy.migrateBudgets { settings.hasMigratedToCloudStore = true }
         if legacy.migrateEntries { settings.hasMigratedEntriesToCloudStore = true }
+        if legacy.migrateReconciliation { settings.hasMigratedReconciliationToCloudStore = true }
+        if legacy.migrateMerchants { settings.hasMigratedMerchantsToCloudStore = true }
         try? context.save()
     }
 }
