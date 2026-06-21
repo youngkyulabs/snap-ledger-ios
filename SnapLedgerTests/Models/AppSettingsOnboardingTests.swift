@@ -7,7 +7,7 @@ import Testing
 struct AppSettingsOnboardingTests {
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([AppSettings.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [config])
     }
 
@@ -26,5 +26,10 @@ struct AppSettingsOnboardingTests {
 
         let fetched = try context.fetch(FetchDescriptor<AppSettings>()).first
         #expect(fetched?.hasCompletedOnboarding == true)
+    }
+
+    @Test func hasMigratedToCloudStoreDefaultsFalse() {
+        let settings = AppSettings()
+        #expect(settings.hasMigratedToCloudStore == false)
     }
 }

@@ -127,6 +127,8 @@ struct ContentView: View {
                 break
             }
         }
+        // 앱 진입(콜드 스타트·포그라운드 복귀) 시 원격 기기 변경을 로컬 캐시에 반영.
+        .task { CategoryPresetStore().refreshCache(cloud: modelContext, local: modelContext) }
     }
 
     @MainActor

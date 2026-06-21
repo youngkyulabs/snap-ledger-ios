@@ -4,21 +4,22 @@ import SwiftData
 struct CategoryEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Query(sort: \CategoryPreset.sortOrder) private var presetRecords: [CategoryPreset]
     @Query private var settingsList: [AppSettings]
     @State private var newCategoryText = ""
     @FocusState private var addFieldFocused: Bool
 
+    private let store = CategoryPresetStore()
+
+    private var presets: [String] { presetRecords.map(\.name) }
+
     private var settings: AppSettings {
-        if let existing = settingsList.first {
-            return existing
-        }
+        if let existing = settingsList.first { return existing }
         let new = AppSettings()
         modelContext.insert(new)
         try? modelContext.save()
         return new
     }
-
-    private var presets: [String] { settings.categoryPresets }
 
     var body: some View {
         List {
@@ -58,6 +59,8 @@ struct CategoryEditorView: View {
                 ToolbarItem(placement: .primaryAction) { EditButton() }
             }
         }
+        // 화면 진입 시 원격 기기 변경을 캐시에 반영.
+        .task { store.refreshCache(cloud: modelContext, local: modelContext) }
     }
 
     private var canAddCategory: Bool {
@@ -67,35 +70,39 @@ struct CategoryEditorView: View {
 
     private func addCategory() {
         let trimmed = newCategoryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !settings.categoryPresets.contains(trimmed) else {
+        guard !trimmed.isEmpty, !presets.contains(trimmed) else {
             newCategoryText = ""
             return
         }
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.append(trimmed)
-            try? modelContext.save()
+            store.add(trimmed, in: modelContext)
+            store.refreshCache(cloud: modelContext, local: modelContext)
             newCategoryText = ""
         }
     }
 
     private func deleteCategory(at offsets: IndexSet) {
-        let removed = offsets.map { settings.categoryPresets[$0] }
+        let removed = offsets.map { presets[$0] }
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.remove(atOffsets: offsets)
-            try? modelContext.save()
+            for name in removed {
+                store.remove(name, in: modelContext)
+            }
+            store.refreshCache(cloud: modelContext, local: modelContext)
         }
         // 삭제된 카테고리의 예산은 이번 달부터 해제(지난 달 한도는 보존).
         let currentMonthKey = CategoryBudgetStore.monthKey(from: Date())
-        let store = CategoryBudgetStore()
+        let budgetStore = CategoryBudgetStore()
         for category in removed {
-            try? store.endBudget(for: category, asOf: currentMonthKey, in: modelContext)
+            try? budgetStore.endBudget(for: category, asOf: currentMonthKey, in: modelContext)
         }
     }
 
     private func moveCategory(from source: IndexSet, to destination: Int) {
+        var names = presets
+        names.move(fromOffsets: source, toOffset: destination)
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            settings.categoryPresets.move(fromOffsets: source, toOffset: destination)
-            try? modelContext.save()
+            store.reorder(names, in: modelContext)
+            store.refreshCache(cloud: modelContext, local: modelContext)
         }
     }
 }
@@ -104,5 +111,5 @@ struct CategoryEditorView: View {
     NavigationStack {
         CategoryEditorView()
     }
-    .modelContainer(for: AppSettings.self, inMemory: true)
+    .modelContainer(for: [CategoryPreset.self, AppSettings.self, CategoryBudget.self], inMemory: true)
 }

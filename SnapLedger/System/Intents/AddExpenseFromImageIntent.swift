@@ -26,11 +26,14 @@ struct AddExpenseFromImageIntent: AppIntent {
         let destination = inboxURL.appendingPathComponent(filename)
         try image.data.write(to: destination, options: .atomic)
 
-        // 메인 앱과 같은 App Group 스토어를 열므로 스키마도 반드시 동일해야 한다.
-        let schema = Schema(AppSchema.models)
+        // PendingImage는 로컬 모델이므로 로컬 스토어만 연다.
+        // 메인 앱의 로컬 config와 동일하게 이름 없이 열어 같은 default.store를
+        // (스키마·CloudKit 설정 모두 동일하게) 충돌 없이 공유한다.
+        let schema = Schema(AppSchema.localModels)
         let configuration = ModelConfiguration(
             schema: schema,
-            groupContainer: .identifier(AppGroup.identifier)
+            groupContainer: .identifier(AppGroup.identifier),
+            cloudKitDatabase: .none
         )
         let container = try ModelContainer(for: schema, configurations: [configuration])
         let context = ModelContext(container)

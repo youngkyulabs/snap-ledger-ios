@@ -9,7 +9,7 @@ struct ReconciliationStoreTests {
         let container = try ModelContainer(
             for: MonthlyReconciliation.self, AccountMonthlyBalance.self, CashAdjustment.self, SavingsItem.self,
             CardUsageItem.self, IncomeItem.self, AppSettings.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         return ModelContext(container)
     }
@@ -22,7 +22,7 @@ struct ReconciliationStoreTests {
             SavingsItem.self, CardUsageItem.self, IncomeItem.self,
         ])
         let container = try ModelContainer(
-            for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = ModelContext(container)
 

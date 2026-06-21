@@ -8,7 +8,7 @@ struct IncomeItemTests {
     @Test func persistsAndFetches() throws {
         let container = try ModelContainer(
             for: IncomeItem.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = ModelContext(container)
         context.insert(IncomeItem(monthKey: 202_606, title: "월급", amount: 3_000_000, sortOrder: 0))

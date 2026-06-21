@@ -25,7 +25,7 @@ struct PendingProcessorTests {
         try ModelContainer(
             for: PendingImage.self, ParsedEntry.self, SavedEntry.self,
             MerchantCategory.self, AppSettings.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
     }
 
@@ -404,7 +404,7 @@ struct PendingProcessorReconcileInboxTests {
         try ModelContainer(
             for: PendingImage.self, ParsedEntry.self, SavedEntry.self,
             MerchantCategory.self, AppSettings.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
     }
 
@@ -513,7 +513,7 @@ struct PendingProcessorPaymentSignalGateTests {
         try ModelContainer(
             for: PendingImage.self, ParsedEntry.self, SavedEntry.self,
             MerchantCategory.self, AppSettings.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
     }
 

@@ -10,7 +10,7 @@ struct PendingProcessorCleanupTests {
         try ModelContainer(
             for: PendingImage.self, ParsedEntry.self, SavedEntry.self,
             MerchantCategory.self, AppSettings.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
     }
 
