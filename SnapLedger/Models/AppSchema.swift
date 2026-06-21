@@ -12,21 +12,21 @@ enum AppSchema {
         CategoryBudget.self,
         CategoryPreset.self,
         SavedEntry.self,
-    ]
-
-    /// App Group 로컬 스토어 모델(인텐트와 공유).
-    static let localModels: [any PersistentModel.Type] = [
-        PendingImage.self,
-        ParsedEntry.self,
-        MerchantCategory.self,
-        AppSettings.self,
-        CSVFileState.self,
         MonthlyReconciliation.self,
         AccountMonthlyBalance.self,
         CashAdjustment.self,
         SavingsItem.self,
         CardUsageItem.self,
         IncomeItem.self,
+        MerchantCategory.self,
+    ]
+
+    /// App Group 로컬 스토어 모델(인텐트와 공유).
+    static let localModels: [any PersistentModel.Type] = [
+        PendingImage.self,
+        ParsedEntry.self,
+        AppSettings.self,
+        CSVFileState.self,
     ]
 
     /// 전체 모델(컨테이너 생성용 합집합).

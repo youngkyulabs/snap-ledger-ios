@@ -3,14 +3,14 @@ import SwiftData
 
 @Model
 final class AccountMonthlyBalance {
-    var id: UUID
+    var id = UUID()
     /// YYYYMM (예: 202606)
-    var monthKey: Int
-    var accountName: String
-    var sortOrder: Int
-    var openingBalance: Int
-    var closingBalance: Int
-    var interestAmount: Int
+    var monthKey = 0
+    var accountName = ""
+    var sortOrder = 0
+    var openingBalance = 0
+    var closingBalance = 0
+    var interestAmount = 0
 
     init(
         id: UUID = UUID(),

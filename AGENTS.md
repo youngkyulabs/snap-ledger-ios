@@ -63,7 +63,7 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
   Models/                            # SwiftData @Model
     AppSettings.swift, ParsedEntry.swift, SavedEntry.swift, PendingImage.swift, MerchantCategory.swift
     CSVFileState.swift               # 월별 CSV 파일의 마지막 동기화 지문 (해시+mtime) — 외부 변경 감지 기준 (지출·정산 공용)
-    AppSchema.swift                  # ModelContainer 공유 스키마 (메인 앱·AppIntent가 같은 스토어를 열므로 필수 동일)
+    AppSchema.swift                  # ModelContainer 스키마 정의 — cloudModels(CloudKit private DB 진실원)/localModels(App Group, 인텐트 공유) 분리. 새 @Model은 여기에만 등록
     # --- 예산·정산 (예산 탭) ---
     CategoryBudget.swift             # 카테고리별 월 한도 (effectiveFrom부터 자동 이월, monthlyLimit=0은 해제 tombstone)
     MonthlyReconciliation.swift      # 월 정산 헤더 (monthKey + note). 금액 항목은 아래 모델들로 분리

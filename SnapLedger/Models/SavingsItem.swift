@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class SavingsItem {
-    var id: UUID
+    var id = UUID()
     /// YYYYMM (예: 202606)
-    var monthKey: Int
-    var title: String
-    var amount: Int
-    var sortOrder: Int
-    var updatedAt: Date
+    var monthKey = 0
+    var title = ""
+    var amount = 0
+    var sortOrder = 0
+    var updatedAt = Date.now
 
     init(
         id: UUID = UUID(),

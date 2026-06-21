@@ -119,3 +119,95 @@ struct CloudStoreMigrationTests {
         #expect(snaps.first?.note == "할인")
     }
 }
+
+@MainActor
+@Suite struct CloudStoreMigrationReconciliationTests {
+    private func makeContext() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: Schema(AppSchema.models),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        return ModelContext(container)
+    }
+
+    @Test func copiesAllReconciliationModels() throws {
+        let cloud = try makeContext()
+        CloudStoreMigration.copyReconciliations(
+            [ReconciliationSnapshot(id: UUID(), monthKey: 202_606, note: "메모", updatedAt: .now)], into: cloud)
+        let balance = AccountBalanceSnapshot(
+            id: UUID(), monthKey: 202_606, accountName: "주거래",
+            sortOrder: 0, openingBalance: 100, closingBalance: 200, interestAmount: 5
+        )
+        CloudStoreMigration.copyAccountBalances([balance], into: cloud)
+        let cash = CashAdjustmentSnapshot(
+            id: UUID(), monthKey: 202_606, title: "환급",
+            direction: .deposit, amount: 3000, sortOrder: 0, note: nil
+        )
+        CloudStoreMigration.copyCashAdjustments([cash], into: cloud)
+        CloudStoreMigration.copySavings(
+            [LineItemSnapshot(id: UUID(), monthKey: 202_606, title: "적금", amount: 100_000, sortOrder: 0, updatedAt: .now)], into: cloud)
+        CloudStoreMigration.copyCardUsage(
+            [LineItemSnapshot(id: UUID(), monthKey: 202_606, title: "신용카드", amount: 250_000, sortOrder: 0, updatedAt: .now)], into: cloud)
+        CloudStoreMigration.copyIncome(
+            [LineItemSnapshot(id: UUID(), monthKey: 202_606, title: "급여", amount: 3_000_000, sortOrder: 0, updatedAt: .now)], into: cloud)
+
+        #expect(try cloud.fetch(FetchDescriptor<MonthlyReconciliation>()).count == 1)
+        #expect(try cloud.fetch(FetchDescriptor<AccountMonthlyBalance>()).first?.interestAmount == 5)
+        #expect(try cloud.fetch(FetchDescriptor<CashAdjustment>()).first?.direction == .deposit)
+        #expect(try cloud.fetch(FetchDescriptor<SavingsItem>()).first?.amount == 100_000)
+        #expect(try cloud.fetch(FetchDescriptor<CardUsageItem>()).first?.amount == 250_000)
+        #expect(try cloud.fetch(FetchDescriptor<IncomeItem>()).first?.amount == 3_000_000)
+    }
+
+    @Test func copyReconciliationIsIdempotentByID() throws {
+        let cloud = try makeContext()
+        let id = UUID()
+        CloudStoreMigration.copyReconciliations(
+            [ReconciliationSnapshot(id: id, monthKey: 202_606, note: "v1", updatedAt: .now)], into: cloud)
+        CloudStoreMigration.copyReconciliations(
+            [ReconciliationSnapshot(id: id, monthKey: 202_606, note: "v2", updatedAt: .now)], into: cloud)
+        let rows = try cloud.fetch(FetchDescriptor<MonthlyReconciliation>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.note == "v2")
+    }
+
+    @Test func snapshotReadsReconciliationFields() throws {
+        let source = try makeContext()
+        source.insert(MonthlyReconciliation(monthKey: 202_606, note: "원본"))
+        source.insert(IncomeItem(monthKey: 202_606, title: "급여", amount: 100, sortOrder: 1))
+        try source.save()
+        #expect(CloudStoreMigration.snapshotReconciliations(from: source).first?.note == "원본")
+        #expect(CloudStoreMigration.snapshotIncome(from: source).first?.title == "급여")
+    }
+}
+
+@MainActor
+@Suite struct CloudStoreMigrationMerchantTests {
+    private func makeContext() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: Schema(AppSchema.models),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        return ModelContext(container)
+    }
+
+    @Test func copyMerchantsIsIdempotentByNormalized() throws {
+        let cloud = try makeContext()
+        CloudStoreMigration.copyMerchants(
+            [MerchantSnapshot(merchantNormalized: "스타벅스", category: "카페", updatedAt: .now)], into: cloud)
+        CloudStoreMigration.copyMerchants(
+            [MerchantSnapshot(merchantNormalized: "스타벅스", category: "간식", updatedAt: .now)], into: cloud)
+        let rows = try cloud.fetch(FetchDescriptor<MerchantCategory>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.category == "간식")
+    }
+
+    @Test func snapshotMerchantsReadsAll() throws {
+        let source = try makeContext()
+        source.insert(MerchantCategory(merchantNormalized: "편의점", category: "간식"))
+        try source.save()
+        let snaps = CloudStoreMigration.snapshotMerchants(from: source)
+        #expect(snaps.first?.merchantNormalized == "편의점")
+        #expect(snaps.first?.category == "간식")
+    }
+}

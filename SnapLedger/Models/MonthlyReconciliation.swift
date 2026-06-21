@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class MonthlyReconciliation {
-    var id: UUID
+    var id = UUID()
     /// YYYYMM (예: 202606)
-    var monthKey: Int
+    var monthKey = 0
     var note: String?
-    var updatedAt: Date
+    var updatedAt = Date.now
 
     init(
         id: UUID = UUID(),
