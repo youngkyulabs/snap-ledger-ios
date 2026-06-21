@@ -13,6 +13,14 @@ struct CloudStoreMigrationTests {
         return ModelContext(container)
     }
 
+    private func makeContextWithAppSchema() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: Schema(AppSchema.models),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        return ModelContext(container)
+    }
+
     @Test func snapshotReadsAllBudgets() throws {
         let source = try makeContext([CategoryBudget.self])
         source.insert(CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_606))
@@ -50,5 +58,64 @@ struct CloudStoreMigrationTests {
         CloudStoreMigration.seedPresets(["식비", "카페"], into: cloud)
         let all = try cloud.fetch(FetchDescriptor<CategoryPreset>())
         #expect(all.count == 2)
+    }
+}
+
+@MainActor
+@Suite struct CloudStoreMigrationEntriesTests {
+    private func makeContext() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: Schema(AppSchema.models),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        return ModelContext(container)
+    }
+
+    @Test func copiesEntriesIntoCloudStore() throws {
+        let cloud = try makeContext()
+        let snap = EntrySnapshot(
+            id: UUID(), date: Date(timeIntervalSince1970: 1_700_000_000),
+            amount: 5000, merchant: "스타벅스", category: "카페",
+            note: nil, savedAt: Date(timeIntervalSince1970: 1_700_000_100),
+            csvFile: "expenses-2023-11.csv"
+        )
+        CloudStoreMigration.copyEntries([snap], into: cloud)
+        let rows = try cloud.fetch(FetchDescriptor<SavedEntry>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.merchant == "스타벅스")
+        #expect(rows.first?.amount == 5000)
+    }
+
+    @Test func copyEntriesIsIdempotentByID() throws {
+        let cloud = try makeContext()
+        let id = UUID()
+        let snap = EntrySnapshot(
+            id: id, date: .now, amount: 1000, merchant: "A",
+            category: nil, note: nil, savedAt: .now, csvFile: "expenses-2026-06.csv"
+        )
+        CloudStoreMigration.copyEntries([snap], into: cloud)
+        // 같은 id로 금액만 바꿔 재실행 → 중복 없이 업데이트.
+        let updated = EntrySnapshot(
+            id: id, date: snap.date, amount: 2000, merchant: "A",
+            category: nil, note: nil, savedAt: snap.savedAt, csvFile: snap.csvFile
+        )
+        CloudStoreMigration.copyEntries([updated], into: cloud)
+        let rows = try cloud.fetch(FetchDescriptor<SavedEntry>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.amount == 2000)
+    }
+
+    @Test func snapshotEntriesReadsAllFields() throws {
+        let source = try makeContext()
+        source.insert(SavedEntry(
+            date: Date(timeIntervalSince1970: 1_700_000_000),
+            amount: 3000, merchant: "편의점", category: "간식",
+            note: "할인", csvFile: "expenses-2023-11.csv"
+        ))
+        try source.save()
+        let snaps = CloudStoreMigration.snapshotEntries(from: source)
+        #expect(snaps.count == 1)
+        #expect(snaps.first?.merchant == "편의점")
+        #expect(snaps.first?.note == "할인")
     }
 }

@@ -20,6 +20,10 @@ final class AppSettings {
     /// 기존 사용자의 예산·카테고리를 CloudKit 스토어로 1회성 이전했는지.
     /// 한 번 true가 되면, 사용자가 카테고리를 전부 지워도 재시드하지 않도록 이 플래그로만 가드한다.
     var hasMigratedToCloudStore: Bool = false
+    /// 기존 사용자의 지출(SavedEntry)을 CloudKit 스토어로 1회성 이전했는지.
+    /// Phase 1 플래그와 분리 — Phase 1 사용자는 hasMigratedToCloudStore가 이미 true라
+    /// 재사용하면 지출 이전이 실행되지 않는다.
+    var hasMigratedEntriesToCloudStore: Bool = false
 
     init(
         csvFolderBookmark: Data? = nil,
@@ -31,7 +35,8 @@ final class AppSettings {
         hasCompletedOnboarding: Bool = false,
         hasSyncBaseline: Bool = false,
         autoSyncEnabled: Bool = false,
-        hasMigratedToCloudStore: Bool = false
+        hasMigratedToCloudStore: Bool = false,
+        hasMigratedEntriesToCloudStore: Bool = false
     ) {
         self.csvFolderBookmark = csvFolderBookmark
         self.reminderEnabled = reminderEnabled
@@ -43,6 +48,7 @@ final class AppSettings {
         self.hasSyncBaseline = hasSyncBaseline
         self.autoSyncEnabled = autoSyncEnabled
         self.hasMigratedToCloudStore = hasMigratedToCloudStore
+        self.hasMigratedEntriesToCloudStore = hasMigratedEntriesToCloudStore
     }
 
     @MainActor

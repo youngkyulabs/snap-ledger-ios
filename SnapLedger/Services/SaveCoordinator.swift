@@ -45,98 +45,49 @@ struct SaveCoordinator {
         ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
-        try withFolder(in: context) { folderURL in
-            let monthKey = CSVWriter.monthKey(for: entry.date)
-            if !ignoringConflict {
-                try ensureNoConflict(monthKeys: [monthKey], folderURL: folderURL, in: context)
-            }
-
-            let row = SavedRow(
+        let monthKey = CSVWriter.monthKey(for: entry.date)
+        // CloudKit이 진실원 — SwiftData 저장이 먼저 성공한다. CSV는 best-effort export.
+        context.insert(
+            SavedEntry(
                 date: entry.date,
-                description: entry.merchant,
-                category: entry.category,
                 amount: entry.amount,
-                note: entry.note
+                merchant: entry.merchant,
+                category: entry.category,
+                note: entry.note,
+                csvFile: CSVWriter.filename(forMonthKey: monthKey)
             )
-            context.insert(
-                SavedEntry(
-                    date: entry.date,
-                    amount: entry.amount,
-                    merchant: entry.merchant,
-                    category: entry.category,
-                    note: entry.note,
-                    csvFile: CSVWriter.filename(forMonthKey: monthKey)
-                )
-            )
-            let originalStatus = entry.status
-            entry.status = .dismissed
-            do {
-                try CSVWriter(folder: folderURL).append(row)
-                sync.refreshFileState(monthKey: monthKey, folderURL: folderURL, in: context)
-                try context.save()
-            } catch {
-                // rollback()은 pending insert/delete는 버리지만 등록된 객체의
-                // 속성 변경은 메모리에 남길 수 있어 원본 값을 직접 복원한다.
-                context.rollback()
-                entry.status = originalStatus
-                throw error
-            }
-            learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
-        }
+        )
+        entry.status = .dismissed
+        try context.save()
+
+        exportEntryBestEffort(monthKeys: [monthKey], in: context)
+        learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
     }
 
-    /// 편집 값을 `edit`으로 받아, 충돌 가드를 통과한 뒤에만 `entry`에 대입한다.
-    /// 쓰기가 실패하면 `entry`는 더티로 남지 않아 앱↔파일이 어긋나지 않는다.
+    /// 편집 값을 `edit`으로 받아 모델에 대입하고 저장한다. CloudKit이 진실원이므로
+    /// CSV export는 best-effort(폴더 없거나 실패해도 저장은 성공).
+    /// (`ignoringConflict`는 지출에서 무의미 — Phase 4에서 호출부와 함께 제거 예정.)
     func update(
         _ entry: SavedEntry,
         to edit: SavedEntryEdit,
         ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
-        try withFolder(in: context) { folderURL in
-            // entry는 아직 안 바꿨으므로 현재 date가 곧 원래 달.
-            let oldKey = CSVWriter.monthKey(for: entry.date)
-            let newKey = CSVWriter.monthKey(for: edit.date)
-            let affectedKeys = Array(Set([oldKey, newKey]))
+        // entry는 아직 안 바꿨으므로 현재 date가 곧 원래 달.
+        let oldKey = CSVWriter.monthKey(for: entry.date)
+        let newKey = CSVWriter.monthKey(for: edit.date)
+        let affectedKeys = Array(Set([oldKey, newKey]))
 
-            if !ignoringConflict {
-                try ensureNoConflict(monthKeys: affectedKeys, folderURL: folderURL, in: context)
-            }
+        entry.date = edit.date
+        entry.merchant = edit.merchant
+        entry.amount = edit.amount
+        entry.category = edit.category
+        entry.note = edit.note
+        entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
+        try context.save()
 
-            // 가드 통과 후에만 모델을 변경하고, CSV 쓰기까지 성공해야 커밋한다.
-            // 쓰기 실패 시 되돌림 — DB만 바뀌고 파일·지문은 그대로인 "감지 불가능한
-            // 어긋남"(지문이 파일과 일치해 외부 변경으로도 안 잡힘)을 막는다.
-            let original = SavedEntryEdit(
-                date: entry.date,
-                merchant: entry.merchant,
-                amount: entry.amount,
-                category: entry.category,
-                note: entry.note
-            )
-            let originalFile = entry.csvFile
-            entry.date = edit.date
-            entry.merchant = edit.merchant
-            entry.amount = edit.amount
-            entry.category = edit.category
-            entry.note = edit.note
-            entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
-            do {
-                try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
-                try context.save()
-            } catch {
-                // rollback()은 pending insert/delete는 버리지만 등록된 객체의
-                // 속성 변경은 메모리에 남길 수 있어 원본 값을 직접 복원한다.
-                context.rollback()
-                entry.date = original.date
-                entry.merchant = original.merchant
-                entry.amount = original.amount
-                entry.category = original.category
-                entry.note = original.note
-                entry.csvFile = originalFile
-                throw error
-            }
-            learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
-        }
+        exportEntryBestEffort(monthKeys: affectedKeys, in: context)
+        learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
     }
 
     func delete(
@@ -145,79 +96,47 @@ struct SaveCoordinator {
         ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
-        try withFolder(in: context) { folderURL in
-            let currentKey = CSVWriter.monthKey(for: entry.date)
-            let oldKey = CSVWriter.monthKey(for: originalDate ?? entry.date)
-            let affectedKeys = Array(Set([oldKey, currentKey]))
+        let currentKey = CSVWriter.monthKey(for: entry.date)
+        let oldKey = CSVWriter.monthKey(for: originalDate ?? entry.date)
+        let affectedKeys = Array(Set([oldKey, currentKey]))
 
-            if !ignoringConflict {
-                try ensureNoConflict(monthKeys: affectedKeys, folderURL: folderURL, in: context)
-            }
+        context.delete(entry)
+        try context.save()
 
-            // 삭제도 CSV 쓰기까지 성공해야 커밋한다 (update와 같은 이유).
-            context.delete(entry)
-            do {
-                try sync.exportMonths(affectedKeys, folderURL: folderURL, in: context)
-                try context.save()
-            } catch {
-                context.rollback()
-                throw error
-            }
-        }
+        exportEntryBestEffort(monthKeys: affectedKeys, in: context)
     }
 
     /// 같은 날짜 항목들의 표시 순서 변경을 영속화한다. `entries`는 새 표시 순서
     /// (savedAt 내림차순 표시 기준)로 받는다. savedAt은 기존 값들의 순열로만 바뀌고,
-    /// CSV는 savedAt 순으로 행을 쓰므로 해당 월 파일도 함께 다시 쓴다.
+    /// CSV는 savedAt 순으로 행을 쓰므로 해당 월 파일도 함께 best-effort로 다시 쓴다.
     func reorder(
         _ entries: [SavedEntry],
         ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         guard entries.count > 1 else { return }
-        try withFolder(in: context) { folderURL in
-            let monthKeys = Array(Set(entries.map { CSVWriter.monthKey(for: $0.date) }))
-            if !ignoringConflict {
-                try ensureNoConflict(monthKeys: monthKeys, folderURL: folderURL, in: context)
-            }
-
-            let originals = entries.map(\.savedAt)
-            let stamps = EntryReorder.descendingTimestamps(from: originals)
-            for (entry, stamp) in zip(entries, stamps) {
-                entry.savedAt = stamp
-            }
-            do {
-                try sync.exportMonths(monthKeys, folderURL: folderURL, in: context)
-                try context.save()
-            } catch {
-                // rollback()은 등록된 객체의 속성 변경을 메모리에 남길 수 있어 원본 값을 직접 복원한다.
-                context.rollback()
-                for (entry, original) in zip(entries, originals) {
-                    entry.savedAt = original
-                }
-                throw error
-            }
+        let monthKeys = Array(Set(entries.map { CSVWriter.monthKey(for: $0.date) }))
+        let stamps = EntryReorder.descendingTimestamps(from: entries.map(\.savedAt))
+        for (entry, stamp) in zip(entries, stamps) {
+            entry.savedAt = stamp
         }
+        try context.save()
+
+        exportEntryBestEffort(monthKeys: monthKeys, in: context)
     }
 
-    /// 폴더 접근(resolve·scope·도달성·stale 갱신)은 `CSVFolderAccess`에 위임하고,
-    /// 그 중립 에러를 사용자 노출용 `CoordinatorError`로 매핑한다. save/update/delete 공통.
-    private func withFolder(
-        in context: ModelContext,
-        _ body: (URL) throws -> Void
-    ) throws {
+    /// 영향받은 달의 CSV를 앱 내용으로 다시 쓴다. CSV는 한 방향 추출물이므로
+    /// 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 저장은 성공으로 둔다 — 로그만 남긴다.
+    private func exportEntryBestEffort(monthKeys: [String], in context: ModelContext) {
+        guard !monthKeys.isEmpty else { return }
         do {
-            try CSVFolderAccess.withFolder(in: context, body)
-        } catch let error as CSVFolderAccess.AccessError {
-            throw Self.map(error)
-        }
-    }
-
-    private static func map(_ error: CSVFolderAccess.AccessError) -> CoordinatorError {
-        switch error {
-        case .noCSVFolder: .noCSVFolder
-        case .bookmarkResolveFailed(let underlying): .bookmarkResolveFailed(underlying: underlying)
-        case .folderUnavailable: .folderUnavailable
+            try CSVFolderAccess.withFolder(in: context) { folderURL in
+                try sync.exportMonths(monthKeys, folderURL: folderURL, in: context)
+            }
+        } catch CSVFolderAccess.AccessError.noCSVFolder {
+            // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
+        } catch {
+            log.error("CSV export(best-effort) failed: \(String(describing: error))")
         }
     }
 
@@ -233,21 +152,6 @@ struct SaveCoordinator {
             try categoryLearner.learn(merchant: merchant, category: category, in: context)
         } catch {
             log.error("category learn failed: \(String(describing: error))")
-        }
-    }
-
-    private func ensureNoConflict(
-        monthKeys: [String],
-        folderURL: URL,
-        in context: ModelContext
-    ) throws {
-        switch sync.checkWriteGuard(monthKeys: monthKeys, folderURL: folderURL, in: context) {
-        case .clear:
-            return
-        case .notReady(let keys):
-            throw CoordinatorError.fileNotReady(months: keys)
-        case .conflict(let keys):
-            throw CoordinatorError.externalConflict(months: keys)
         }
     }
 }

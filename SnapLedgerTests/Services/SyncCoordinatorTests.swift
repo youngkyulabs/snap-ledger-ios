@@ -83,73 +83,6 @@ struct SyncCoordinatorTests {
         #expect(changes.isEmpty)
     }
 
-    @Test func detectsExternalModification() async throws {
-        let dir = makeTempDir()
-        let context = try makeContext()
-        try configureFolder(dir, in: context)
-        let sync = SyncCoordinator()
-        insertEntry(context, day: 17, amount: 5500, merchant: "스타벅스", category: "카페")
-        try context.save()
-        try sync.exportAll(in: context)
-
-        try writeCSV(
-            dir, "expenses-2026-05.csv",
-            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-17,스타벅스,카페,9999,\n"
-        )
-
-        let changes = await sync.detectChanges(in: context)
-        #expect(changes.count == 1)
-        #expect(changes.first?.monthKey == "2026-05")
-        #expect(changes.first?.kind == .modified)
-    }
-
-    @Test func importReplacesMonthFromFile() throws {
-        let dir = makeTempDir()
-        let context = try makeContext()
-        try configureFolder(dir, in: context)
-        let sync = SyncCoordinator()
-        insertEntry(context, day: 1, amount: 100, merchant: "기존")
-        try context.save()
-
-        try writeCSV(
-            dir, "expenses-2026-05.csv",
-            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-17,스타벅스,카페,5500,\n2026-05-18,김밥,식비,8000,\n"
-        )
-
-        let summary = try sync.importMonths(["2026-05"], in: context)
-        #expect(summary.totalRows == 2)
-
-        let saved = try context.fetch(FetchDescriptor<SavedEntry>())
-        #expect(saved.count == 2)
-        #expect(!saved.contains { $0.merchant == "기존" })
-        #expect(saved.contains { $0.merchant == "스타벅스" && $0.amount == 5500 })
-    }
-
-    @Test func importSkipsMalformedMonthAndKeepsAppData() throws {
-        let dir = makeTempDir()
-        let context = try makeContext()
-        try configureFolder(dir, in: context)
-        let sync = SyncCoordinator()
-        insertEntry(context, day: 1, amount: 100, merchant: "기존")
-        try context.save()
-
-        // 닫히지 않은 따옴표 — 외부 편집기에서 구조가 깨진 파일.
-        // 이걸로 그 달을 교체하면 행이 잘려 들어오므로 건너뛰어야 한다.
-        try writeCSV(
-            dir, "expenses-2026-05.csv",
-            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-17,\"스타벅스,카페,5500,\n"
-        )
-
-        let summary = try sync.importMonths(["2026-05"], in: context)
-        #expect(summary.malformedMonths == ["2026-05"])
-        #expect(summary.importedMonths.isEmpty)
-        #expect(summary.skipNotice != nil)
-
-        let saved = try context.fetch(FetchDescriptor<SavedEntry>())
-        #expect(saved.count == 1)
-        #expect(saved.first?.merchant == "기존")
-    }
-
     @Test func writeGuardDetectsConflict() throws {
         let dir = makeTempDir()
         let context = try makeContext()
@@ -169,92 +102,6 @@ struct SyncCoordinatorTests {
             sync.checkWriteGuard(monthKeys: ["2026-05"], folderURL: dir, in: context)
                 == .conflict(["2026-05"])
         )
-    }
-
-    @Test func baselineAbsorbsExistingFilesThenDetectsNewOnes() async throws {
-        let dir = makeTempDir()
-        let context = try makeContext()
-        try configureFolder(dir, in: context)
-        let sync = SyncCoordinator()
-
-        try writeCSV(
-            dir, "expenses-2026-05.csv",
-            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-05-01,A,,100,\n"
-        )
-        sync.establishBaselineIfNeeded(in: context)
-        let baselineChanges = await sync.detectChanges(in: context)
-        #expect(baselineChanges.isEmpty)
-
-        try writeCSV(
-            dir, "expenses-2026-06.csv",
-            "\u{FEFF}날짜,설명,카테고리,금액,메모\n2026-06-01,B,,200,\n"
-        )
-        let changes = await sync.detectChanges(in: context)
-        #expect(changes.count == 1)
-        #expect(changes.first?.kind == .externalNew)
-        #expect(changes.first?.monthKey == "2026-06")
-    }
-
-    @Test func importReportsSkippedRows() throws {
-        let dir = makeTempDir()
-        let context = try makeContext()
-        try configureFolder(dir, in: context)
-        let sync = SyncCoordinator()
-
-        try writeCSV(
-            dir, "expenses-2026-05.csv",
-            "\u{FEFF}날짜,설명,카테고리,금액,메모\nBAD,A,,100,\n2026-05-02,B,,300,\n"
-        )
-        let summary = try sync.importMonths(["2026-05"], in: context)
-        #expect(summary.totalRows == 1)
-        #expect(summary.skippedRows == 1)
-    }
-
-    @Test func importSkipsUnreadableMonthWithoutWiping() throws {
-        let dir = makeTempDir()
-        let context = try makeContext()
-        try configureFolder(dir, in: context)
-        let sync = SyncCoordinator()
-        insertEntry(context, day: 1, amount: 100, merchant: "기존")
-        try context.save()
-
-        // 비-UTF8 파일 → 읽기 불가. "빈 파일"로 오판해 그 달을 비우면 안 된다.
-        try Data([0xFF, 0xFE, 0x41]).write(
-            to: dir.appendingPathComponent("expenses-2026-05.csv"), options: .atomic
-        )
-
-        let summary = try sync.importMonths(["2026-05"], in: context)
-        #expect(summary.unreadableMonths == ["2026-05"])
-        #expect(summary.importedMonths.isEmpty)
-
-        let saved = try context.fetch(FetchDescriptor<SavedEntry>())
-        #expect(saved.count == 1)
-        #expect(saved.first?.merchant == "기존")
-    }
-
-    @Test func exportImportRoundTripPreservesValues() throws {
-        let dir = makeTempDir()
-        let context = try makeContext()
-        try configureFolder(dir, in: context)
-        let sync = SyncCoordinator()
-        insertEntry(context, day: 3, amount: 4200, merchant: "투썸", category: "카페", note: "라떼")
-        try context.save()
-        try sync.exportAll(in: context)
-
-        for entry in try context.fetch(FetchDescriptor<SavedEntry>()) {
-            context.delete(entry)
-        }
-        try context.save()
-
-        let summary = try sync.importAll(in: context)
-        #expect(summary.totalRows == 1)
-
-        let saved = try context.fetch(FetchDescriptor<SavedEntry>())
-        #expect(saved.count == 1)
-        #expect(saved.first?.merchant == "투썸")
-        #expect(saved.first?.category == "카페")
-        #expect(saved.first?.note == "라떼")
-        #expect(saved.first?.amount == 4200)
     }
 
     @Test func monthStatusesReflectsEachState() async throws {
@@ -302,8 +149,9 @@ struct SyncCoordinatorTests {
     }
 
     @Test func needsResolutionOnlyForDifferences() {
+        // 정산 kind로 검증한다(지출은 Phase 2에서 import 비활성 → 별도 테스트).
         func status(_ state: MonthSyncStatus.State) -> MonthSyncStatus {
-            MonthSyncStatus(monthKey: "2026-05", state: state)
+            MonthSyncStatus(monthKey: "2026-05", kind: .reconciliation, state: state)
         }
         // 맞출 게 없는 상태 — 폴더 상태 화면에서 탭 액션을 주지 않는다.
         #expect(status(.synced).needsResolution == false)
@@ -375,5 +223,33 @@ struct SyncCoordinatorTests {
         context.insert(settings)
         try context.save()
         #expect(SyncCoordinator().isFolderReachable(in: context) == nil)
+    }
+
+    // MARK: - Phase 2: 지출 import/감지 비활성 (kind별 분리)
+
+    @Test func monthSyncStatusExpensesNeverAllowsImport() {
+        for state in [MonthSyncStatus.State.synced, .externalModified, .fileOnly, .appOnly, .notReady] {
+            let s = MonthSyncStatus(monthKey: "2026-06", kind: .expenses, state: state)
+            #expect(s.allowsImport == false)
+        }
+    }
+
+    @Test func monthSyncStatusExpensesFileOnlyNotActionable() {
+        // 지출 fileOnly: import도 export도 불가 → 사용자 액션 의미 없음.
+        let s = MonthSyncStatus(monthKey: "2026-06", kind: .expenses, state: .fileOnly)
+        #expect(s.needsResolution == false)
+    }
+
+    @Test func monthSyncStatusReconciliationStillAllowsImport() {
+        let s = MonthSyncStatus(monthKey: "2026-06", kind: .reconciliation, state: .fileOnly)
+        #expect(s.allowsImport == true)
+        #expect(s.needsResolution == true)
+    }
+
+    @Test func importExpensesIsNoOp() throws {
+        let context = try makeContext()
+        let summary = try SyncCoordinator().importMonths(["2026-06"], kind: .expenses, in: context)
+        #expect(summary.importedMonths.isEmpty)
+        #expect(summary.skippedRows == 0)
     }
 }
