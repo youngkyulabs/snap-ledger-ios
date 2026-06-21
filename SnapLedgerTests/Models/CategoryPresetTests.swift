@@ -6,7 +6,7 @@ struct CategoryPresetTests {
     /// CloudKit 제약: 인자 없이 생성 가능(모든 속성 기본값)해야 한다.
     @Test func defaultInitializerHasDefaults() {
         let preset = CategoryPreset()
-        #expect(preset.name == "")
+        #expect(preset.name.isEmpty)
         #expect(preset.sortOrder == 0)
     }
 

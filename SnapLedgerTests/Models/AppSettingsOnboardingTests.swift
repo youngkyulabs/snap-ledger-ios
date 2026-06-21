@@ -7,7 +7,7 @@ import Testing
 struct AppSettingsOnboardingTests {
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([AppSettings.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [config])
     }
 

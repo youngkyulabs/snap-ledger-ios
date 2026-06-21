@@ -6,11 +6,10 @@
 	<array>
 		<string>com.youngkyu.snapledger.refresh</string>
 	</array>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

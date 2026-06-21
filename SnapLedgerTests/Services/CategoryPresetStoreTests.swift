@@ -8,7 +8,7 @@ struct CategoryPresetStoreTests {
     private func cloudContext() throws -> ModelContext {
         let container = try ModelContainer(
             for: CategoryPreset.self, CategoryBudget.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         return ModelContext(container)
     }
@@ -16,7 +16,7 @@ struct CategoryPresetStoreTests {
     private func localContext() throws -> ModelContext {
         let container = try ModelContainer(
             for: AppSettings.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         return ModelContext(container)
     }

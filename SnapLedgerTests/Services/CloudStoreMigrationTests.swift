@@ -8,7 +8,7 @@ struct CloudStoreMigrationTests {
     private func makeContext(_ types: [any PersistentModel.Type]) throws -> ModelContext {
         let container = try ModelContainer(
             for: Schema(types),
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         return ModelContext(container)
     }
