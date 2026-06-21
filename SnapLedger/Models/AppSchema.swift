@@ -26,7 +26,6 @@ enum AppSchema {
         PendingImage.self,
         ParsedEntry.self,
         AppSettings.self,
-        CSVFileState.self,
     ]
 
     /// 전체 모델(컨테이너 생성용 합집합).
