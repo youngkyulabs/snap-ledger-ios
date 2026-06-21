@@ -164,8 +164,8 @@ struct SyncCoordinator {
 
     /// 폴더의 월별 CSV를 스캔해 외부 변경된 달을 찾는다. 다운로드 안 된/읽지 못한 파일은 건너뛴다.
     /// 파일 해시 계산은 메인 액터 밖에서 수행한다 (런치/포그라운드 프레임을 막지 않도록).
-    /// 자동 변경 감지는 지출·정산 CSV 둘 다에 적용한다. 결과에 `fileKind`를 태깅해
-    /// 진입 시 자동 적용(파일→앱)을 종류별로 수행할 수 있게 한다.
+    /// Phase 2부터 정산 CSV만 스캔한다 — 지출은 CloudKit이 진실원이라 외부 변경 감지에서 제외.
+    /// 결과에 `fileKind`를 태깅해 진입 시 자동 적용(파일→앱)을 종류별로 수행할 수 있게 한다.
     func detectChanges(in context: ModelContext) async -> [DetectedChange] {
         (try? await withFolderAsync(in: context) { folderURL in
             let states = fileStatesByName(in: context)
