@@ -19,30 +19,8 @@ struct SaveCoordinator {
     let categoryLearner: CategoryLearner
     private let sync = SyncCoordinator()
 
-    enum CoordinatorError: Error, LocalizedError {
-        case noCSVFolder
-        case bookmarkResolveFailed(underlying: Error)
-        case externalConflict(months: [String])
-        case fileNotReady(months: [String])
-        case folderUnavailable
-
-        var errorDescription: String? {
-            switch self {
-            case .noCSVFolder: "CSV 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 선택해 주세요."
-            case .bookmarkResolveFailed(let err): "폴더 권한을 복구하지 못했어요: \(err.localizedDescription)"
-            case .externalConflict(let months):
-                "\(CSVWriter.monthLabels(months)) 파일이 앱 밖에서 변경됐어요. 먼저 가져오거나 덮어쓸지 선택해 주세요."
-            case .fileNotReady(let months):
-                "\(CSVWriter.monthLabels(months)) 파일을 아직 받아오는 중이에요. 잠시 후 다시 시도해 주세요."
-            case .folderUnavailable:
-                "저장 폴더를 찾을 수 없어요. 폴더가 삭제됐거나 이동했을 수 있어요. 설정 → 저장 폴더에서 다시 선택해 주세요."
-            }
-        }
-    }
-
     func save(
         _ entry: ParsedEntry,
-        ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         let monthKey = CSVWriter.monthKey(for: entry.date)
@@ -66,11 +44,9 @@ struct SaveCoordinator {
 
     /// 편집 값을 `edit`으로 받아 모델에 대입하고 저장한다. CloudKit이 진실원이므로
     /// CSV export는 best-effort(폴더 없거나 실패해도 저장은 성공).
-    /// (`ignoringConflict`는 지출에서 무의미 — Phase 4에서 호출부와 함께 제거 예정.)
     func update(
         _ entry: SavedEntry,
         to edit: SavedEntryEdit,
-        ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         // entry는 아직 안 바꿨으므로 현재 date가 곧 원래 달.
@@ -93,7 +69,6 @@ struct SaveCoordinator {
     func delete(
         _ entry: SavedEntry,
         originalDate: Date? = nil,
-        ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         let currentKey = CSVWriter.monthKey(for: entry.date)
@@ -111,7 +86,6 @@ struct SaveCoordinator {
     /// CSV는 savedAt 순으로 행을 쓰므로 해당 월 파일도 함께 best-effort로 다시 쓴다.
     func reorder(
         _ entries: [SavedEntry],
-        ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
         guard entries.count > 1 else { return }
