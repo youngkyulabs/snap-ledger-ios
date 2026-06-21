@@ -7,4 +7,10 @@ import SwiftData
         let settings = AppSettings()
         #expect(settings.hasMigratedEntriesToCloudStore == false)
     }
+
+    @Test func phase3MigrationFlagsDefaultFalse() {
+        let settings = AppSettings()
+        #expect(settings.hasMigratedReconciliationToCloudStore == false)
+        #expect(settings.hasMigratedMerchantsToCloudStore == false)
+    }
 }

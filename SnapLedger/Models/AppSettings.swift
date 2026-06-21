@@ -24,6 +24,10 @@ final class AppSettings {
     /// Phase 1 플래그와 분리 — Phase 1 사용자는 hasMigratedToCloudStore가 이미 true라
     /// 재사용하면 지출 이전이 실행되지 않는다.
     var hasMigratedEntriesToCloudStore: Bool = false
+    /// Phase 3: 정산 6종을 CloudKit 스토어로 이전 완료했는지. 독립 가드.
+    var hasMigratedReconciliationToCloudStore: Bool = false
+    /// Phase 3: MerchantCategory를 CloudKit 스토어로 이전 완료했는지. 독립 가드.
+    var hasMigratedMerchantsToCloudStore: Bool = false
 
     init(
         csvFolderBookmark: Data? = nil,
@@ -36,7 +40,9 @@ final class AppSettings {
         hasSyncBaseline: Bool = false,
         autoSyncEnabled: Bool = false,
         hasMigratedToCloudStore: Bool = false,
-        hasMigratedEntriesToCloudStore: Bool = false
+        hasMigratedEntriesToCloudStore: Bool = false,
+        hasMigratedReconciliationToCloudStore: Bool = false,
+        hasMigratedMerchantsToCloudStore: Bool = false
     ) {
         self.csvFolderBookmark = csvFolderBookmark
         self.reminderEnabled = reminderEnabled
@@ -49,6 +55,8 @@ final class AppSettings {
         self.autoSyncEnabled = autoSyncEnabled
         self.hasMigratedToCloudStore = hasMigratedToCloudStore
         self.hasMigratedEntriesToCloudStore = hasMigratedEntriesToCloudStore
+        self.hasMigratedReconciliationToCloudStore = hasMigratedReconciliationToCloudStore
+        self.hasMigratedMerchantsToCloudStore = hasMigratedMerchantsToCloudStore
     }
 
     @MainActor
