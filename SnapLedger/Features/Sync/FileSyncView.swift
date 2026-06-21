@@ -145,8 +145,9 @@ struct FileSyncView: View {
             Section {
                 Toggle("파일 내용으로 자동 동기화", isOn: autoSyncBinding)
             } footer: {
-                Text("이 설정을 켜면 앱을 열 때 앱 밖에서 바뀐 파일을 자동으로 앱에 반영해요. "
-                    + "그 달 앱 기록은 파일 내용으로 덮어써지니 주의해 주세요.")
+                Text("이 설정을 켜면 앱을 열 때 앱 밖에서 바뀐 정산 파일을 자동으로 앱에 반영해요. "
+                    + "그 달 앱 기록은 파일 내용으로 덮어써지니 주의해 주세요. "
+                    + "지출은 iCloud로 자동 동기화되며 이 설정과 무관해요.")
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
@@ -181,8 +182,9 @@ struct FileSyncView: View {
     }
 
     private var syncGuide: String {
-        "차이가 있는 달을 눌러 그 달의 지출·정산 CSV와 앱 내용을 맞춰요. "
-            + "‘가져오기’는 파일 내용을 앱으로, ‘저장’은 앱 내용을 파일로 옮겨요."
+        "차이가 있는 달을 눌러 그 달의 CSV와 앱 내용을 맞춰요. ‘저장’은 앱 내용을 파일로 옮겨요. "
+            + "지출은 iCloud로 자동 동기화돼 ‘저장’(내보내기)만 가능하고, "
+            + "정산은 ‘가져오기’(파일→앱)도 할 수 있어요."
     }
 
     private func handlePickedFolder(_ url: URL) {
@@ -219,14 +221,18 @@ struct FileSyncView: View {
     private func dialogMessage(for prompt: SyncPrompt) -> String {
         switch prompt {
         case .month(let status):
-            "\(monthLabel(status.monthKey)) \(status.kind.label) — \(monthMessage(for: status.state))"
+            "\(monthLabel(status.monthKey)) \(status.kind.label) — \(monthMessage(for: status))"
         }
     }
 
-    private func monthMessage(for state: MonthSyncStatus.State) -> String {
-        switch state {
+    private func monthMessage(for status: MonthSyncStatus) -> String {
+        switch status.state {
         case .synced: "앱과 파일 내용이 같아요."
-        case .externalModified: "이 달 파일이 앱 밖에서 바뀌었어요. 어느 쪽 내용으로 맞출까요?"
+        case .externalModified:
+            // 지출은 가져오기가 없어(CloudKit 진실원) 앱 내용으로 다시 저장만 가능하다.
+            status.allowsImport
+                ? "이 달 파일이 앱 밖에서 바뀌었어요. 어느 쪽 내용으로 맞출까요?"
+                : "이 달 파일이 앱 밖에서 바뀌었어요. 앱 내용으로 다시 저장할까요?"
         case .fileOnly: "이 달은 파일에만 있어요. 앱으로 가져올 수 있어요."
         case .appOnly: "이 달은 앱에만 있어요. 파일로 저장할 수 있어요."
         case .notReady: "iCloud에서 파일을 내려받는 중이에요. 잠시 후 다시 시도해 주세요."
