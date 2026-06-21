@@ -43,10 +43,6 @@ struct SnapLedgerApp: App {
 private extension SnapLedgerApp {
     static let logger = Logger(subsystem: "com.youngkyu.snapledger", category: "app")
 
-    /// 2-스토어 ModelContainer를 생성한다.
-    /// 1차 시도: CloudKit 동기화 포함 (iCloud 로그인 환경).
-    /// 2차 시도: cloud config도 로컬 전용으로 폴백 (iCloud 미로그인·테스트 클론 크래시 방지).
-    ///   설계 원칙 "iCloud 미로그인 → 로컬 전용 스토어, 동기화만 안 됨(크래시 없음)"을 구현한다.
     /// 유닛테스트 호스트 여부. xcodebuild test가 XCTest 프레임워크를 로드하므로 호스트 앱
     /// 프로세스에서 XCTestCase 심볼이 존재한다. UI 테스트 대상 앱 프로세스에는 없다.
     static var isRunningUnitTests: Bool {
@@ -63,6 +59,10 @@ private extension SnapLedgerApp {
         }
     }
 
+    /// 2-스토어 ModelContainer를 생성한다.
+    /// 1차 시도: CloudKit 동기화 포함 (iCloud 로그인 환경).
+    /// 2차 시도: cloud config도 로컬 전용으로 폴백 (iCloud 미로그인·테스트 클론 크래시 방지).
+    ///   설계 원칙 "iCloud 미로그인 → 로컬 전용 스토어, 동기화만 안 됨(크래시 없음)"을 구현한다.
     static func makeContainer() -> ModelContainer {
         // 로컬 스토어는 이름을 주지 않아 기존 사용자의 default.store를 그대로 연다.
         // (이름을 주면 새 빈 파일이 생겨 업데이트 시 기존 데이터가 고아가 된다.)
