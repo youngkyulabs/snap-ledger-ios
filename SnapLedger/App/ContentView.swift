@@ -7,10 +7,6 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var allParsedEntries: [ParsedEntry]
     @Query private var allSettings: [AppSettings]
-    @State private var detectedChanges: [DetectedChange] = []
-    @State private var syncResultMessage: String?
-    /// "나중에"로 미룬 달 — 이번 세션 동안 같은 달을 매 포그라운드마다 다시 묻지 않도록.
-    @State private var snoozedMonths: Set<String> = []
     @State private var selectedTab: AppTab = .review
     @State private var settingsPath: [SettingsRoute] = []
     /// 이미 선택된 통계·예산 탭을 한 번 더 탭하면 그 탭을 현재 월로 되돌리기 위한 신호(카운터).
@@ -63,44 +59,10 @@ struct ContentView: View {
             if let settings = currentSettingsIfExists() {
                 OnboardingView(settings: settings) {
                     // 온보딩 동안 미뤄둔 시작 작업을 완료 시점에 한 번 실행한다.
-                    Task {
-                        await drainPending()
-                        await checkExternalChanges()
-                    }
+                    Task { await drainPending() }
                 }
                 .interactiveDismissDisabled()
             }
-        }
-        .alert(
-            "파일이 앱 밖에서 바뀌었어요",
-            isPresented: Binding(
-                get: { !detectedChanges.isEmpty },
-                set: { if !$0 { detectedChanges = [] } }
-            )
-        ) {
-            Button("확인하러 가기") {
-                detectedChanges = []
-                selectedTab = .settings
-                settingsPath = [.fileSync]
-            }
-            Button("나중에", role: .cancel) {
-                snoozedMonths.formUnion(detectedChanges.map(\.monthKey))
-                detectedChanges = []
-            }
-        } message: {
-            Text(detectedChangesMessage)
-        }
-        .alert(
-            "파일 동기화",
-            isPresented: Binding(
-                get: { syncResultMessage != nil },
-                set: { if !$0 { syncResultMessage = nil } }
-            ),
-            presenting: syncResultMessage
-        ) { _ in
-            Button("확인", role: .cancel) { syncResultMessage = nil }
-        } message: { message in
-            Text(message)
         }
         .onChange(of: pendingReviewCount, initial: true) { _, newCount in
             Task { await NotificationScheduler().syncIconBadge(count: newCount) }
@@ -115,7 +77,6 @@ struct ContentView: View {
                 guard hasCompletedOnboarding else { break }
                 Task {
                     await drainPending()
-                    await checkExternalChanges()
                     // 1회성 알림이 소비됐거나 검토를 끝낸 직후일 수 있으니
                     // 포그라운드 진입 시에도 최신 카운트로 재장전한다.
                     await refreshReminder()
@@ -134,29 +95,6 @@ struct ContentView: View {
     @MainActor
     private func drainPending() async {
         await PendingProcessor.make(in: modelContext).drain(in: modelContext)
-    }
-
-    @MainActor
-    private func checkExternalChanges() async {
-        let autoSync = allSettings.first?.autoSyncEnabled ?? false
-        let outcome = await SyncCoordinator()
-            .resolveExternalChangesOnLaunch(autoApply: autoSync, in: modelContext)
-        switch outcome {
-        case .applied(let summary):
-            // 자동 적용: 성공은 조용히, 건너뛴 달(형식 오류·읽기 실패·미다운로드)만 알린다.
-            syncResultMessage = summary.skipNotice
-        case .detected(let changes):
-            let fresh = changes.filter { !snoozedMonths.contains($0.monthKey) }
-            if !fresh.isEmpty {
-                detectedChanges = fresh
-            }
-        }
-    }
-
-    private var detectedChangesMessage: String {
-        let months = CSVWriter.monthLabels(Array(Set(detectedChanges.map(\.monthKey))).sorted(by: >))
-        return "\(months) 파일이 앱 밖에서 바뀌었어요. ‘확인하러 가기’를 누르면 "
-            + "폴더 상태 화면에서 어느 쪽 내용으로 맞출지 고를 수 있어요."
     }
 
     private var hasCompletedOnboarding: Bool {
