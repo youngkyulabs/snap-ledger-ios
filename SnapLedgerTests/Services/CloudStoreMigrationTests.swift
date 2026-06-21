@@ -176,3 +176,34 @@ struct CloudStoreMigrationTests {
         #expect(CloudStoreMigration.snapshotIncome(from: source).first?.title == "급여")
     }
 }
+
+@MainActor
+@Suite struct CloudStoreMigrationMerchantTests {
+    private func makeContext() throws -> ModelContext {
+        let container = try ModelContainer(
+            for: Schema(AppSchema.models),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        return ModelContext(container)
+    }
+
+    @Test func copyMerchantsIsIdempotentByNormalized() throws {
+        let cloud = try makeContext()
+        CloudStoreMigration.copyMerchants(
+            [MerchantSnapshot(merchantNormalized: "스타벅스", category: "카페", updatedAt: .now)], into: cloud)
+        CloudStoreMigration.copyMerchants(
+            [MerchantSnapshot(merchantNormalized: "스타벅스", category: "간식", updatedAt: .now)], into: cloud)
+        let rows = try cloud.fetch(FetchDescriptor<MerchantCategory>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.category == "간식")
+    }
+
+    @Test func snapshotMerchantsReadsAll() throws {
+        let source = try makeContext()
+        source.insert(MerchantCategory(merchantNormalized: "편의점", category: "간식"))
+        try source.save()
+        let snaps = CloudStoreMigration.snapshotMerchants(from: source)
+        #expect(snaps.first?.merchantNormalized == "편의점")
+        #expect(snaps.first?.category == "간식")
+    }
+}

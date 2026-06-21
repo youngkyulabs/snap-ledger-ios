@@ -62,6 +62,13 @@ struct LineItemSnapshot: Equatable {
     let updatedAt: Date
 }
 
+/// 가맹점→카테고리 학습 값 스냅샷.
+struct MerchantSnapshot: Equatable {
+    let merchantNormalized: String
+    let category: String
+    let updatedAt: Date
+}
+
 /// 기존 사용자의 예산·카테고리를 App Group 로컬 스토어 → CloudKit 스토어로 1회성 이전.
 /// 모든 단계는 멱등(키 기준 upsert)이라 중간에 끊겨 재실행돼도 중복을 만들지 않는다.
 enum CloudStoreMigration {
@@ -323,6 +330,31 @@ enum CloudStoreMigration {
             } else {
                 let row = IncomeItem(id: snap.id, monthKey: snap.monthKey, title: snap.title, amount: snap.amount, sortOrder: snap.sortOrder, updatedAt: snap.updatedAt)
                 cloud.insert(row); byID[snap.id] = row
+            }
+        }
+        try? cloud.save()
+    }
+
+    // MARK: - 가맹점 카테고리 학습
+
+    @MainActor
+    static func snapshotMerchants(from source: ModelContext) -> [MerchantSnapshot] {
+        let rows = (try? source.fetch(FetchDescriptor<MerchantCategory>())) ?? []
+        return rows.map { MerchantSnapshot(merchantNormalized: $0.merchantNormalized, category: $0.category, updatedAt: $0.updatedAt) }
+    }
+
+    @MainActor
+    static func copyMerchants(_ snapshots: [MerchantSnapshot], into cloud: ModelContext) {
+        let existing = (try? cloud.fetch(FetchDescriptor<MerchantCategory>())) ?? []
+        var byKey = Dictionary(existing.map { ($0.merchantNormalized, $0) }) { first, _ in first }
+        for snap in snapshots {
+            if let row = byKey[snap.merchantNormalized] {
+                row.category = snap.category
+                row.updatedAt = snap.updatedAt
+            } else {
+                let row = MerchantCategory(merchantNormalized: snap.merchantNormalized, category: snap.category, updatedAt: snap.updatedAt)
+                cloud.insert(row)
+                byKey[snap.merchantNormalized] = row
             }
         }
         try? cloud.save()
