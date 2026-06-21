@@ -12,7 +12,6 @@ struct MonthlyReconciliationView: View {
     @State private var activeSheet: ActiveSheet?
     /// 정산 결과를 제외한 금액(계좌별 잔액·수입·저축·카드·자금변동)을 가린다. 기본 가림.
     @State private var amountsHidden = true
-    @State private var conflict: SyncConflict?
     @State private var resultMessage: String?
 
     /// 어떤 항목을 어떤 시트로 편집 중인지. 연관 값이 nil이면 새 항목 추가.
@@ -78,7 +77,6 @@ struct MonthlyReconciliationView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .syncConflictAlert($conflict)
         .alert(
             "월 정산",
             isPresented: Binding(
@@ -453,31 +451,10 @@ extension MonthlyReconciliationView {
         save()
     }
 
-    private func save(ignoringConflict: Bool = false) {
+    private func save() {
         do {
             // 편집할 때마다 조용히 자동 저장한다 (지출 기록과 동일). 성공 토스트는 띄우지 않는다.
-            try ReconciliationStore().save(
-                draft,
-                month: month,
-                ignoringConflict: ignoringConflict,
-                in: modelContext
-            )
-        } catch ReconciliationStore.StoreError.externalConflict(let months) {
-            conflict = SyncConflict(
-                months: months,
-                kind: .reconciliation,
-                allowOverwrite: true,
-                importDiscardsEdit: true
-            ) { mode in
-                switch mode {
-                case .afterImport:
-                    // 가져오기가 DB·파일을 이미 맞췄으니 편집 폼만 다시 읽어온다.
-                    draft = ReconciliationStore().loadDraft(for: month, in: modelContext)
-                    resultMessage = "파일 내용으로 맞췄어요."
-                case .overwrite:
-                    save(ignoringConflict: true)
-                }
-            }
+            try ReconciliationStore().save(draft, month: month, in: modelContext)
         } catch {
             resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

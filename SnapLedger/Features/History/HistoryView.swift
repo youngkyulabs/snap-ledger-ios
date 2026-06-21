@@ -9,7 +9,6 @@ struct HistoryView: View {
     @State private var isLoadingMore = false
     @State private var editingEntry: SavedEntry?
     @State private var reorderError: String?
-    @State private var reorderConflict: SyncConflict?
 
     private var allMonths: [HistoryGrouping.MonthGroup] {
         HistoryGrouping.group(entries: entries)
@@ -69,18 +68,12 @@ struct HistoryView: View {
             SavedEntryEditorView(entry: entry)
         }
         .reorderFailureAlert($reorderError)
-        .syncConflictAlert($reorderConflict)
     }
 
     private func moveEntries(in day: HistoryGrouping.DayGroup, from source: IndexSet, to destination: Int) {
         var reordered = day.entries
         reordered.move(fromOffsets: source, toOffset: destination)
-        EntryReorderAction.perform(
-            reordered,
-            context: modelContext,
-            onConflict: { reorderConflict = $0 },
-            onError: { reorderError = $0 }
-        )
+        EntryReorderAction.perform(reordered, context: modelContext) { reorderError = $0 }
     }
 
     @ViewBuilder
@@ -243,7 +236,6 @@ struct PastMonthDetailView: View {
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @State private var editingEntry: SavedEntry?
     @State private var reorderError: String?
-    @State private var reorderConflict: SyncConflict?
 
     private var month: HistoryGrouping.MonthGroup? {
         HistoryGrouping.group(entries: entries).first { $0.id == monthId }
@@ -262,7 +254,6 @@ struct PastMonthDetailView: View {
                     SavedEntryEditorView(entry: entry)
                 }
                 .reorderFailureAlert($reorderError)
-                .syncConflictAlert($reorderConflict)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
@@ -291,43 +282,21 @@ struct PastMonthDetailView: View {
     private func moveEntries(in day: HistoryGrouping.DayGroup, from source: IndexSet, to destination: Int) {
         var reordered = day.entries
         reordered.move(fromOffsets: source, toOffset: destination)
-        EntryReorderAction.perform(
-            reordered,
-            context: modelContext,
-            onConflict: { reorderConflict = $0 },
-            onError: { reorderError = $0 }
-        )
+        EntryReorderAction.perform(reordered, context: modelContext) { reorderError = $0 }
     }
 }
 
-/// 드래그 순서 변경의 저장·충돌 해소 흐름 (최근 기록·월별 상세 공용).
+/// 드래그 순서 변경의 저장 흐름 (최근 기록·월별 상세 공용).
 @MainActor
 private enum EntryReorderAction {
     static func perform(
         _ reordered: [SavedEntry],
-        ignoringConflict: Bool = false,
         context: ModelContext,
-        onConflict: @escaping (SyncConflict) -> Void,
         onError: @escaping (String) -> Void
     ) {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
-                .reorder(reordered, ignoringConflict: ignoringConflict, in: context)
-        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
-            // 가져오면 방금 바꾼 순서가 파일 내용으로 대체되므로 importDiscardsEdit=true.
-            onConflict(
-                SyncConflict(months: months, importDiscardsEdit: true) { mode in
-                    if case .overwrite = mode {
-                        perform(
-                            reordered,
-                            ignoringConflict: true,
-                            context: context,
-                            onConflict: onConflict,
-                            onError: onError
-                        )
-                    }
-                }
-            )
+                .reorder(reordered, in: context)
         } catch {
             onError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }

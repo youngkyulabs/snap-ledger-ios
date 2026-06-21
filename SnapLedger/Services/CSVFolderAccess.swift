@@ -35,21 +35,6 @@ enum CSVFolderAccess {
         return result
     }
 
-    /// `withFolder`의 async 버전. body 안에서 `await`(예: 백그라운드 파일 스캔)할 수 있다.
-    /// security-scoped 접근은 프로세스 전역이라 await 동안에도 유지된다 (defer로 종료).
-    static func withFolderAsync<T>(
-        in context: ModelContext,
-        _ body: (URL) async throws -> T
-    ) async throws -> T {
-        let resolved = try resolveFolder(in: context)
-        let didStart = resolved.url.startAccessingSecurityScopedResource()
-        defer { if didStart { resolved.url.stopAccessingSecurityScopedResource() } }
-        try ensureReachable(resolved.url)
-        let result = try await body(resolved.url)
-        resolved.refreshStaleBookmarkIfNeeded(in: context)
-        return result
-    }
-
     /// resolve된 폴더 URL과 stale 갱신에 필요한 컨텍스트(settings·isStale)를 함께 묶는다.
     private struct ResolvedFolder {
         let url: URL

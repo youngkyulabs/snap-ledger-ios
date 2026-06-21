@@ -9,7 +9,7 @@ struct AppSchemaTests {
         let names = Set(Schema(AppSchema.models).entities.map(\.name))
         #expect(names == [
             "PendingImage", "ParsedEntry", "SavedEntry", "MerchantCategory", "AppSettings",
-            "CSVFileState", "CategoryBudget", "MonthlyReconciliation", "AccountMonthlyBalance",
+            "CategoryBudget", "MonthlyReconciliation", "AccountMonthlyBalance",
             "CashAdjustment", "SavingsItem", "CardUsageItem", "IncomeItem", "CategoryPreset",
         ])
     }

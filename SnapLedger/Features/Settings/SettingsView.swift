@@ -18,15 +18,11 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var settingsList: [AppSettings]
-    // 동기화 배지를 앱 측 변경(저장·수정·삭제·수동 동기화)에 반응시키기 위한 신호원.
-    @Query private var savedEntries: [SavedEntry]
-    @Query private var fileStates: [CSVFileState]
     @State private var showingPicker = false
     @State private var folderError: String?
     @State private var showingMailComposer = false
     @State private var feedbackFallbackShown = false
     @State private var notificationPermissionDeniedAlert = false
-    @State private var syncSummary: FolderSyncSummary = .empty
 
     private static let feedbackEmail = "youngkyulabs@gmail.com"
 
@@ -82,8 +78,6 @@ struct SettingsView: View {
             }
             .contentMargins(.bottom, 24, for: .scrollContent)
             .navigationTitle("설정")
-            .task { await refreshSyncSummary() }
-            .onChange(of: syncSignal) { _, _ in Task { await refreshSyncSummary() } }
             .alert(
                 "폴더 변경 실패",
                 isPresented: Binding(
@@ -124,95 +118,26 @@ struct SettingsView: View {
 
     private var csvFolderSection: some View {
         Section {
-            // 폴더 설정 여부는 북마크 존재로 판단한다. 폴더가 삭제/이동돼 이름을
-            // resolve하지 못해도 "폴더 미설정"으로 떨어지지 않게(=폴더 없음 경고 유지).
             if !hasFolder {
                 Button {
                     showingPicker = true
                 } label: {
                     Label("폴더 선택", systemImage: "folder.badge.plus")
                 }
-            } else if syncSummary == .folderMissing {
-                // 폴더가 사라졌을 땐 폴더 상태 화면(어차피 "폴더 변경"뿐)을 거치지 않고
-                // 행을 누르면 바로 피커를 연다.
-                Button {
-                    showingPicker = true
-                } label: {
-                    folderRowLabel.foregroundStyle(.primary)
-                }
             } else {
                 NavigationLink(value: SettingsRoute.fileSync) {
-                    folderRowLabel
+                    Label(currentFolderName() ?? "저장 폴더", systemImage: "folder.fill")
                 }
             }
         } header: {
             Text("저장 폴더")
         } footer: {
-            Text(folderFooterText)
-        }
-    }
-
-    private var folderRowLabel: some View {
-        LabeledContent {
-            folderStatusIcon
-        } label: {
-            Label(currentFolderName() ?? "저장 폴더", systemImage: folderRowIcon)
+            Text("앱 데이터는 iCloud로 자동 동기화돼요. 폴더는 월별 CSV 백업(내보내기)용이라 선택 사항이에요.")
         }
     }
 
     private var hasFolder: Bool {
         settings.csvFolderBookmark != nil
-    }
-
-    private var folderRowIcon: String {
-        syncSummary == .folderMissing ? "folder.badge.questionmark" : "folder.fill"
-    }
-
-    private var folderFooterText: String {
-        if hasFolder, syncSummary == .folderMissing {
-            return "저장 폴더를 찾을 수 없어요. 폴더가 삭제·이동됐을 수 있어요. "
-                + "파일 앱의 ‘최근 삭제된 항목’에 있다면 복원한 뒤 다시 열거나, 위 ‘저장 폴더’ 행을 눌러 다른 폴더를 선택해 주세요."
-        }
-        return "월별 CSV 파일이 이 폴더에 저장돼요."
-    }
-
-    @ViewBuilder
-    private var folderStatusIcon: some View {
-        switch syncSummary {
-        case .empty:
-            EmptyView()
-        case .synced:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .accessibilityLabel("동기화됨")
-        case .needsSync:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.yellow)
-                .accessibilityLabel("맞출 변경 사항 있음")
-        case .folderMissing:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .accessibilityLabel("폴더를 찾을 수 없음")
-        }
-    }
-
-    private var syncSignal: String {
-        let latest = fileStates.map(\.lastSyncedAt).max()?.timeIntervalSince1970 ?? 0
-        return "\(fileStates.count)-\(savedEntries.count)-\(latest)"
-    }
-
-    @MainActor
-    private func refreshSyncSummary() async {
-        let newSummary: FolderSyncSummary
-        if settings.csvFolderBookmark == nil {
-            newSummary = .empty
-        } else {
-            newSummary = await SyncCoordinator().folderSyncSummary(in: modelContext)
-        }
-        // 상태 아이콘 등장/변경, 행 전환(링크↔피커 버튼)을 부드럽게.
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            syncSummary = newSummary
-        }
     }
 
     private var reminderSection: some View {
@@ -366,10 +291,9 @@ struct SettingsView: View {
     private func handlePickedFolder(_ url: URL) {
         do {
             try FolderBookmarkHelper.apply(url: url, to: settings, context: modelContext)
-            // 폴더가 바뀌면 이전 폴더 기준 지문이 무의미하므로 동기화 상태를 리셋한다.
-            SyncCoordinator().resetSyncState(in: modelContext)
             folderError = nil
-            Task { await refreshSyncSummary() }
+            // 새 폴더에 현재 앱 데이터를 백필한다(best-effort).
+            try? SyncCoordinator().exportAll(in: modelContext)
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
         }

@@ -19,7 +19,6 @@ struct SavedEntryEditorView: View {
     @State private var note: String
     @State private var saveError: String?
     @State private var showDeleteConfirm = false
-    @State private var saveConflict: SyncConflict?
     @FocusState private var focusedField: Field?
 
     private let originalDate: Date
@@ -138,7 +137,6 @@ struct SavedEntryEditorView: View {
             } message: {
                 Text("CSV 파일에서도 함께 제거돼요.")
             }
-            .syncConflictAlert($saveConflict)
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }
                 Task { @MainActor in
@@ -230,22 +228,14 @@ struct SavedEntryEditorView: View {
             category: category.isEmpty ? nil : category,
             note: note.isEmpty ? nil : note
         )
-        performUpdate(edit, ignoringConflict: false)
+        performUpdate(edit)
     }
 
-    private func performUpdate(_ edit: SavedEntryEdit, ignoringConflict: Bool) {
+    private func performUpdate(_ edit: SavedEntryEdit) {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
-                .update(entry, to: edit, ignoringConflict: ignoringConflict, in: modelContext)
+                .update(entry, to: edit, in: modelContext)
             dismiss()
-        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
-            // 가져오면 편집 중이던 항목이 파일 내용으로 대체되므로 importDiscardsEdit=true.
-            saveConflict = SyncConflict(months: months, importDiscardsEdit: true) { mode in
-                switch mode {
-                case .afterImport: dismiss()
-                case .overwrite: performUpdate(edit, ignoringConflict: true)
-                }
-            }
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
@@ -253,22 +243,14 @@ struct SavedEntryEditorView: View {
     }
 
     private func delete() {
-        performDelete(ignoringConflict: false)
+        performDelete()
     }
 
-    private func performDelete(ignoringConflict: Bool) {
+    private func performDelete() {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
-                .delete(entry, originalDate: originalDate, ignoringConflict: ignoringConflict, in: modelContext)
+                .delete(entry, originalDate: originalDate, in: modelContext)
             dismiss()
-        } catch SaveCoordinator.CoordinatorError.externalConflict(let months) {
-            // 가져오면 삭제하려던 항목이 파일 기준으로 되돌아오므로 importDiscardsEdit=true.
-            saveConflict = SyncConflict(months: months, importDiscardsEdit: true) { mode in
-                switch mode {
-                case .afterImport: dismiss()
-                case .overwrite: performDelete(ignoringConflict: true)
-                }
-            }
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
