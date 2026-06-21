@@ -107,30 +107,22 @@ struct SaveCoordinatorTests {
         #expect(learned == "편의점")
     }
 
-    @Test func saveWithoutBookmarkThrows() throws {
-        let ctx = try makeContext()
-        // No settings → no bookmark
-        let entry = ParsedEntry(
-            date: date(2026, 5, 17), amount: 1000, merchant: "X", category: nil
-        )
-        ctx.insert(entry)
-        try ctx.save()
-
-        #expect(throws: SaveCoordinator.CoordinatorError.self) {
-            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: ctx)
-        }
-    }
-
-    @Test func saveThrowsWhenFolderDeleted() throws {
+    // Phase 2: CloudKit이 진실원 — 폴더가 없거나(설정 안 됨) 폴더가 삭제됐어도 저장은 성공한다.
+    // CSV export는 best-effort라 조용히 건너뛴다(저장 실패로 보고하지 않음).
+    // (폴더 미설정 성공 케이스는 saveSucceedsWithoutCSVFolder가 별도로 검증.)
+    @Test func saveSucceedsWhenFolderDeleted() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
         try FileManager.default.removeItem(at: folder)
         let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스")
         ctx.insert(entry)
         try ctx.save()
-        #expect(throws: SaveCoordinator.CoordinatorError.self) {
-            try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: ctx)
-        }
+
+        try SaveCoordinator(categoryLearner: CategoryLearner()).save(entry, in: ctx)
+
+        let saved = try ctx.fetch(FetchDescriptor<SavedEntry>())
+        #expect(saved.count == 1)
+        #expect(saved.first?.merchant == "스타벅스")
     }
 
     @Test func updateRewritesCSVForSameMonthEdit() throws {
@@ -289,6 +281,24 @@ struct SaveCoordinatorTests {
         )
         #expect(persisted.merchant == "스타벅스")
         #expect(persisted.amount == 5000)
+    }
+
+    @Test func saveSucceedsWithoutCSVFolder() throws {
+        // 기존 makeContext() 재사용(SavedEntry 포함, cloudKitDatabase:.none). 폴더 북마크는 만들지 않는다.
+        let context = try makeContext()
+        context.insert(AppSettings())  // 폴더 미설정 settings
+        try context.save()
+
+        let coordinator = SaveCoordinator(categoryLearner: CategoryLearner())
+        let entry = ParsedEntry(date: .now, amount: 4200, merchant: "김밥천국", category: "식비", note: nil)
+        context.insert(entry)
+
+        // 폴더가 없어도 throw 없이 저장되어야 한다.
+        try coordinator.save(entry, in: context)
+
+        let saved = try context.fetch(FetchDescriptor<SavedEntry>())
+        #expect(saved.count == 1)
+        #expect(saved.first?.merchant == "김밥천국")
     }
 
     @Test func deleteRemovesEntryAndRewritesCSV() throws {

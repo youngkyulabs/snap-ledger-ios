@@ -45,44 +45,23 @@ struct SaveCoordinator {
         ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws {
-        try withFolder(in: context) { folderURL in
-            let monthKey = CSVWriter.monthKey(for: entry.date)
-            if !ignoringConflict {
-                try ensureNoConflict(monthKeys: [monthKey], folderURL: folderURL, in: context)
-            }
-
-            let row = SavedRow(
+        let monthKey = CSVWriter.monthKey(for: entry.date)
+        // CloudKit이 진실원 — SwiftData 저장이 먼저 성공한다. CSV는 best-effort export.
+        context.insert(
+            SavedEntry(
                 date: entry.date,
-                description: entry.merchant,
-                category: entry.category,
                 amount: entry.amount,
-                note: entry.note
+                merchant: entry.merchant,
+                category: entry.category,
+                note: entry.note,
+                csvFile: CSVWriter.filename(forMonthKey: monthKey)
             )
-            context.insert(
-                SavedEntry(
-                    date: entry.date,
-                    amount: entry.amount,
-                    merchant: entry.merchant,
-                    category: entry.category,
-                    note: entry.note,
-                    csvFile: CSVWriter.filename(forMonthKey: monthKey)
-                )
-            )
-            let originalStatus = entry.status
-            entry.status = .dismissed
-            do {
-                try CSVWriter(folder: folderURL).append(row)
-                sync.refreshFileState(monthKey: monthKey, folderURL: folderURL, in: context)
-                try context.save()
-            } catch {
-                // rollback()은 pending insert/delete는 버리지만 등록된 객체의
-                // 속성 변경은 메모리에 남길 수 있어 원본 값을 직접 복원한다.
-                context.rollback()
-                entry.status = originalStatus
-                throw error
-            }
-            learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
-        }
+        )
+        entry.status = .dismissed
+        try context.save()
+
+        exportEntryBestEffort(monthKeys: [monthKey], in: context)
+        learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
     }
 
     /// 편집 값을 `edit`으로 받아, 충돌 가드를 통과한 뒤에만 `entry`에 대입한다.
@@ -218,6 +197,21 @@ struct SaveCoordinator {
         case .noCSVFolder: .noCSVFolder
         case .bookmarkResolveFailed(let underlying): .bookmarkResolveFailed(underlying: underlying)
         case .folderUnavailable: .folderUnavailable
+        }
+    }
+
+    /// 영향받은 달의 CSV를 앱 내용으로 다시 쓴다. CSV는 한 방향 추출물이므로
+    /// 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 저장은 성공으로 둔다 — 로그만 남긴다.
+    private func exportEntryBestEffort(monthKeys: [String], in context: ModelContext) {
+        guard !monthKeys.isEmpty else { return }
+        do {
+            try CSVFolderAccess.withFolder(in: context) { folderURL in
+                try sync.exportMonths(monthKeys, folderURL: folderURL, in: context)
+            }
+        } catch CSVFolderAccess.AccessError.noCSVFolder {
+            // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
+        } catch {
+            log.error("CSV export(best-effort) failed: \(String(describing: error))")
         }
     }
 
