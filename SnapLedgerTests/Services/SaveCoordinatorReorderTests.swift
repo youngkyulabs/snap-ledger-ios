@@ -93,25 +93,27 @@ struct SaveCoordinatorReorderTests {
         #expect(merchants == ["A", "C", "B"])
     }
 
-    @Test func reorderExportFailureRestoresSavedAt() throws {
+    // Phase 2: CloudKit이 진실원 — CSV 쓰기가 실패해도(읽기 전용 폴더) reorder는 성공하고
+    // 새 순서가 DB에 영속된다. CSV export는 best-effort라 순서를 롤백하지 않는다.
+    @Test func reorderSucceedsWhenCSVWriteFails() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
         let coord = SaveCoordinator(categoryLearner: CategoryLearner())
         let fx = try makeThreeEntries(coord: coord, in: ctx)
 
-        // 폴더는 살아 있어 충돌 가드는 통과하지만, 읽기 전용이라 CSV 쓰기 자체가 실패하는 상황.
+        // 폴더를 읽기 전용으로 만들어 CSV 쓰기를 실패시킨다.
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
         }
 
-        #expect(throws: (any Error).self) {
-            try coord.reorder([fx.b, fx.c, fx.a], in: ctx)
-        }
+        // throw 없이 성공해야 한다.
+        try coord.reorder([fx.b, fx.c, fx.a], in: ctx)
 
-        // 파일을 고치지 못했으면 앱 안 순서도 원래대로 남아야 한다.
-        #expect(fx.a.savedAt == fx.base)
-        #expect(fx.b.savedAt == fx.base.addingTimeInterval(60))
-        #expect(fx.c.savedAt == fx.base.addingTimeInterval(120))
+        // 새 순서가 적용된다(CSV 실패와 무관). 새 savedAt은 기존 값들의 순열.
+        #expect(fx.b.savedAt > fx.c.savedAt)
+        #expect(fx.c.savedAt > fx.a.savedAt)
+        let expected = Set([fx.base, fx.base.addingTimeInterval(60), fx.base.addingTimeInterval(120)])
+        #expect(Set([fx.a.savedAt, fx.b.savedAt, fx.c.savedAt]) == expected)
     }
 }

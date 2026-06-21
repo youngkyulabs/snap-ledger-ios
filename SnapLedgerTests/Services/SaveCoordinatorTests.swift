@@ -201,7 +201,9 @@ struct SaveCoordinatorTests {
         #expect(saved.csvFile == "expenses-2026-06.csv")
     }
 
-    @Test func updateFailureLeavesEntryUnmutated() throws {
+    // Phase 2: CloudKit이 진실원 — CSV 쓰기가 실패해도(폴더 삭제 등) update는 성공하고
+    // 변경이 DB에 영속된다. CSV export는 best-effort라 저장을 롤백하지 않는다.
+    @Test func updateSucceedsAndPersistsWhenCSVWriteFails() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
 
@@ -213,74 +215,32 @@ struct SaveCoordinatorTests {
         try coord.save(entry, in: ctx)
         let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
 
-        // 폴더를 지워 쓰기를 실패시킨다 (folderUnavailable).
+        // 폴더를 지워 CSV 쓰기를 실패시킨다.
         try FileManager.default.removeItem(at: folder)
 
-        #expect(throws: SaveCoordinator.CoordinatorError.self) {
-            try coord.update(
-                saved,
-                to: SavedEntryEdit(
-                    date: date(2026, 6, 1),
-                    merchant: "바뀐상호",
-                    amount: 9999,
-                    category: "식비",
-                    note: "메모"
-                ),
-                in: ctx
-            )
-        }
+        // throw 없이 성공해야 한다.
+        try coord.update(
+            saved,
+            to: SavedEntryEdit(
+                date: date(2026, 6, 1),
+                merchant: "바뀐상호",
+                amount: 9999,
+                category: "식비",
+                note: "메모"
+            ),
+            in: ctx
+        )
 
-        // 쓰기가 실패했으니 모델은 원래대로여야 한다 — 앱↔파일 divergence 방지.
-        #expect(saved.merchant == "스타벅스")
-        #expect(saved.amount == 5000)
-        #expect(saved.category == "카페")
-        #expect(saved.date == date(2026, 5, 17))
-        #expect(saved.csvFile == "expenses-2026-05.csv")
-    }
-
-    @Test func updateExportFailureAfterGuardLeavesEntryUnmutated() throws {
-        let ctx = try makeContext()
-        let folder = try makeTempFolderWithBookmark(in: ctx)
-
-        let entry = ParsedEntry(date: date(2026, 5, 17), amount: 5000, merchant: "스타벅스", category: "카페")
-        ctx.insert(entry)
-        try ctx.save()
-
-        let coord = SaveCoordinator(categoryLearner: CategoryLearner())
-        try coord.save(entry, in: ctx)
-        let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
-
-        // 폴더는 살아 있어 충돌 가드는 통과하지만, 읽기 전용이라 CSV 쓰기 자체가 실패하는 상황.
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
-        defer {
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
-        }
-
-        #expect(throws: (any Error).self) {
-            try coord.update(
-                saved,
-                to: SavedEntryEdit(
-                    date: date(2026, 6, 1),
-                    merchant: "바뀐상호",
-                    amount: 9999,
-                    category: "식비",
-                    note: nil
-                ),
-                in: ctx
-            )
-        }
-
-        // CSV 쓰기가 실패했으면 모델도 원래대로여야 한다 — 지문이 갱신되지 않아
-        // 감지조차 안 되는 조용한 앱↔파일 어긋남을 막는다.
-        #expect(saved.merchant == "스타벅스")
-        #expect(saved.amount == 5000)
-        #expect(saved.date == date(2026, 5, 17))
-        #expect(saved.csvFile == "expenses-2026-05.csv")
+        // 변경은 모델과 DB에 영속된다(CSV 실패와 무관).
+        #expect(saved.merchant == "바뀐상호")
+        #expect(saved.amount == 9999)
+        #expect(saved.date == date(2026, 6, 1))
+        #expect(saved.csvFile == "expenses-2026-06.csv")
         let persisted = try #require(
             try ModelContext(ctx.container).fetch(FetchDescriptor<SavedEntry>()).first
         )
-        #expect(persisted.merchant == "스타벅스")
-        #expect(persisted.amount == 5000)
+        #expect(persisted.merchant == "바뀐상호")
+        #expect(persisted.amount == 9999)
     }
 
     @Test func saveSucceedsWithoutCSVFolder() throws {
