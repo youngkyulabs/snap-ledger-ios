@@ -350,7 +350,6 @@ struct ReconciliationStore {
             )
         }
     }
-
 }
 
 // MARK: - Fetch 헬퍼
@@ -413,7 +412,6 @@ extension ReconciliationStore {
     private func fetchAllIncomes(in context: ModelContext) -> [IncomeItem] {
         (try? context.fetch(FetchDescriptor<IncomeItem>())) ?? []
     }
-
 }
 
 extension ReconciliationDraft {
