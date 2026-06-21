@@ -14,11 +14,15 @@ struct AppSchemaTests {
         ])
     }
 
-    /// CloudKit 스토어로 가는 모델은 예산·프리셋·지출(Phase 2). 나머지는 전부 로컬.
+    /// CloudKit 스토어로 가는 모델: 예산·프리셋·지출 + 정산 6종 + 머천트(Phase 3). 나머지는 로컬.
     @Test func cloudAndLocalArePartition() {
         let cloud = Set(Schema(AppSchema.cloudModels).entities.map(\.name))
         let local = Set(Schema(AppSchema.localModels).entities.map(\.name))
-        #expect(cloud == ["CategoryBudget", "CategoryPreset", "SavedEntry"])
+        #expect(cloud == [
+            "CategoryBudget", "CategoryPreset", "SavedEntry",
+            "MonthlyReconciliation", "AccountMonthlyBalance", "CashAdjustment",
+            "SavingsItem", "CardUsageItem", "IncomeItem", "MerchantCategory",
+        ])
         #expect(cloud.isDisjoint(with: local))
         #expect(cloud.union(local) == Set(Schema(AppSchema.models).entities.map(\.name)))
     }
