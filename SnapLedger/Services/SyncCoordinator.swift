@@ -35,9 +35,11 @@ struct MonthSyncStatus: Identifiable, Equatable {
     }
 
     var allowsImport: Bool {
+        // 지출은 CloudKit이 진실원(Phase 2) — 파일→앱 import 비활성. 정산은 그대로.
+        guard kind != .expenses else { return false }
         switch state {
-        case .synced, .externalModified, .fileOnly: true
-        case .appOnly, .notReady: false
+        case .synced, .externalModified, .fileOnly: return true
+        case .appOnly, .notReady: return false
         }
     }
 
@@ -48,12 +50,13 @@ struct MonthSyncStatus: Identifiable, Equatable {
         }
     }
 
-    /// 맞출 차이가 있어 사용자 액션이 의미 있는 상태인지.
+    /// 맞출 차이가 있고 실제로 가능한 액션(import 또는 export)이 있는 상태인지.
     /// 최신(`synced`)·다운로드 중(`notReady`)은 맞출 게 없으므로 false.
+    /// 지출 fileOnly처럼 import·export 둘 다 불가한 경우도 액션이 없어 false.
     var needsResolution: Bool {
         switch state {
-        case .externalModified, .fileOnly, .appOnly: true
-        case .synced, .notReady: false
+        case .externalModified, .fileOnly, .appOnly: return allowsImport || allowsExport
+        case .synced, .notReady: return false
         }
     }
 }
@@ -167,7 +170,9 @@ struct SyncCoordinator {
         (try? await withFolderAsync(in: context) { folderURL in
             let states = fileStatesByName(in: context)
             var changes: [DetectedChange] = []
-            for kind in [SyncFileKind.expenses, .reconciliation] {
+            // 지출은 CloudKit이 진실원(Phase 2) — 외부 변경 감지/자동동기화/충돌 대상에서 제외.
+            // 정산은 아직 CSV가 진실원이라 그대로 감지한다(Phase 3에서 이전).
+            for kind in [SyncFileKind.reconciliation] {
                 let readiness = await Self.scanReadiness(in: folderURL, kind: kind)
                 for (key, reading) in readiness {
                     guard case .ready(let content) = reading else { continue }
@@ -329,7 +334,10 @@ struct SyncCoordinator {
 
     @discardableResult
     func importMonths(_ keys: [String], kind: SyncFileKind, in context: ModelContext) throws -> ImportSummary {
-        try withFolder(in: context) { folderURL, ctx in
+        // 지출은 CloudKit이 진실원(Phase 2) — 파일→앱 import 비활성. stale CSV가 CloudKit
+        // 데이터를 덮어쓰지 못하게 빈 요약을 반환한다(방어). 정산은 그대로 동작.
+        guard kind != .expenses else { return ImportSummary() }
+        return try withFolder(in: context) { folderURL, ctx in
             var summary = ImportSummary()
             for key in keys {
                 let filename = kind.filename(forMonthKey: key)
