@@ -14,17 +14,8 @@ struct ReconciliationStoreTests {
         return ModelContext(container)
     }
 
-    @Test func saveRollsBackWhenCSVWriteFails() throws {
-        let schema = Schema([
-            PendingImage.self, ParsedEntry.self, SavedEntry.self, MerchantCategory.self,
-            AppSettings.self, CSVFileState.self,
-            MonthlyReconciliation.self, AccountMonthlyBalance.self, CashAdjustment.self,
-            SavingsItem.self, CardUsageItem.self, IncomeItem.self,
-        ])
-        let container = try ModelContainer(
-            for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        )
-        let context = ModelContext(container)
+    @Test func saveKeepsNewDataWhenCSVWriteFails() throws {
+        let context = try makeContext()
 
         // 기존 저장 데이터(2026-06)가 있다.
         context.insert(MonthlyReconciliation(monthKey: 202_606))
@@ -33,7 +24,7 @@ struct ReconciliationStoreTests {
 
         // 폴더를 읽기 전용으로 만들어 CSV 쓰기를 실패시킨다.
         let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ReconRollback-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("ReconReadonly-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
@@ -46,16 +37,15 @@ struct ReconciliationStoreTests {
         var draft = ReconciliationDraft()
         draft.incomes = [IncomeItemDraft(title: "새값", amount: 999)]
 
-        // 쓰기 실패 → save가 throw.
-        #expect(throws: (any Error).self) {
-            try ReconciliationStore().save(draft, month: 202_606, in: context)
-        }
+        // CloudKit이 진실원 — CSV 쓰기 실패는 best-effort라 저장(DB)은 성공하고, export 실패만 false로 보고한다.
+        let exported = try ReconciliationStore().save(draft, month: 202_606, in: context)
+        #expect(exported == false)
 
-        // 롤백되어 기존 데이터가 그대로 남아야 한다 (DB가 CSV와 어긋나지 않음).
+        // DB는 새 값으로 갱신된다 (롤백 없음).
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>()).filter { $0.monthKey == 202_606 }
         #expect(incomes.count == 1)
-        #expect(incomes.first?.title == "기존")
-        #expect(incomes.first?.amount == 111)
+        #expect(incomes.first?.title == "새값")
+        #expect(incomes.first?.amount == 999)
     }
 
     @Test func loadDraftCarriesForwardPreviousMonthWithoutPersisting() throws {

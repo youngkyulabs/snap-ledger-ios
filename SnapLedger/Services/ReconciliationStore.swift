@@ -1,5 +1,8 @@
 import Foundation
+import OSLog
 import SwiftData
+
+private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "reconciliation")
 
 /// 월 정산 편집 화면이 다루는 메모리 상태. 사용자가 "저장"하기 전까지는
 /// DB·CSV에 아무것도 쓰지 않고 이 값만 들고 있다 (지출 입력 폼과 동일한 방식).
@@ -60,29 +63,6 @@ struct AdjustmentDraft: Identifiable, Equatable {
 
 @MainActor
 struct ReconciliationStore {
-    enum StoreError: Error, LocalizedError {
-        case noCSVFolder
-        case bookmarkResolveFailed(underlying: Error)
-        case folderUnavailable
-        case externalConflict(months: [String])
-        case fileNotReady(months: [String])
-
-        var errorDescription: String? {
-            switch self {
-            case .noCSVFolder:
-                "저장 폴더가 설정되어 있지 않아 앱 안에만 저장했어요."
-            case .bookmarkResolveFailed(let error):
-                "폴더 권한을 복구하지 못했어요: \(error.localizedDescription)"
-            case .folderUnavailable:
-                "저장 폴더를 찾을 수 없어요. 설정 → 저장 폴더에서 다시 선택해 주세요."
-            case .externalConflict(let months):
-                "\(CSVWriter.monthLabels(months)) 정산 파일이 앱 밖에서 변경됐어요. 먼저 가져오거나 덮어쓸지 선택해 주세요."
-            case .fileNotReady(let months):
-                "\(CSVWriter.monthLabels(months)) 정산 파일을 아직 받아오는 중이에요. 잠시 후 다시 시도해 주세요."
-            }
-        }
-    }
-
     // MARK: - 불러오기 (DB → 편집 폼)
 
     /// 그 달 편집 폼의 초기 상태를 만든다. 저장된 데이터가 있으면 그대로 읽고,
@@ -176,38 +156,34 @@ struct ReconciliationStore {
 
     // MARK: - 저장 (편집 폼 → DB + CSV)
 
-    /// 지출 저장(`SaveCoordinator`)과 동일한 흐름:
-    /// 한 폴더 트랜잭션 안에서 외부 변경 가드 → 파일 기록 → DB 반영 → 지문 갱신을 함께 한다.
-    /// 폴더가 없으면 앱에만 저장하고 `false`를 돌려준다.
+    /// 지출 저장(`SaveCoordinator`)과 동일한 흐름: CloudKit이 진실원이므로 DB 저장이 먼저
+    /// 성공하고, 정산 CSV export는 best-effort(폴더 없거나 실패해도 저장은 성공).
+    /// 폴더에 실제로 썼으면 `true`, 폴더 미설정/실패면 `false`.
     @discardableResult
     func save(
         _ draft: ReconciliationDraft,
         month: Int,
-        ignoringConflict: Bool = false,
         in context: ModelContext
     ) throws -> Bool {
+        replaceMonth(month, with: draft, in: context)
+        try context.save()
+        return exportBestEffort(month: month, in: context)
+    }
+
+    /// 영향받은 달의 정산 CSV를 앱 내용으로 다시 쓴다. CSV는 한 방향 추출물이므로
+    /// 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 저장은 성공으로 둔다.
+    private func exportBestEffort(month: Int, in context: ModelContext) -> Bool {
+        let key = Self.monthString(from: month)
         do {
-            try withFolder(in: context) { folderURL in
-                let key = Self.monthString(from: month)
-                if !ignoringConflict {
-                    try ensureNoConflict(key: key, folderURL: folderURL, in: context)
-                }
-                replaceMonth(month, with: draft, in: context)
-                do {
-                    try SyncCoordinator().exportReconciliationMonths([key], folderURL: folderURL, in: context)
-                    try context.save()
-                } catch {
-                    // CSV 쓰기/저장 실패 시 replaceMonth의 미커밋 insert/delete를 되돌려, DB만 바뀌고
-                    // 파일은 그대로인 "감지 불가능한 어긋남"을 막는다 (SaveCoordinator와 동일).
-                    context.rollback()
-                    throw error
-                }
+            try CSVFolderAccess.withFolder(in: context) { folderURL in
+                try SyncCoordinator().exportReconciliationMonths([key], folderURL: folderURL, in: context)
             }
             return true
-        } catch StoreError.noCSVFolder {
-            // 폴더 미설정 — 앱에만 저장한다.
-            replaceMonth(month, with: draft, in: context)
-            try context.save()
+        } catch CSVFolderAccess.AccessError.noCSVFolder {
+            // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
+            return false
+        } catch {
+            log.error("정산 CSV export(best-effort) failed: \(String(describing: error))")
             return false
         }
     }
@@ -273,7 +249,7 @@ struct ReconciliationStore {
         return rows
     }
 
-    /// 그 달의 정산·잔액·자금변동 레코드를 모두 지운다. import 교체에서도 공용으로 쓴다.
+    /// 그 달의 정산·잔액·자금변동 레코드를 모두 지운다.
     func deleteMonth(_ month: Int, in context: ModelContext) {
         for item in fetchAllReconciliations(in: context) where item.monthKey == month {
             context.delete(item)
@@ -375,19 +351,9 @@ struct ReconciliationStore {
         }
     }
 
-    private func ensureNoConflict(key: String, folderURL: URL, in context: ModelContext) throws {
-        switch SyncCoordinator().checkWriteGuard(monthKeys: [key], kind: .reconciliation, folderURL: folderURL, in: context) {
-        case .clear:
-            return
-        case .notReady(let keys):
-            throw StoreError.fileNotReady(months: keys)
-        case .conflict(let keys):
-            throw StoreError.externalConflict(months: keys)
-        }
-    }
 }
 
-// MARK: - Fetch / 폴더 헬퍼
+// MARK: - Fetch 헬퍼
 
 extension ReconciliationStore {
     private func fetchReconciliation(_ month: Int, in context: ModelContext) -> MonthlyReconciliation? {
@@ -448,24 +414,6 @@ extension ReconciliationStore {
         (try? context.fetch(FetchDescriptor<IncomeItem>())) ?? []
     }
 
-    private func withFolder<T>(
-        in context: ModelContext,
-        _ body: (URL) throws -> T
-    ) throws -> T {
-        do {
-            return try CSVFolderAccess.withFolder(in: context, body)
-        } catch let error as CSVFolderAccess.AccessError {
-            throw Self.map(error)
-        }
-    }
-
-    private static func map(_ error: CSVFolderAccess.AccessError) -> StoreError {
-        switch error {
-        case .noCSVFolder: .noCSVFolder
-        case .bookmarkResolveFailed(let underlying): .bookmarkResolveFailed(underlying: underlying)
-        case .folderUnavailable: .folderUnavailable
-        }
-    }
 }
 
 extension ReconciliationDraft {
