@@ -53,4 +53,33 @@ struct CategoryLearnerTests {
         let all = try ctx.fetch(FetchDescriptor<MerchantCategory>())
         #expect(all.count == 1)
     }
+
+    @Test func categoryReturnsLatestAmongDuplicates() throws {
+        let context = try makeContext()
+        let normalized = CategoryLearner.normalize("스타벅스")
+        context.insert(MerchantCategory(merchantNormalized: normalized, category: "카페",
+                                        updatedAt: Date(timeIntervalSince1970: 100)))
+        context.insert(MerchantCategory(merchantNormalized: normalized, category: "간식",
+                                        updatedAt: Date(timeIntervalSince1970: 200)))
+        try context.save()
+
+        let result = try CategoryLearner().category(for: "스타벅스", in: context)
+        #expect(result == "간식")
+    }
+
+    @Test func learnMergesDuplicatesIntoOne() throws {
+        let context = try makeContext()
+        let normalized = CategoryLearner.normalize("스타벅스")
+        context.insert(MerchantCategory(merchantNormalized: normalized, category: "카페",
+                                        updatedAt: Date(timeIntervalSince1970: 100)))
+        context.insert(MerchantCategory(merchantNormalized: normalized, category: "간식",
+                                        updatedAt: Date(timeIntervalSince1970: 200)))
+        try context.save()
+
+        try CategoryLearner().learn(merchant: "스타벅스", category: "교통", in: context)
+
+        let all = try context.fetch(FetchDescriptor<MerchantCategory>())
+        #expect(all.count == 1)
+        #expect(all.first?.category == "교통")
+    }
 }

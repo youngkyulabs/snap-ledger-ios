@@ -18,7 +18,9 @@ struct CategoryLearner: Sendable {
         let descriptor = FetchDescriptor<MerchantCategory>(
             predicate: #Predicate { $0.merchantNormalized == normalized }
         )
-        return try context.fetch(descriptor).first?.category
+        return try context.fetch(descriptor)
+            .max { $0.updatedAt < $1.updatedAt }?
+            .category
     }
 
     func learn(merchant: String, category: String, in context: ModelContext) throws {
@@ -26,9 +28,15 @@ struct CategoryLearner: Sendable {
         let descriptor = FetchDescriptor<MerchantCategory>(
             predicate: #Predicate { $0.merchantNormalized == normalized }
         )
-        if let existing = try context.fetch(descriptor).first {
-            existing.category = category
-            existing.updatedAt = .now
+        // CloudKit 다기기 동시 학습이 같은 가맹점에 중복 레코드를 만들 수 있다.
+        // 최신 1개만 남겨 갱신하고 나머지는 병합 삭제(lazy dedup).
+        let matches = try context.fetch(descriptor).sorted { $0.updatedAt > $1.updatedAt }
+        if let keep = matches.first {
+            keep.category = category
+            keep.updatedAt = .now
+            for extra in matches.dropFirst() {
+                context.delete(extra)
+            }
         } else {
             context.insert(MerchantCategory(merchantNormalized: normalized, category: category))
         }
