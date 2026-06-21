@@ -3,14 +3,14 @@ import SwiftData
 
 @Model
 final class SavedEntry {
-    var id: UUID
-    var date: Date
-    var amount: Int
-    var merchant: String
+    var id: UUID = UUID()
+    var date: Date = Date.distantPast
+    var amount: Int = 0
+    var merchant: String = ""
     var category: String?
     var note: String?
-    var savedAt: Date
-    var csvFile: String
+    var savedAt: Date = Date.distantPast
+    var csvFile: String = ""
 
     init(
         id: UUID = UUID(),
