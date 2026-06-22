@@ -39,22 +39,6 @@ struct SyncCoordinator {
 
     // MARK: - Export (앱 → 파일, 한 방향)
 
-    func exportMonths(_ keys: [String], in context: ModelContext) throws {
-        try exportMonths(keys, kind: .expenses, in: context)
-    }
-
-    func exportMonths(_ keys: [String], kind: SyncFileKind, in context: ModelContext) throws {
-        try withFolder(in: context) { folderURL, ctx in
-            switch kind {
-            case .expenses:
-                try exportMonths(keys, folderURL: folderURL, in: ctx)
-            case .reconciliation:
-                try exportReconciliationMonths(keys, folderURL: folderURL, in: ctx)
-            }
-            try ctx.save()
-        }
-    }
-
     /// 앱에 있는 모든 지출·정산 달을 폴더로 내보낸다(수동 전체 내보내기·새 폴더 백필용).
     func exportAll(in context: ModelContext) throws {
         let savedKeys = Set(

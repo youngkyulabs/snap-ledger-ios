@@ -72,9 +72,12 @@ private extension SnapLedgerApp {
             cloudKitDatabase: .none
         )
 
+        // cloud 스토어는 primary·fallback 모두 같은 App Group 위치의 cloud.store를 연다.
+        // (위치가 갈리면, fallback으로 이전한 데이터를 다음 실행의 primary가 못 읽어 고립된다.)
         let cloud = ModelConfiguration(
             "cloud",
             schema: Schema(AppSchema.cloudModels),
+            groupContainer: .identifier(AppGroup.identifier),
             cloudKitDatabase: .private("iCloud.com.youngkyu.snapledger")
         )
 

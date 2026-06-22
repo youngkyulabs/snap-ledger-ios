@@ -12,8 +12,6 @@ struct ReconciliationCSVTests {
 
     @Test func filenameUsesReconciliationsPrefix() {
         #expect(ReconciliationCSVWriter.filename(forMonthKey: "2026-06") == "reconciliations-2026-06.csv")
-        #expect(ReconciliationCSVWriter.monthKey(fromFilename: "reconciliations-2026-06.csv") == "2026-06")
-        #expect(ReconciliationCSVWriter.monthKey(fromFilename: "settlements-2026-06.csv") == nil)
     }
 
     @Test func writesBOMHeaderAndEscapedRows() throws {

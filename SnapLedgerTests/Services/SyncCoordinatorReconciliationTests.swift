@@ -46,7 +46,7 @@ struct SyncCoordinatorReconciliationTests {
         )
         try context.save()
 
-        try sync.exportMonths(["2026-05"], kind: .reconciliation, in: context)
+        try sync.exportReconciliationMonths(["2026-05"], folderURL: dir, in: context)
 
         let content = try String(
             contentsOf: dir.appendingPathComponent("reconciliations-2026-05.csv"),
@@ -69,7 +69,7 @@ struct SyncCoordinatorReconciliationTests {
         context.insert(CardUsageItem(monthKey: 202_605, title: "현대", amount: 200_000, sortOrder: 1))
         try context.save()
 
-        try sync.exportMonths(["2026-05"], kind: .reconciliation, in: context)
+        try sync.exportReconciliationMonths(["2026-05"], folderURL: dir, in: context)
 
         let content = try String(
             contentsOf: dir.appendingPathComponent("reconciliations-2026-05.csv"),
