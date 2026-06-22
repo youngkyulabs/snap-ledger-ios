@@ -1,11 +1,6 @@
 import Foundation
 
 extension SyncCoordinator {
-    /// `expenses-2026-05.csv` → `2026-05`. 패턴이 안 맞으면 nil. (`SyncFileKind`가 사용)
-    nonisolated static func monthKey(fromFilename name: String) -> String? {
-        CSVWriter.monthKey(fromFilename: name, prefix: "expenses-")
-    }
-
     nonisolated static func intMonthKey(from key: String) -> Int {
         let parts = key.split(separator: "-")
         guard parts.count == 2,

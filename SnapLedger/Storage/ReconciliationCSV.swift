@@ -99,7 +99,7 @@ struct ReconciliationCSVParser {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// 금액 파싱 — 천 단위 구분자(콤마)를 제거하고 정수로. 지출 CSV 파서(`CSVRowParser`)와 동작을 맞춘다.
+    /// 금액 파싱 — 천 단위 구분자(콤마)를 제거하고 정수로.
     private static func parseAmount(_ raw: String) -> Int? {
         Int(raw.replacingOccurrences(of: ",", with: ""))
     }
@@ -137,10 +137,6 @@ struct ReconciliationCSVWriter {
 
     nonisolated static func filename(forMonthKey key: String) -> String {
         "reconciliations-\(key).csv"
-    }
-
-    nonisolated static func monthKey(fromFilename name: String) -> String? {
-        CSVWriter.monthKey(fromFilename: name, prefix: "reconciliations-")
     }
 
     private func csvLine(_ row: ReconciliationCSVRow) -> String {

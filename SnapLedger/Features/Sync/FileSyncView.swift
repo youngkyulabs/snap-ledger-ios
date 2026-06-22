@@ -116,12 +116,16 @@ struct FileSyncView: View {
 
     private func exportAll() {
         isExporting = true
-        defer { isExporting = false }
-        do {
-            try SyncCoordinator().exportAll(in: modelContext)
-            resultMessage = "앱의 모든 지출·정산을 폴더로 내보냈어요."
-        } catch {
-            resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        // yield로 버튼 비활성 상태를 먼저 렌더한 뒤 내보내기를 돌려 중복 탭을 막는다.
+        Task {
+            defer { isExporting = false }
+            await Task.yield()
+            do {
+                try SyncCoordinator().exportAll(in: modelContext)
+                resultMessage = "앱의 모든 지출·정산을 폴더로 내보냈어요."
+            } catch {
+                resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
         }
     }
 }
