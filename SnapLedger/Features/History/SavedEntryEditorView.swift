@@ -135,7 +135,7 @@ struct SavedEntryEditorView: View {
                 Button("삭제", role: .destructive, action: delete)
                 Button("취소", role: .cancel) { }
             } message: {
-                Text("CSV 파일에서도 함께 제거돼요.")
+                Text("삭제하면 되돌릴 수 없어요.")
             }
             .onChange(of: focusedField) { _, newValue in
                 guard let newValue else { return }

@@ -21,8 +21,6 @@ struct OnboardingSetupPage: View {
         return (try? BookmarkStore.resolve(data).url.lastPathComponent)
     }
 
-    private var canProceed: Bool { settings.csvFolderBookmark != nil }
-
     var body: some View {
         VStack(spacing: 24) {
             Text("시작 전 준비")
@@ -62,28 +60,20 @@ struct OnboardingSetupPage: View {
     }
 
     private var ctaSection: some View {
-        VStack(spacing: 8) {
-            Text("폴더를 먼저 선택해 주세요.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .opacity(canProceed ? 0 : 1)
-            Button {
-                settings.hasCompletedOnboarding = true
-                try? modelContext.save()
-                onComplete()
-            } label: {
-                Text("시작하기")
-                    .frame(maxWidth: .infinity)
-                    .font(.headline)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(!canProceed)
-            .padding(.horizontal)
+        Button {
+            settings.hasCompletedOnboarding = true
+            try? modelContext.save()
+            onComplete()
+        } label: {
+            Text("시작하기")
+                .frame(maxWidth: .infinity)
+                .font(.headline)
+                .padding(.vertical, 6)
         }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .padding(.horizontal)
         .padding(.bottom, 16)
-        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: canProceed)
     }
 
     private var folderCard: some View {
@@ -94,23 +84,17 @@ struct OnboardingSetupPage: View {
                 Image(systemName: "folder.fill")
                     .font(.title2)
                     .foregroundStyle(.tint)
-                    .symbolEffect(.wiggle, options: .repeating, isActive: !canProceed && !reduceMotion)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("저장 폴더").font(.headline).foregroundStyle(.primary)
-                    Text(folderName ?? "선택 안 됨")
+                    Text(folderName ?? "월별 CSV로 백업해요.")
                         .font(.subheadline)
-                        .foregroundStyle(folderName == nil ? Color.accentColor : Color.primary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(.secondary)
             }
             .padding()
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(canProceed ? Color.clear : Color.accentColor.opacity(0.15))
-            )
-            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: canProceed)
         }
         .buttonStyle(.plain)
     }

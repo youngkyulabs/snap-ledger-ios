@@ -232,7 +232,7 @@ struct CSVFileView: View {
 
     private func load() {
         guard let bookmark = settingsList.first?.csvFolderBookmark else {
-            loadError = "CSV 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 선택해 주세요."
+            loadError = "저장 폴더가 설정되어 있지 않아요. 설정에서 폴더를 먼저 선택해 주세요."
             return
         }
         do {
