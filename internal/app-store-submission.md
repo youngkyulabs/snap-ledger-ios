@@ -1,6 +1,6 @@
 # App Store 제출 메타데이터
 
-찰칵가계부 App Store Connect 제출용 메타데이터 (현재 버전 1.1).
+찰칵가계부 App Store Connect 제출용 메타데이터 (현재 버전 1.2).
 업데이트 시 이 문서를 single source of truth로 유지한다.
 
 ---
@@ -15,7 +15,7 @@
 | Apple ID | `6772852897` |
 | SKU | `snapledger-001` |
 | Primary Language | Korean |
-| Version | 1.1 |
+| Version | 1.2 |
 | Copyright | `2026 YOUNGKYU SEO` (©는 시스템이 자동 부착) |
 | Primary Category | Finance |
 | Secondary Category | Productivity |
@@ -59,8 +59,9 @@
 ■ 주요 기능
 • 한 장의 이미지에서 여러 건의 결제도 한 번에 추출
 • 가맹점 → 카테고리 자동 학습 (한 번 고치면 다음부터 기억)
-• 사용자 지정 iCloud Drive 폴더에 월별 CSV(expenses-YYYY-MM.csv,
-  날짜·설명·카테고리·금액·메모 5열)로 저장 — Numbers, Excel, 다른 가계부로 이동 자유
+• 데이터는 본인 iCloud 계정에 안전하게 저장되어 여러 기기에서 자동으로 이어 보기
+• 원하면 iCloud Drive 폴더에 월별 CSV(expenses-YYYY-MM.csv,
+  날짜·설명·카테고리·금액·메모 5열)로 자동 백업 — Numbers, Excel, 다른 가계부로 이동 자유
 • 최근 기록 탭에서 월별로 묶어 보기, 스크롤하면 과거 달이 자동으로 이어짐.
   다중 선택 후 Numbers·메일로 바로 붙여넣기
 • 통계 탭의 카테고리 도넛과 전월 대비 비교
@@ -72,14 +73,14 @@
 • 추출 규칙을 직접 보강할 수 있는 "추출 가이드"
 
 ■ 프라이버시
-• 모든 인식과 추출은 기기 안에서 처리됩니다. 결제 정보가 서버로 전송되지 않습니다.
-• 데이터는 사용자가 직접 지정한 iCloud Drive 폴더의 CSV 파일(가계부·월 정산)로만 저장됩니다. 언제든지 파일을 가져가거나 삭제할 수 있습니다.
+• 모든 인식과 추출은 기기 안에서 처리됩니다. 결제 정보가 Apple 외부 서버로 전송되지 않습니다.
+• 데이터는 본인 iCloud 계정(CloudKit)에만 저장되어 기기 간 동기화됩니다. 선택 사항인 iCloud Drive 폴더 백업(CSV)은 원할 때만 켜며, 언제든 폴더를 해제하거나 파일을 가져가고 삭제할 수 있습니다.
 • 광고·분석 SDK가 없습니다.
 
 ■ 동작 요구 사항
 • iOS 26 이상
 • Apple Intelligence 지원 기기 및 한국어 설정 권장 (미지원 기기에서는 추출이 비활성화됩니다)
-• 일부 기능은 iCloud Drive 사용을 권장합니다.
+• 기기 간 동기화에는 iCloud 로그인이 필요합니다. CSV 백업은 iCloud Drive 사용을 권장합니다.
 
 ■ 의도된 한계
 • 시뮬레이터 또는 Apple Intelligence가 비활성화된 환경에서는 자동 추출이 동작하지 않습니다.
@@ -88,15 +89,16 @@
 피드백은 설정 → 의견 보내기에서 직접 보내주세요. 빠르게 반영하겠습니다.
 ```
 
-### What's New in This Version (1.1 출시 노트)
+### What's New in This Version (1.2 출시 노트)
 ```
-• 예산 탭이 새로 생겼습니다. 카테고리별 월 한도를 정하고 사용률을 한눈에 확인하세요.
-• 월 정산 기능 — 수입·카드·저축·계좌 잔액을 입력하면 '실제 쓴 돈'과 '기록한 돈'을 맞춰볼 수 있고, 정산 결과도 폴더에 CSV로 저장됩니다.
-• 검토 항목 자동 채우기와 여러 문구·동작을 다듬었습니다.
+• iCloud 동기화가 추가됐습니다. 가계부·예산·정산 데이터가 본인 iCloud 계정에 안전하게 저장되어, 새 기기에서도 그대로 이어서 쓸 수 있어요.
+• 저장 폴더의 월별 CSV는 이제 백업·내보내기 전용입니다. 데이터는 iCloud에 보관되므로 폴더를 고르지 않아도 안전해요.
+• 안정성 개선과 여러 문구·동작을 다듬었습니다.
 ```
 
 #### 이전 버전 노트
 ```
+1.1 — 예산 탭(카테고리별 월 한도)과 월 정산('실제 쓴 돈' vs '기록한 돈' 대조)이 추가됐습니다.
 1.0 — 첫 출시입니다. 결제 알림 스크린샷을 공유 시트로 보내면 Apple Intelligence가 가계부에 자동으로 옮겨 적습니다.
 ```
 
@@ -109,9 +111,9 @@ App Store Connect "App Privacy" 섹션:
 **Does this app collect data? → No (Data Not Collected)**
 
 근거:
-- 분석/광고 SDK 없음, 네트워크 호출 없음
+- 분석/광고 SDK 없음, 자체 서버로의 네트워크 호출 없음
 - OCR(VisionKit) / 추출(Foundation Models) 모두 온디바이스
-- 사용자 데이터는 사용자가 직접 지정한 iCloud Drive 폴더의 CSV에만 저장
+- 사용자 데이터는 본인 iCloud 계정의 CloudKit private database에 저장 — 개발자가 접근할 수 없는 사용자 전용 저장소이므로 "수집(collect)"에 해당하지 않음. 선택적 CSV 백업도 사용자가 지정한 iCloud Drive 폴더에만 떨어짐
 - Share Extension은 App Group inbox 파일 IO만 함
 
 ### Privacy Manifest (`PrivacyInfo.xcprivacy`)
@@ -119,7 +121,7 @@ App Store Connect "App Privacy" 섹션:
 메인 앱(`SnapLedger/PrivacyInfo.xcprivacy`)과 익스텐션(`SnapLedgerShareExtension/PrivacyInfo.xcprivacy`) 둘 다 번들에 포함됨. 주요 항목:
 
 - `NSPrivacyTracking = false`, `NSPrivacyTrackingDomains = []`, `NSPrivacyCollectedDataTypes = []`
-- Required Reason API: `NSPrivacyAccessedAPICategoryFileTimestamp` (메인 앱 reasons `C617.1`·`3B52.1`, 익스텐션 reason `C617.1` — CSV append 시 mtime 비교용)
+- Required Reason API: `NSPrivacyAccessedAPICategoryFileTimestamp` (메인 앱 reasons `C617.1`·`3B52.1`, 익스텐션 reason `C617.1` — CSV export(파일 쓰기)·inbox 파일 처리 시 파일 메타 접근용)
 
 새 시스템 API를 도입할 때 (예: UserDefaults, DiskSpace) 양쪽 `.xcprivacy`에 동시 추가 필요.
 
@@ -142,12 +144,15 @@ To exercise the extraction flow:
    notification screenshot).
 2. From the Photos share sheet, choose "찰칵가계부".
 3. Open SnapLedger. The Review tab will show the extracted transaction.
-4. Tap "저장" to commit. A row will be appended to
-   expenses-YYYY-MM.csv inside the iCloud Drive folder selected
-   during onboarding. CSV columns: date, description, category, amount, note.
+4. Tap "저장" to commit. The entry is stored in the user's private
+   iCloud (CloudKit) database and syncs across the user's devices.
+   If a storage folder was selected, the month's CSV
+   (expenses-YYYY-MM.csv; columns: date, description, category, amount, note)
+   is also exported as a one-way backup — this folder is optional.
 
-The app does not require network access. All processing happens on device.
-There is no account, no purchase, no advertising.
+OCR and extraction run entirely on device (no network). Data is stored only
+in the user's own private CloudKit database; the app uses no developer server.
+There is no account sign-up, no purchase, no advertising.
 ```
 
 샘플 결제 알림 스크린샷 3장을 review attachments로 같이 업로드.
@@ -160,3 +165,4 @@ There is no account, no purchase, no advertising.
 |---|---|---|
 | 1.0 | 2026-05-24 작성 | 첫 제출 |
 | 1.1 | 2026-06-14 갱신 | 예산 탭(카테고리 한도) + 월 정산 + 정산 CSV 추가 |
+| 1.2 | 2026-06-22 갱신 | CloudKit 전환 — iCloud(CloudKit private DB)가 진실원, 기기 간 동기화. CSV는 한 방향 export 백업으로 격하(파일→앱 import·외부 변경 감지·충돌 제거) |

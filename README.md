@@ -15,7 +15,7 @@
 3. **VisionKit OCR**로 한·영 텍스트 추출
 4. **Apple Foundation Models**로 결제일·금액·가맹점·카테고리를 정형 추출
 5. 검토 탭에서 사용자가 확인·수정 후 저장
-6. 사용자가 지정한 iCloud Drive 폴더에 월별 CSV(`expenses-YYYY-MM.csv`)로 append
+6. 데이터는 iCloud(CloudKit)에 저장돼 기기 간 자동 동기화. 저장 폴더를 지정하면 월별 CSV(`expenses-YYYY-MM.csv`)로도 자동 내보내기(백업)
 
 ## 주요 기능
 
@@ -28,11 +28,11 @@
 - **사용자 추출 가이드** — 카드사별 특이 패턴을 Settings에서 자유 텍스트로 추가
 - **카테고리 편집** — 카테고리 프리셋을 추가/삭제/재정렬, 추출 prompt에 동적 주입
 - **카테고리 학습** — 검토에서 사용자가 카테고리를 바꾸면 가맹점→카테고리 매핑을 학습해 다음번에 자동 적용
-- **기록 탭** — 월별 CSV 뷰어 + 다중 선택 복사 (HTML+TSV 멀티 페이로드로 Numbers에 표 그대로 paste)
-- **파일 동기화** — 저장 폴더의 월별 CSV를 Numbers·다른 기기에서 직접 고쳐도 외부 변경을 감지해 달별로 가져오기/덮어쓰기 (저장 시 충돌 가드, 설정 → 저장 폴더에서 동기화 상태 확인)
+- **기록 탭** — 저장한 지출을 일별로 보기 + 내보낸 월별 CSV 뷰어와 다중 선택 복사 (HTML+TSV 멀티 페이로드로 Numbers에 표 그대로 paste)
+- **iCloud 동기화 + CSV 백업** — 모든 데이터의 진실원은 iCloud(CloudKit)라 기기 간 자동 동기화. 저장 폴더를 지정하면 월별 CSV로 한 방향 자동 내보내기(백업·AI 분석용). 폴더를 안 골라도 데이터는 안전 (설정 → 저장 폴더에서 전체 내보내기·폴더 변경)
 - **통계 대시보드** — 카테고리 도넛 + 전월 대비 추세 (도넛 조각을 탭하면 그 카테고리 항목 목록)
 - **카테고리 예산** — 카테고리별 월 한도 설정, 사용률 진행률로 표시. 한도는 변경 전까지 매월 자동 이월
-- **월 정산** — 수입·카드 사용액·저축·계좌별 잔액·자금 변동을 입력해 '실제 쓴 돈'과 '기록한 돈'을 대조. 결과는 `reconciliations-YYYY-MM.csv`로 저장돼 AI에게 그대로 분석을 맡길 수 있음 (지출 CSV와 동일하게 외부 변경 감지·동기화)
+- **월 정산** — 수입·카드 사용액·저축·계좌별 잔액·자금 변동을 입력해 '실제 쓴 돈'과 '기록한 돈'을 대조. 결과는 저장 폴더에 `reconciliations-YYYY-MM.csv`로 내보내져 AI에게 그대로 분석을 맡길 수 있음 (지출 CSV와 동일한 한 방향 export)
 - **야간 알림** — 매일 설정한 시각에 검토 대기 건수 알림 (홈 화면 아이콘 뱃지도 동기화)
 - **백그라운드 처리** — BGTaskScheduler로 앱 미사용 시에도 catch-up 처리
 - **Shortcuts/Siri** — `AddExpenseFromImageIntent`로 음성·자동화에서 호출 가능
@@ -78,7 +78,7 @@ Xcode에서 **SnapLedger**, **SnapLedgerTests**, **SnapLedgerUITests**, **SnapLe
 
 ## 기술 스택
 
-- Swift 6, SwiftUI, SwiftData (모든 SwiftData 컨테이너는 App Group 공유)
+- Swift 6, SwiftUI, SwiftData + CloudKit (가계부·예산·정산 데이터는 CloudKit private DB가 진실원, 기기 간 자동 동기화. 인텐트 공유용 로컬 모델은 App Group 컨테이너)
 - VisionKit (OCR)
 - Foundation Models (`@Generable` 정형 추출)
 - AppIntents (Shortcuts/Siri 노출)

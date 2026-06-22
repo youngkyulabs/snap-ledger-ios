@@ -4,7 +4,7 @@
 
 ## 프로젝트 한 줄 요약
 
-iOS 26 / Apple Intelligence 기반의 한국 가계부 앱. 카드 결제 알림 스크린샷 또는 영수증 사진을 공유받아 OCR(VisionKit) → Foundation Models로 정형 추출 → 사용자 검토 → 사용자 지정 iCloud Drive 폴더의 월별 CSV에 append.
+iOS 26 / Apple Intelligence 기반의 한국 가계부 앱. 카드 결제 알림 스크린샷 또는 영수증 사진을 공유받아 OCR(VisionKit) → Foundation Models로 정형 추출 → 사용자 검토 → CloudKit-backed SwiftData(진실원)에 저장. 사용자가 저장 폴더를 지정하면 월별 CSV로 한 방향 export(백업·AI 분석용, 선택 사항).
 
 ## 빌드 / 테스트
 
