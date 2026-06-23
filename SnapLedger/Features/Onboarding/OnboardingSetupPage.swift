@@ -86,7 +86,7 @@ struct OnboardingSetupPage: View {
                     .foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("저장 폴더").font(.headline).foregroundStyle(.primary)
-                    Text(folderName ?? "월별 CSV로 백업해요.")
+                    Text(folderName ?? "원하는 폴더에 월별 CSV를 백업할 수 있어요.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

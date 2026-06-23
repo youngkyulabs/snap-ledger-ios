@@ -148,7 +148,7 @@ struct SettingsView: View {
         } header: {
             Text("저장 폴더")
         } footer: {
-            Text("앱 데이터는 iCloud로 자동 동기화돼요. 폴더는 월별 CSV 백업(내보내기)용이라 선택 사항이에요.")
+            Text("앱 데이터는 iCloud로 자동 동기화돼요. 원하는 폴더에 월별 CSV로도 백업할 수 있어요.")
         }
     }
 
