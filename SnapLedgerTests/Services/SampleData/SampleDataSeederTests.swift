@@ -42,5 +42,6 @@ struct SampleDataSeederTests {
         #expect(try context.fetch(FetchDescriptor<SavedEntry>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<CategoryBudget>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<MonthlyReconciliation>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<IncomeItem>()).isEmpty)
     }
 }

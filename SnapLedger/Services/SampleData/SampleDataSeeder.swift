@@ -12,6 +12,11 @@ struct SampleSeedCounts: Equatable {
 /// 임베드 샘플 데이터를 SwiftData에 적용/클리어한다. 멱등: seed는 항상 clear 후 삽입.
 @MainActor
 struct SampleDataSeeder {
+    private static let seoulCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .current
+        return calendar
+    }()
     private let reconciliationStore = ReconciliationStore()
     private let budgetStore = CategoryBudgetStore()
 
@@ -64,7 +69,7 @@ struct SampleDataSeeder {
                 category: seed.category,
                 note: seed.note,
                 savedAt: base.addingTimeInterval(TimeInterval(index)),
-                csvFile: CSVWriter.filename(forMonthKey: CSVWriter.monthKey(for: seed.date))
+                csvFile: CSVWriter.filename(forMonthKey: CSVWriter.monthKey(for: seed.date, calendar: Self.seoulCalendar))
             ))
         }
         try context.save()
