@@ -44,4 +44,49 @@ struct SampleDataParsingTests {
         #expect(seeds[1].merchant == "GS25 역삼점")
         #expect(seeds[1].note == nil)
     }
+
+    @Test func mayReconciliationMapsBalancesByNickname() {
+        let draft = SampleDataParsing.parseReconciliationDraft(SampleDataFixtures.reconciliation202605)
+        #expect(draft.balances.count == 2)
+        let payroll = draft.balances.first { $0.accountName == "월급통장" }
+        #expect(payroll?.opening == 1_250_000)
+        #expect(payroll?.closing == 3_733_500)
+        let emergency = draft.balances.first { $0.accountName == "비상금" }
+        #expect(emergency?.opening == 5_000_000)
+        #expect(emergency?.closing == 5_012_000)
+        #expect(emergency?.interest == 12_000)
+    }
+
+    @Test func mayReconciliationMapsLineItemsAndAdjustments() {
+        let draft = SampleDataParsing.parseReconciliationDraft(SampleDataFixtures.reconciliation202605)
+        #expect(draft.incomes.map(\.title) == ["월급", "부수입"])
+        #expect(draft.cards.map(\.amount) == [480_000, 200_000])
+        #expect(draft.savings.map(\.amount) == [100_000, 300_000])
+        #expect(draft.adjustments.contains { $0.title == "경조사비" && $0.direction == .withdrawal && $0.amount == 150_000 })
+        #expect(draft.adjustments.contains { $0.title == "용돈" && $0.direction == .deposit && $0.amount == 50_000 })
+        #expect(draft.note.contains("교통비가 예산을 넘김"))
+    }
+
+    @Test func mayReconciliationReconcilesToZeroDifference() {
+        let expenses = SampleDataParsing.parseExpenses(SampleDataFixtures.expenses202605)
+        let entries = expenses.map {
+            SavedEntry(date: $0.date, amount: $0.amount, merchant: $0.merchant,
+                       category: $0.category, note: $0.note, csvFile: "expenses-2026-05.csv")
+        }
+        let draft = SampleDataParsing.parseReconciliationDraft(SampleDataFixtures.reconciliation202605)
+        let summary = draft.summary(entries: entries, month: SampleMonths.hero)
+        #expect(summary.recordedSpending == 876_500)
+        #expect(summary.actualSpending == 876_500)
+        #expect(summary.difference == 0)
+        #expect(summary.isBalanced)
+        // 마감된 5월은 정산 데이터가 있으므로 확정 → "정상·차이 없음".
+        #expect(summary.isReconciled(status: .closed))
+    }
+
+    @Test func juneReconciliationClosingDefaultsToOpening() {
+        let draft = SampleDataParsing.parseReconciliationDraft(SampleDataFixtures.reconciliation202606)
+        for balance in draft.balances {
+            #expect(balance.closing == balance.opening) // 기말잔액 행 없음 → 중립
+        }
+    }
 }
