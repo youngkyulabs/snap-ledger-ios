@@ -7,6 +7,7 @@ struct SampleSeedCounts: Equatable {
     let expenses: Int
     let reconciliationMonths: Int
     let budgets: Int
+    let reviewItems: Int
 }
 
 /// 임베드 샘플 데이터를 SwiftData에 적용/클리어한다. 멱등: seed는 항상 clear 후 삽입.
@@ -23,11 +24,13 @@ struct SampleDataSeeder {
         try seedReconciliation(SampleDataFixtures.reconciliation202605, month: SampleMonths.hero, in: context)
         try seedReconciliation(SampleDataFixtures.reconciliation202606, month: SampleMonths.current, in: context)
         try seedBudgets(into: context)
+        let reviewCount = try seedReview(into: context)
 
         return SampleSeedCounts(
             expenses: expenseCount,
             reconciliationMonths: 2,
-            budgets: SampleDataFixtures.budgetLimits.count
+            budgets: SampleDataFixtures.budgetLimits.count,
+            reviewItems: reviewCount
         )
     }
 
@@ -47,6 +50,12 @@ struct SampleDataSeeder {
         for budget in try context.fetch(FetchDescriptor<CategoryBudget>())
         where budget.effectiveFrom == SampleMonths.hero && seedCategories.contains(budget.category) {
             context.delete(budget)
+        }
+
+        let reviewIDs = Set(SampleDataFixtures.reviewSeeds.compactMap { UUID(uuidString: $0.id) })
+        for entry in try context.fetch(FetchDescriptor<ParsedEntry>())
+        where reviewIDs.contains(entry.id) {
+            context.delete(entry)
         }
         try context.save()
     }
@@ -85,6 +94,36 @@ struct SampleDataSeeder {
                 in: context
             )
         }
+    }
+
+    @discardableResult
+    private func seedReview(into context: ModelContext) throws -> Int {
+        let seeds = SampleDataFixtures.reviewSeeds
+        // createdAt을 단조 감소 — index 0이 가장 최신(검토 탭 상단)
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        var inserted = 0
+        for (index, seed) in seeds.enumerated() {
+            guard let uuid = UUID(uuidString: seed.id),
+                  let date = SampleDataParsing.parseDate(seed.dateString) else {
+                continue
+            }
+            let createdAt = base.addingTimeInterval(TimeInterval(seeds.count - index))
+            context.insert(ParsedEntry(
+                id: uuid,
+                date: date,
+                amount: seed.amount,
+                merchant: seed.merchant,
+                category: seed.category,
+                note: seed.note,
+                sourceImagePath: nil,
+                confidence: seed.confidence,
+                createdAt: createdAt,
+                status: .pending
+            ))
+            inserted += 1
+        }
+        try context.save()
+        return inserted
     }
 }
 #endif

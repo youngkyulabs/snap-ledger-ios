@@ -343,7 +343,7 @@ struct SettingsView: View {
         }
         do {
             let counts = try SampleDataSeeder().seed(into: modelContext)
-            sampleDataAlert = "채웠습니다 — 지출 \(counts.expenses)건, 정산 \(counts.reconciliationMonths)개월, 예산 \(counts.budgets)개."
+            sampleDataAlert = "채웠습니다 — 지출 \(counts.expenses)건, 정산 \(counts.reconciliationMonths)개월, 예산 \(counts.budgets)개, 검토 \(counts.reviewItems)건."
         } catch {
             sampleDataAlert = "실패: \(error.localizedDescription)"
         }
