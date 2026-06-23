@@ -48,6 +48,10 @@ struct SampleDataParsingTests {
     @Test func mayReconciliationMapsBalancesByNickname() {
         let draft = SampleDataParsing.parseReconciliationDraft(SampleDataFixtures.reconciliation202605)
         #expect(draft.balances.count == 2)
+        #expect(draft.balances[0].accountName == "월급통장")
+        #expect(draft.balances[1].accountName == "비상금")
+        #expect(draft.balances[0].sortOrder == 0)
+        #expect(draft.balances[1].sortOrder == 1)
         let payroll = draft.balances.first { $0.accountName == "월급통장" }
         #expect(payroll?.opening == 1_250_000)
         #expect(payroll?.closing == 3_733_500)
