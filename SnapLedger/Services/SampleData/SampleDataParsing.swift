@@ -12,13 +12,22 @@ struct ExpenseSeed: Equatable {
 
 /// 임베드 CSV 텍스트를 도메인 seed로 바꾸는 pure 변환. SwiftData·시스템 의존 없음.
 enum SampleDataParsing {
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+    /// `yyyy-MM-dd`를 현재 캘린더의 정오 Date로 만든다. 앱은 지출을 `.current` 캘린더로 월/일
+    /// 버킷팅하므로(통계·기록·정산 요약), 시드 날짜도 `.current` 기준으로 만들어야 러너·기기
+    /// 타임존과 무관하게 의도한 날짜에 떨어진다. 정오로 고정해 일 경계 흔들림을 없앤다.
+    static func parseDate(_ raw: String) -> Date? {
+        let parts = raw.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]) else {
+            return nil
+        }
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = 12
+        return Calendar.current.date(from: components)
+    }
 
     /// 지출 CSV(`날짜,설명,카테고리,금액,메모`) → ExpenseSeed 목록. 헤더·파싱 불가 행은 스킵.
     static func parseExpenses(_ csv: String) -> [ExpenseSeed] {
@@ -27,7 +36,7 @@ enum SampleDataParsing {
         var seeds: [ExpenseSeed] = []
         for row in rows.dropFirst() {
             guard row.count >= 4,
-                  let date = dateFormatter.date(from: row[0].trimmingCharacters(in: .whitespaces)),
+                  let date = parseDate(row[0].trimmingCharacters(in: .whitespaces)),
                   let amount = Int(row[3].replacingOccurrences(of: ",", with: "")) else {
                 continue
             }

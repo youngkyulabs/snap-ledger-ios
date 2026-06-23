@@ -32,9 +32,8 @@ struct SampleDataParsingTests {
         #expect(first.category == "카페")
         #expect(first.amount == 5_800)
         #expect(first.note == "아메리카노+크루아상")
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .current
-        let comps = cal.dateComponents([.year, .month, .day], from: first.date)
+        // 시드 날짜는 `.current` 캘린더 정오로 생성되므로 같은 캘린더로 읽으면 타임존 불변.
+        let comps = Calendar.current.dateComponents([.year, .month, .day], from: first.date)
         #expect(comps.year == 2026 && comps.month == 5 && comps.day == 1)
     }
 
