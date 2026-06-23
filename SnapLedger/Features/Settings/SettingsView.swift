@@ -23,6 +23,9 @@ struct SettingsView: View {
     @State private var showingMailComposer = false
     @State private var feedbackFallbackShown = false
     @State private var notificationPermissionDeniedAlert = false
+    #if DEBUG
+    @State private var sampleDataAlert: String?
+    #endif
 
     private static let feedbackEmail = "youngkyulabs@gmail.com"
 
@@ -62,6 +65,9 @@ struct SettingsView: View {
                         Label("고급 설정", systemImage: "slider.horizontal.3")
                     }
                 }
+                #if DEBUG
+                sampleDataSection
+                #endif
                 feedbackSection
                 Section {
                     NavigationLink {
@@ -99,6 +105,16 @@ struct SettingsView: View {
             } message: {
                 Text("알림을 받으려면 설정 → \(Self.appDisplayName) → 알림에서 켜 주세요.")
             }
+            #if DEBUG
+            .alert("샘플 데이터", isPresented: Binding(
+                get: { sampleDataAlert != nil },
+                set: { if !$0 { sampleDataAlert = nil } }
+            )) {
+                Button("확인", role: .cancel) {}
+            } message: {
+                Text(sampleDataAlert ?? "")
+            }
+            #endif
         }
         .sheet(isPresented: $showingPicker) {
             FolderPicker(onPick: handlePickedFolder)
@@ -298,6 +314,51 @@ struct SettingsView: View {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
         }
     }
+
+    #if DEBUG
+    private var sampleDataSection: some View {
+        Section {
+            Button {
+                Task { await seedSampleData() }
+            } label: {
+                Label("샘플 데이터 채우기", systemImage: "wand.and.stars")
+            }
+            Button(role: .destructive) {
+                clearSampleData()
+            } label: {
+                Label("샘플 데이터 지우기", systemImage: "trash")
+            }
+        } header: {
+            Text("개발자 · 스크린샷")
+        } footer: {
+            Text("디버그 전용. iCloud 로그아웃 상태에서만 채워집니다(오염 방지).")
+        }
+    }
+
+    @MainActor
+    private func seedSampleData() async {
+        guard await SampleDataSeedGate.canSeedWithoutICloudPollution() else {
+            sampleDataAlert = "iCloud에 로그인되어 있어 오염 방지를 위해 막았습니다. iCloud 로그아웃 후 다시 시도하세요."
+            return
+        }
+        do {
+            let counts = try SampleDataSeeder().seed(into: modelContext)
+            sampleDataAlert = "채웠습니다 — 지출 \(counts.expenses)건, 정산 \(counts.reconciliationMonths)개월, 예산 \(counts.budgets)개."
+        } catch {
+            sampleDataAlert = "실패: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func clearSampleData() {
+        do {
+            try SampleDataSeeder().clear(in: modelContext)
+            sampleDataAlert = "샘플 데이터를 지웠습니다."
+        } catch {
+            sampleDataAlert = "실패: \(error.localizedDescription)"
+        }
+    }
+    #endif
 }
 
 #Preview {
