@@ -94,10 +94,10 @@ struct CSVWriter {
     private func csvLine(_ row: SavedRow) -> String {
         [
             dayKey(for: row.date),
-            Self.escape(row.description),
-            Self.escape(row.category ?? ""),
+            CSVField.escape(row.description),
+            CSVField.escape(row.category ?? ""),
             String(row.amount),
-            Self.escape(row.note ?? ""),
+            CSVField.escape(row.note ?? ""),
         ].joined(separator: ",")
     }
 
@@ -149,7 +149,7 @@ struct CSVWriter {
                 padded.append("")
             }
             let trimmed = Array(padded.prefix(headerColumnCount))
-            rebuilt += trimmed.map { escape($0) }.joined(separator: ",") + "\n"
+            rebuilt += trimmed.map { CSVField.escape($0) }.joined(separator: ",") + "\n"
         }
         try Data(rebuilt.utf8).write(to: url, options: .atomic)
     }
@@ -179,14 +179,5 @@ struct CSVWriter {
         }
         if let err = coordinationError { throw err }
         if let err = thrown { throw err }
-    }
-
-    private static func escape(_ field: String) -> String {
-        let needsQuoting = field.contains(",") || field.contains("\"")
-            || field.contains("\n") || field.contains("\r")
-        if needsQuoting {
-            return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
-        }
-        return field
     }
 }

@@ -46,9 +46,11 @@ struct SyncCoordinator {
                 .map { CSVWriter.monthKey(for: $0.date) }
         )
         let reconciliationKeys = reconciliationMonthKeys(in: context)
+        let budgetKeys = budgetMonthKeys(in: context)
         try withFolder(in: context) { folderURL, ctx in
             try exportMonths(Array(savedKeys), folderURL: folderURL, in: ctx)
             try exportReconciliationMonths(Array(reconciliationKeys), folderURL: folderURL, in: ctx)
+            try exportBudgetMonths(Array(budgetKeys), folderURL: folderURL, in: ctx)
             try ctx.save()
         }
     }

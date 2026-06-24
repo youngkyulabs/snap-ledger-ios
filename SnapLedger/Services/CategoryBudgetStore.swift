@@ -1,5 +1,8 @@
 import Foundation
+import OSLog
 import SwiftData
+
+private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "budget")
 
 struct CategoryBudgetStore {
     /// YYYYMM 정수 키 (year*100 + month). StatisticsAggregation의 Int 월 키 관례와 동일.
@@ -30,6 +33,16 @@ struct CategoryBudgetStore {
             .max { $0.effectiveFrom < $1.effectiveFrom }
         guard let limit = effective?.monthlyLimit, limit > 0 else { return nil }
         return limit
+    }
+
+    /// 그 달 유효 한도가 있는 카테고리의 CSV 행. preset 순서 → preset 밖(off-list)은 가나다순으로 뒤에 붙인다.
+    /// tombstone(0)·미설정 카테고리는 제외(`resolveLimit`이 nil).
+    static func resolveAll(in budgets: [CategoryBudget], asOf month: Int, presets: [String]) -> [BudgetCSVRow] {
+        let offList = Set(budgets.map { $0.category }).subtracting(presets).sorted()
+        return (presets + offList).compactMap { category in
+            guard let limit = resolveLimit(in: budgets, category: category, asOf: month) else { return nil }
+            return BudgetCSVRow(category: category, limit: limit)
+        }
     }
 
     /// (카테고리, 월) 레코드를 upsert. limit 0은 tombstone(이 달부터 한도 해제).
@@ -78,5 +91,21 @@ struct CategoryBudgetStore {
         let records = try context.fetch(descriptor)
         guard CategoryBudgetStore.resolveLimit(in: records, category: category, asOf: month) != nil else { return }
         try setLimit(0, for: category, effectiveFrom: month, in: context)
+    }
+
+    /// 그 달 예산 CSV를 앱 내용으로 다시 쓴다(없으면 제거). CSV는 한 방향 추출물이므로
+    /// 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 한도 저장은 성공으로 둔다.
+    @MainActor
+    func exportBestEffort(month: Int, in context: ModelContext) {
+        let key = SyncCoordinator.monthKeyString(from: month)
+        do {
+            try CSVFolderAccess.withFolder(in: context) { folderURL in
+                try SyncCoordinator().exportBudgetMonths([key], folderURL: folderURL, in: context)
+            }
+        } catch CSVFolderAccess.AccessError.noCSVFolder {
+            // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
+        } catch {
+            log.error("예산 CSV export(best-effort) failed: \(String(describing: error))")
+        }
     }
 }

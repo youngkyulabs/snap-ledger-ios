@@ -176,7 +176,9 @@ struct ReconciliationStore {
         let key = Self.monthString(from: month)
         do {
             try CSVFolderAccess.withFolder(in: context) { folderURL in
-                try SyncCoordinator().exportReconciliationMonths([key], folderURL: folderURL, in: context)
+                let sync = SyncCoordinator()
+                try sync.exportReconciliationMonths([key], folderURL: folderURL, in: context)
+                try sync.exportBudgetMonths([key], folderURL: folderURL, in: context)
             }
             return true
         } catch CSVFolderAccess.AccessError.noCSVFolder {

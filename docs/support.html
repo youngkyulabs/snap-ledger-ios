@@ -81,10 +81,10 @@
 <p>또한 검토 탭에서 카테고리를 직접 고치면 그 가맹점은 자동으로 학습됩니다.</p>
 
 <h3>Q. 내 데이터는 어디에 저장되나요?</h3>
-<p>가계부·예산·정산 데이터는 본인 iCloud 계정에 안전하게 저장되어 같은 Apple 계정을 쓰는 여러 기기에서 자동으로 동기화됩니다. 추가로, 설정 → <strong>저장 폴더</strong>에서 iCloud Drive 폴더를 지정하면 월별 CSV로 자동 백업됩니다. <code>expenses-YYYY-MM.csv</code>(컬럼: <code>날짜, 설명, 카테고리, 금액, 메모</code> 5열)와 월 정산의 <code>reconciliations-YYYY-MM.csv</code>가 만들어져 Numbers, Excel, 다른 가계부 앱에서 자유롭게 열 수 있습니다. CSV는 한 방향 내보내기(백업)이므로, 파일을 직접 고쳐도 앱에는 반영되지 않습니다.</p>
+<p>가계부·예산·정산 데이터는 본인 iCloud 계정에 안전하게 저장되어 같은 Apple 계정을 쓰는 여러 기기에서 자동으로 동기화됩니다. 추가로, 설정 → <strong>저장 폴더</strong>에서 iCloud Drive 폴더를 지정하면 월별 CSV로 자동 백업됩니다. <code>expenses-YYYY-MM.csv</code>(컬럼: <code>날짜, 설명, 카테고리, 금액, 메모</code> 5열), 월 정산의 <code>reconciliations-YYYY-MM.csv</code>, 카테고리 예산의 <code>budgets-YYYY-MM.csv</code>(컬럼: <code>카테고리, 한도</code>)가 만들어져 Numbers, Excel, 다른 가계부 앱에서 자유롭게 열 수 있습니다. CSV는 한 방향 내보내기(백업)이므로, 파일을 직접 고쳐도 앱에는 반영되지 않습니다.</p>
 
 <h3>Q. 예산 탭은 어떻게 쓰나요?</h3>
-<p>예산 탭에서 카테고리별 월 한도를 정하면 그 달 사용률이 진행률로 표시됩니다. 한도는 다시 바꾸기 전까지 매월 자동으로 이어집니다.</p>
+<p>예산 탭에서 카테고리별 월 한도를 정하면 그 달 사용률이 진행률로 표시됩니다. 한도는 다시 바꾸기 전까지 매월 자동으로 이어집니다. 저장 폴더를 지정해 두면 그 달 한도가 <code>budgets-YYYY-MM.csv</code>로도 내보내져, 지출 CSV와 함께 AI에게 분석을 맡기기 좋습니다.</p>
 <p>같은 탭의 <strong>월 정산</strong>에서는 수입·카드 사용액·저축·계좌별 잔액·자금 변동을 입력해 '실제 쓴 돈'과 앱에 '기록한 돈'을 맞춰볼 수 있습니다. 정산 결과는 <code>reconciliations-YYYY-MM.csv</code>로 저장되어, AI에게 파일을 그대로 주고 분석을 맡기기에도 좋습니다.</p>
 
 <h3>Q. 데이터가 외부로 전송되나요?</h3>
