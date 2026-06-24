@@ -517,6 +517,7 @@ private struct BudgetLimitEditView: View {
                         // 이번 달 이후: 이 달부터 자동 반복.
                         try store.setLimit(amount, for: category, effectiveFrom: month, in: modelContext)
                     }
+                    store.exportBestEffort(month: month, in: modelContext)
                 } catch {
                     saveError = "한도를 저장하지 못했어요. 다시 시도해 주세요."
                 }

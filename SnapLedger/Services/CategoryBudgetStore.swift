@@ -1,5 +1,8 @@
 import Foundation
+import OSLog
 import SwiftData
+
+private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "budget")
 
 struct CategoryBudgetStore {
     /// YYYYMM 정수 키 (year*100 + month). StatisticsAggregation의 Int 월 키 관례와 동일.
@@ -88,5 +91,21 @@ struct CategoryBudgetStore {
         let records = try context.fetch(descriptor)
         guard CategoryBudgetStore.resolveLimit(in: records, category: category, asOf: month) != nil else { return }
         try setLimit(0, for: category, effectiveFrom: month, in: context)
+    }
+
+    /// 그 달 예산 CSV를 앱 내용으로 다시 쓴다(없으면 제거). CSV는 한 방향 추출물이므로
+    /// 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 한도 저장은 성공으로 둔다.
+    @MainActor
+    func exportBestEffort(month: Int, in context: ModelContext) {
+        let key = SyncCoordinator.monthKeyString(from: month)
+        do {
+            try CSVFolderAccess.withFolder(in: context) { folderURL in
+                try SyncCoordinator().exportBudgetMonths([key], folderURL: folderURL, in: context)
+            }
+        } catch CSVFolderAccess.AccessError.noCSVFolder {
+            // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
+        } catch {
+            log.error("예산 CSV export(best-effort) failed: \(String(describing: error))")
+        }
     }
 }

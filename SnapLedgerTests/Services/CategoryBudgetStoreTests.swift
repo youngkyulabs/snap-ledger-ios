@@ -196,4 +196,21 @@ struct CategoryBudgetStoreTests {
         // asOf가 effectiveFrom보다 이전 → 유효 한도 없음
         #expect(CategoryBudgetStore.resolveAll(in: budgets, asOf: 202_605, presets: ["식비"]).isEmpty)
     }
+
+    @Test func exportBestEffortWritesBudgetFileForMonth() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let context = ModelContext(try ModelContainer(for: Schema(AppSchema.models), configurations: [config]))
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BudgetExportBestEffort-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        context.insert(AppSettings(csvFolderBookmark: try BookmarkStore.makeBookmark(for: dir)))
+        context.insert(CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_605))
+        try context.save()
+
+        CategoryBudgetStore().exportBestEffort(month: 202_605, in: context)
+
+        let file = dir.appendingPathComponent("budgets-2026-05.csv")
+        #expect(FileManager.default.fileExists(atPath: file.path))
+    }
 }
