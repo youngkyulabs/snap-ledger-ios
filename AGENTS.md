@@ -86,9 +86,10 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     CandidateAutoFill.swift          # 검토 항목 신규 입력 시 가맹점 등으로 카테고리·금액 자동 채움 (pure)
     EntryReorder.swift               # 항목 드래그 재정렬 → sortOrder 재계산 (pure, 정산 항목 공용)
     EntrySaveValidation.swift        # 검토 저장 전 필수 필드 검증 (pure)
-    SyncCoordinator.swift            # CSV 한 방향 export 오케스트레이션 (지출+정산) + 폴더 도달성 확인(isFolderReachable)
+    SyncCoordinator.swift            # CSV 한 방향 export 오케스트레이션 (지출+정산+예산) + 폴더 도달성 확인(isFolderReachable)
     SyncCoordinator+Files.swift      # 파일명 ↔ monthKey 경계 헬퍼
     SyncCoordinator+Reconciliation.swift # 정산 CSV export·monthKeys (도메인 → ReconciliationCSV)
+    SyncCoordinator+Budget.swift     # 예산 CSV export·달 범위 계산 (resolveAll로 이월 흡수 → BudgetCSV)
     SyncFileKind.swift               # export 대상 파일 종류 (.expenses / .reconciliation) 구분
     CSVFolderAccess.swift            # 저장 폴더 bookmark 해소 + 도달성 확인 래퍼
     CSVRowParser.swift               # 지출 CSV 한 행 ↔ 도메인 필드 파싱 (저장·동기화 공용)
@@ -103,6 +104,7 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     FolderBookmarkHelper.swift       # BookmarkStore 래퍼 — URL → AppSettings.csvFolderBookmark 적용
     ClipboardExporter.swift          # 검토/기록 항목을 TSV(+HTML) 페이로드로 (Numbers paste용)
     ReconciliationCSV.swift          # 월 정산 CSV(reconciliations-YYYY-MM.csv) writer/parser — AI 분석 친화 export
+    BudgetCSV.swift                  # 월별 예산 CSV(budgets-YYYY-MM.csv) writer (카테고리,한도) — AI 분석 친화 export
 
   Features/                          # UI 화면
     MonthNavigationRow.swift         # ◀ 현재 월(메뉴) ▶ 월 선택 행 (예산·통계 탭 공용)
@@ -158,13 +160,14 @@ SnapLedgerTests/                     # Swift Testing — 소스 구조를 미러
    `CSVWriter.append`는 `.forMerging`으로 cross-process safe. 헤더는 첫 호출에만 BOM과 함께. 월별 파일은 `expenses-YYYY-MM.csv`.
 
 7. **CSV는 한 방향 export 백업** (`SyncCoordinator`) — CloudKit이 진실원(Phase 1–4)
-   모든 영속 데이터의 진실원은 CloudKit-backed SwiftData다. CSV는 AI 분석·백업용 **export-only 추출물**로, 진실원이 아니다. 따라서 파일→앱 import·외부 변경 감지·충돌 가드·`CSVFileState` 지문·`FileFingerprint`는 Phase 4에서 **전부 제거**됐다.
-   - **export(앱 → 파일)**: 저장/수정/삭제/재정렬 시 영향 받은 달을 **best-effort**로 그 달 CSV에 재기록. 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 저장은 성공으로 둔다 — `SaveCoordinator.exportEntryBestEffort` / `ReconciliationStore.exportBestEffort`. CSV는 순수 옵션이라 폴더 미설정이어도 데이터는 CloudKit에 안전하다.
-   - **진입점**: **설정 → 저장 폴더 행** → `FileSyncView`("저장 폴더"). 화면에서 **전체 내보내기**(`SyncCoordinator.exportAll`, 앱의 모든 지출·정산 달을 폴더로 백필)와 **폴더 변경**만 제공. 폴더를 새로 고르면 자동으로 전체 내보내기로 백필한다.
+   모든 영속 데이터의 진실원은 CloudKit-backed SwiftData다. CSV는 AI 분석·백업용 **export-only 추출물 3종(지출·정산·예산)**으로, 진실원이 아니다. 따라서 파일→앱 import·외부 변경 감지·충돌 가드·`CSVFileState` 지문·`FileFingerprint`는 Phase 4에서 **전부 제거**됐다.
+   - **export(앱 → 파일)**: 저장/수정/삭제/재정렬 시 영향 받은 달을 **best-effort**로 그 달 CSV에 재기록. 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 저장은 성공으로 둔다 — `SaveCoordinator.exportEntryBestEffort`(지출+그 달 예산) / `ReconciliationStore.exportBestEffort`(정산+그 달 예산) / `CategoryBudgetStore.exportBestEffort`(예산 편집). CSV는 순수 옵션이라 폴더 미설정이어도 데이터는 CloudKit에 안전하다.
+   - **진입점**: **설정 → 저장 폴더 행** → `FileSyncView`("저장 폴더"). 화면에서 **전체 내보내기**(`SyncCoordinator.exportAll`, 앱의 모든 지출·정산·예산 달을 폴더로 백필)와 **폴더 변경**만 제공. 폴더를 새로 고르면 자동으로 전체 내보내기로 백필한다.
    - **폴더 삭제/이동 처리**: bookmark가 resolve돼도 실제 디렉토리가 없을 수 있음 → `SyncCoordinator.isFolderReachable`(`BookmarkStore.isReachableDirectory`)로 확인. `FileSyncView`는 "폴더를 찾을 수 없어요 + 폴더 변경" 화면을 노출. export는 폴더 부재/접근불가를 조용히(best-effort) 건너뛴다.
 
 8. **카테고리 한도는 effectiveFrom으로 자동 이월** (`CategoryBudget` / `CategoryBudgetStore`)
    한도는 달마다 row를 만들지 않는다. `CategoryBudget(category, monthlyLimit, effectiveFrom)`은 "이 달부터 다음 변경 전까지" 매월 자동 반복. 특정 달의 유효 한도는 `effectiveFrom <= month` 중 가장 최신 row (`CategoryBudgetStore.resolveLimit`). 한도 해제는 row 삭제가 아니라 `monthlyLimit = 0` tombstone으로 그 달부터 끄기 (과거 달 한도는 보존). 예산 탭은 한도가 자동 이월되므로 미래 달 보기를 막고 현재 달까지만 노출.
+   - **예산 CSV는 그 달 유효 한도 스냅샷**(`budgets-YYYY-MM.csv`): 헤더 `카테고리,한도`, UTF-8+BOM. `CategoryBudgetStore.resolveAll`이 forward-propagation(이월)을 export 시점에 풀어 그 달 유효 한도가 0보다 큰 카테고리만 preset 순(off-list는 뒤에 가나다순)으로 기록. 지출·정산과 동일한 한 방향 best-effort(지출·정산 저장·예산 편집에 동승, `SyncCoordinator.exportAll`이 `[가장 이른 effectiveFrom … 현재 달]` 범위를 백필). 실제지출·사용률은 담지 않고 `expenses-*.csv`와 join해 AI가 계산 (계산값 배제, 원본만). 그 달 유효 한도가 없으면 파일을 쓰지 않고 기존 파일은 제거.
 
 9. **월 정산은 헤더 + 항목 모델 분리, CSV로 round-trip** (`MonthlyReconciliation` 외 6모델 / `ReconciliationStore` / `ReconciliationCSV`)
    한 달의 정산은 `MonthlyReconciliation`(monthKey + 월 메모)을 헤더로 두고, 금액은 `IncomeItem`·`CardUsageItem`·`SavingsItem`·`AccountMonthlyBalance`·`CashAdjustment`로 분리 저장. 화면 진입 시 `ReconciliationStore.carryForwardDraft`가 전월 값을 "다음 달에도 안정적인 값"만 미리채움 (계좌 이름·잔액 기준선, 수입·저축 이름+금액, 카드·자금변동은 이름만 금액 0).
