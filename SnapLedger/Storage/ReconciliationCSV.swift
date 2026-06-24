@@ -142,21 +142,12 @@ struct ReconciliationCSVWriter {
     private func csvLine(_ row: ReconciliationCSVRow) -> String {
         [
             row.kind.rawValue,
-            Self.escape(row.title ?? ""),
-            Self.escape(row.account ?? ""),
+            CSVField.escape(row.title ?? ""),
+            CSVField.escape(row.account ?? ""),
             row.direction?.label ?? "",
             row.amount.map { String($0) } ?? "",
-            Self.escape(row.note ?? ""),
+            CSVField.escape(row.note ?? ""),
         ].joined(separator: ",")
-    }
-
-    private static func escape(_ field: String) -> String {
-        let needsQuoting = field.contains(",") || field.contains("\"")
-            || field.contains("\n") || field.contains("\r")
-        if needsQuoting {
-            return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
-        }
-        return field
     }
 }
 

@@ -40,15 +40,6 @@ struct BudgetCSVWriter {
     }
 
     private func csvLine(_ row: BudgetCSVRow) -> String {
-        [Self.escape(row.category), String(row.limit)].joined(separator: ",")
-    }
-
-    private static func escape(_ field: String) -> String {
-        let needsQuoting = field.contains(",") || field.contains("\"")
-            || field.contains("\n") || field.contains("\r")
-        if needsQuoting {
-            return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
-        }
-        return field
+        [CSVField.escape(row.category), String(row.limit)].joined(separator: ",")
     }
 }
