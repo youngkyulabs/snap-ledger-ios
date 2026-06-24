@@ -106,6 +106,7 @@ struct SaveCoordinator {
         do {
             try CSVFolderAccess.withFolder(in: context) { folderURL in
                 try sync.exportMonths(monthKeys, folderURL: folderURL, in: context)
+                try sync.exportBudgetMonths(monthKeys, folderURL: folderURL, in: context)
             }
         } catch CSVFolderAccess.AccessError.noCSVFolder {
             // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
