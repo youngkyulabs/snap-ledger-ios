@@ -50,9 +50,8 @@ struct SyncCoordinatorBudgetTests {
         let file = dir.appendingPathComponent("budgets-2026-05.csv")
         #expect(FileManager.default.fileExists(atPath: file.path))
 
-        // 그 달부터 해제(tombstone) → 파일 제거.
-        context.insert(CategoryBudget(category: "식비", monthlyLimit: 0, effectiveFrom: 202_605))
-        try context.save()
+        // 그 달부터 해제(tombstone) → 파일 제거. 실제 앱과 동일하게 upsert(setLimit) 사용.
+        try CategoryBudgetStore().setLimit(0, for: "식비", effectiveFrom: 202_605, in: context)
         try sync.exportBudgetMonths(["2026-05"], folderURL: dir, in: context)
         #expect(!FileManager.default.fileExists(atPath: file.path))
     }
