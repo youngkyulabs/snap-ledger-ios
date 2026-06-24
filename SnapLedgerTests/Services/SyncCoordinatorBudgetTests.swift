@@ -73,4 +73,35 @@ struct SyncCoordinatorBudgetTests {
         let sync = SyncCoordinator()
         #expect(sync.budgetMonthKeys(asOf: 202_606, in: context).isEmpty)
     }
+
+    @discardableResult
+    private func configureFolder(_ dir: URL, in context: ModelContext) throws -> AppSettings {
+        let settings = AppSettings(csvFolderBookmark: try BookmarkStore.makeBookmark(for: dir))
+        context.insert(settings)
+        try context.save()
+        return settings
+    }
+
+    @Test func exportAllBackfillsBudgetMonths() throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let sync = SyncCoordinator()
+
+        let current = CategoryBudgetStore.monthKey(from: Date())
+        let prev = CategoryBudgetStore.previousMonthKey(current)
+        context.insert(CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: prev))
+        try context.save()
+
+        try sync.exportAll(in: context)
+
+        // 이전 달·현재 달 모두 이월된 한도로 파일이 생긴다.
+        let prevFile = dir.appendingPathComponent("budgets-\(SyncCoordinator.monthKeyString(from: prev)).csv")
+        let currentFile = dir.appendingPathComponent("budgets-\(SyncCoordinator.monthKeyString(from: current)).csv")
+        #expect(FileManager.default.fileExists(atPath: prevFile.path))
+        #expect(FileManager.default.fileExists(atPath: currentFile.path))
+        let content = try String(contentsOf: currentFile, encoding: .utf8)
+        #expect(content.contains("식비,300000"))
+    }
 }
