@@ -32,6 +32,16 @@ struct CategoryBudgetStore {
         return limit
     }
 
+    /// 그 달 유효 한도가 있는 카테고리의 CSV 행. preset 순서 → preset 밖(off-list)은 가나다순으로 뒤에 붙인다.
+    /// tombstone(0)·미설정 카테고리는 제외(`resolveLimit`이 nil).
+    static func resolveAll(in budgets: [CategoryBudget], asOf month: Int, presets: [String]) -> [BudgetCSVRow] {
+        let offList = Set(budgets.map { $0.category }).subtracting(presets).sorted()
+        return (presets + offList).compactMap { category in
+            guard let limit = resolveLimit(in: budgets, category: category, asOf: month) else { return nil }
+            return BudgetCSVRow(category: category, limit: limit)
+        }
+    }
+
     /// (카테고리, 월) 레코드를 upsert. limit 0은 tombstone(이 달부터 한도 해제).
     @MainActor
     func setLimit(_ limit: Int, for category: String, effectiveFrom month: Int, in context: ModelContext) throws {

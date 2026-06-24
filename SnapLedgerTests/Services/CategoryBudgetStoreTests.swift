@@ -165,4 +165,35 @@ struct CategoryBudgetStoreTests {
         #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_603) == 200_000)
         #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_604) == 500_000)
     }
+
+    @Test func resolveAllKeepsPresetOrderAndDropsZeroAndMissing() {
+        let budgets = [
+            CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_601),
+            CategoryBudget(category: "교통", monthlyLimit: 0, effectiveFrom: 202_601), // tombstone → 제외
+        ]
+        let presets = ["식비", "교통", "문화"] // 문화: 한도 없음 → 제외
+        let rows = CategoryBudgetStore.resolveAll(in: budgets, asOf: 202_603, presets: presets)
+        #expect(rows == [BudgetCSVRow(category: "식비", limit: 300_000)])
+    }
+
+    @Test func resolveAllAppendsOffListCategoriesSortedAfterPresets() {
+        let budgets = [
+            CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_601),
+            CategoryBudget(category: "여행", monthlyLimit: 200_000, effectiveFrom: 202_601),
+            CategoryBudget(category: "반려동물", monthlyLimit: 50_000, effectiveFrom: 202_601),
+        ]
+        let presets = ["식비", "교통"]
+        let rows = CategoryBudgetStore.resolveAll(in: budgets, asOf: 202_602, presets: presets)
+        #expect(rows == [
+            BudgetCSVRow(category: "식비", limit: 300_000),
+            BudgetCSVRow(category: "반려동물", limit: 50_000),
+            BudgetCSVRow(category: "여행", limit: 200_000),
+        ])
+    }
+
+    @Test func resolveAllIsEmptyWhenNoEffectiveLimits() {
+        let budgets = [CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_606)]
+        // asOf가 effectiveFrom보다 이전 → 유효 한도 없음
+        #expect(CategoryBudgetStore.resolveAll(in: budgets, asOf: 202_605, presets: ["식비"]).isEmpty)
+    }
 }
