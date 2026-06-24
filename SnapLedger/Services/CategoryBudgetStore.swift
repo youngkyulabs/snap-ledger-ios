@@ -27,7 +27,11 @@ struct CategoryBudgetStore {
     static func resolveLimit(in budgets: [CategoryBudget], category: String, asOf month: Int) -> Int? {
         let effective = budgets
             .filter { $0.category == category && $0.effectiveFrom <= month }
-            .max { $0.effectiveFrom < $1.effectiveFrom }
+            .max {
+                $0.effectiveFrom == $1.effectiveFrom
+                    ? $0.updatedAt < $1.updatedAt
+                    : $0.effectiveFrom < $1.effectiveFrom
+            }
         guard let limit = effective?.monthlyLimit, limit > 0 else { return nil }
         return limit
     }
