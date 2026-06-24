@@ -225,4 +225,26 @@ struct ReconciliationStoreTests {
         #expect(draft.adjustments.map(\.direction) == [.withdrawal, .deposit])
         #expect(draft.adjustments.map(\.amount) == [0, 0])
     }
+
+    @Test func savingReconciliationAlsoExportsBudgetForThatMonth() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let context = ModelContext(try ModelContainer(for: Schema(AppSchema.models), configurations: [config]))
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ReconBudgetExport-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        context.insert(AppSettings(csvFolderBookmark: try BookmarkStore.makeBookmark(for: dir)))
+        context.insert(CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_605))
+        try context.save()
+
+        var draft = ReconciliationDraft()
+        draft.incomes = [IncomeItemDraft(title: "월급", amount: 3_000_000)]
+        let store = ReconciliationStore()
+        try store.save(draft, month: 202_605, in: context)
+
+        let budgetFile = dir.appendingPathComponent("budgets-2026-05.csv")
+        #expect(FileManager.default.fileExists(atPath: budgetFile.path))
+        let content = try String(contentsOf: budgetFile, encoding: .utf8)
+        #expect(content.contains("식비,300000"))
+    }
 }
