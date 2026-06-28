@@ -55,7 +55,7 @@ struct NotificationScheduler {
 
         let content = UNMutableNotificationContent()
         content.title = BudgetAlertContent.title(for: line.state)
-        content.body = BudgetProgress.toastSummary(for: line)
+        content.body = BudgetProgress.alertSummary(for: line)
         content.sound = .default
         content.categoryIdentifier = BudgetAlertContent.categoryIdentifier
 

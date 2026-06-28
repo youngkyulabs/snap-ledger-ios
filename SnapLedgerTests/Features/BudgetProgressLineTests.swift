@@ -6,7 +6,7 @@ import Testing
 @testable import SnapLedger
 
 @MainActor
-struct BudgetToastLineTests {
+struct BudgetProgressLineTests {
     private func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Schema(AppSchema.models), configurations: [config])
@@ -54,11 +54,11 @@ struct BudgetToastLineTests {
 
     @Test func summaryUnderBudget() {
         let line = BudgetProgress.Line(category: "식비", spent: 120_000, limit: 150_000, state: .near)
-        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
+        #expect(BudgetProgress.alertSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
     }
 
     @Test func summaryOverBudget() {
         let line = BudgetProgress.Line(category: "식비", spent: 180_000, limit: 150_000, state: .over)
-        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
+        #expect(BudgetProgress.alertSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
     }
 }

@@ -278,7 +278,7 @@ private func monthLabelText(_ key: Int) -> String {
 }
 
 extension BudgetProgress.State {
-    /// 진행률 막대·테두리 등에 쓰는 상태색. 예산 탭과 저장 토스트가 공유한다.
+    /// 예산 탭 진행률 막대(전체·카테고리별)에 쓰는 상태색.
     var tintColor: Color {
         switch self {
         case .under: return .accentColor
