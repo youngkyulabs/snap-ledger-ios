@@ -17,7 +17,7 @@ struct BudgetStatusStrip: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            Image(systemName: isOver ? "exclamationmark.triangle.fill" : "chart.pie.fill")
+            Image(systemName: isOver ? "exclamationmark.triangle.fill" : "gauge.medium")
                 .font(.subheadline)
                 .foregroundStyle(line.state.tintColor)
             Text(line.category)
@@ -37,7 +37,7 @@ struct BudgetStatusStrip: View {
         .padding(.vertical, 11)
         .background(.regularMaterial, in: .capsule)
         .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+        .shadow(color: .black.opacity(0.07), radius: 4, y: 1)
         .contentShape(.capsule)
         .onTapGesture { onDismiss() }
         .accessibilityElement(children: .combine)
