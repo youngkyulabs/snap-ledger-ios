@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 enum BudgetProgress {
     enum State: Equatable { case under, near, over }
@@ -97,5 +98,15 @@ enum BudgetProgress {
     static func usagePercent(ratio: Double) -> Int {
         let raw = Int((ratio * 100).rounded())
         return ratio < 1.0 ? min(raw, 99) : raw
+    }
+
+    /// 단건 토스트용: 그 달 해당 카테고리의 예산 라인. 한도(유효 monthlyLimit > 0)가 없으면 nil.
+    /// compute를 재사용해 예산 탭과 숫자 일관성을 보장한다.
+    @MainActor
+    static func line(for category: String, asOf month: Int, in context: ModelContext) -> Line? {
+        let entries = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
+        let budgets = (try? context.fetch(FetchDescriptor<CategoryBudget>())) ?? []
+        return compute(entries: entries, budgets: budgets, targetMonth: month)
+            .lines.first { $0.category == category }
     }
 }
