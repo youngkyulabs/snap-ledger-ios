@@ -69,6 +69,9 @@ private struct BudgetStatusStripModifier: ViewModifier {
                 guard !Task.isCancelled else { return }
                 dismiss()
             }
+            // 검토 탭을 벗어나면 타이머가 취소되므로, 떠날 때 즉시 비운다.
+            // (안 그러면 4초 전 탭 전환 후 돌아왔을 때 토스트가 그대로 남는다.)
+            .onDisappear { item = nil }
     }
 
     private func dismiss() {
