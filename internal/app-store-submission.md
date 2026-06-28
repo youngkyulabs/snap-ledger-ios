@@ -168,4 +168,4 @@ There is no account sign-up, no purchase, no advertising.
 | 1.1 | 2026-06-14 갱신 | 예산 탭(카테고리 한도) + 월 정산 + 정산 CSV 추가 |
 | 1.2 | 2026-06-22 갱신 | CloudKit 전환 — iCloud(CloudKit private DB)가 진실원, 기기 간 동기화. CSV는 한 방향 export 백업으로 격하(파일→앱 import·외부 변경 감지·충돌 제거) |
 | 1.2 | 2026-06-25 갱신 | 예산 CSV(budgets-YYYY-MM.csv) export 추가 — 추출물 3종(지출·정산·예산) |
-| 1.2.1 | 2026-06-28 갱신 | 검토 저장 시 예산 임계(80%/초과) 상태 스트립 표시 (검토 탭 safeAreaInset, 권한 불필요) |
+| 1.2.1 | 2026-06-28 갱신 | 검토 저장 시 예산 임계(80%/초과) 하단 플로팅 토스트 표시 (검토 탭, 권한 불필요) |

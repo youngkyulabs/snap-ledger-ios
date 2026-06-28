@@ -33,7 +33,7 @@ struct ReviewListView: View {
     // Section 에 직접 붙이면 첫 표시에서 바로 닫히는 문제가 있다.
     @State private var failedManual: FailedManualContext?
     @State private var retryUnavailable = false
-    // 저장 직후 예산 임계(near/over)를 알리는 상태 스트립(검토 탭 한정). 표시·자동닫기는
+    // 저장 직후 예산 임계(near/over)를 알리는 하단 플로팅 토스트(검토 탭 한정). 표시·자동닫기는
     // .budgetStatusStrip 모디파이어가 담당한다 — BudgetStatusStrip.swift 참고.
     @State private var budgetStrip: BudgetStripItem?
 

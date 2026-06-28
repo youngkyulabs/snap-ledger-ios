@@ -133,12 +133,16 @@ enum BudgetProgress {
             .lines.first { $0.category == category }
     }
 
-    /// 상태 스트립 한 줄 요약: "식비 · 80% · 12,000원 남음" / 초과 시 "... · 120% · 3,000원 초과".
-    static func statusSummary(for line: Line) -> String {
-        let percent = usagePercent(ratio: line.ratio)
-        let tail = line.remaining >= 0
+    /// 잔여/초과 금액 표기: "12,000원 남음" / 초과 시 "3,000원 초과".
+    static func remainderText(for line: Line) -> String {
+        line.remaining >= 0
             ? "\(line.remaining.formatted())원 남음"
             : "\((-line.remaining).formatted())원 초과"
-        return "\(line.category) · \(percent)% · \(tail)"
+    }
+
+    /// 상태 스트립 한 줄 요약: "식비 · 80% · 12,000원 남음" / 초과 시 "... · 120% · 3,000원 초과".
+    /// (스트립은 부분별 색을 달리하려고 조각을 직접 조립하고, 이 문자열은 접근성 라벨로 쓴다.)
+    static func statusSummary(for line: Line) -> String {
+        "\(line.category) · \(usagePercent(ratio: line.ratio))% · \(remainderText(for: line))"
     }
 }
