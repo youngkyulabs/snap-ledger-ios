@@ -1,14 +1,10 @@
 import SwiftUI
 import SwiftData
 import OSLog
-import UserNotifications
 
 @main
 struct SnapLedgerApp: App {
     let modelContainer: ModelContainer
-    /// foreground 예산 알림을 배너로 띄우는 델리게이트. UNUserNotificationCenter가 weak로
-    /// 잡으므로 앱 수명 동안 살아있도록 여기서 보유한다.
-    private let notificationPresenter = NotificationPresenter()
 
     init() {
         // 유닛테스트 호스트에서는 프로덕션 런치 경로(앱그룹 스토어 열기·CloudKit·마이그레이션·
@@ -19,9 +15,6 @@ struct SnapLedgerApp: App {
             modelContainer = Self.makeInMemoryContainer()
             return
         }
-
-        // foreground에서 예산 임계 알림을 배너로 띄우기 위해 델리게이트를 등록한다.
-        UNUserNotificationCenter.current().delegate = notificationPresenter
 
         // 1) 줄어든 스키마로 App Group 스토어를 열기 전에, 아직 이전 안 된 예산·카테고리·지출을
         //    값으로 떠놓는다. (메인 컨테이너의 로컬 config는 이 모델들을 제외하므로 열면 정리된다.)

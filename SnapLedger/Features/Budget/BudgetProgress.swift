@@ -100,7 +100,18 @@ enum BudgetProgress {
         return ratio < 1.0 ? min(raw, 99) : raw
     }
 
-    /// 임계 알림용: 그 달 해당 카테고리의 예산 라인. 한도(유효 monthlyLimit > 0)가 없으면 nil.
+    /// 저장 직후 그 항목이 그 달 예산 임계점(near/over)에 닿았는지. 한도가 없거나
+    /// 아직 여유(under)면 nil — 검토 탭 상태 스트립을 띄울지 결정하는 단일 진입점.
+    @MainActor
+    static func thresholdLine(for entry: ParsedEntry, in context: ModelContext) -> Line? {
+        guard let category = entry.category, !category.isEmpty else { return nil }
+        let month = CategoryBudgetStore.monthKey(from: entry.date)
+        guard let line = line(for: category, asOf: month, in: context),
+              line.state != .under else { return nil }
+        return line
+    }
+
+    /// 검토 탭 상태 스트립용: 그 달 해당 카테고리의 예산 라인. 한도(유효 monthlyLimit > 0)가 없으면 nil.
     /// compute를 재사용해 예산 탭과 숫자 일관성을 보장한다.
     @MainActor
     static func line(for category: String, asOf month: Int, in context: ModelContext) -> Line? {
@@ -122,8 +133,8 @@ enum BudgetProgress {
             .lines.first { $0.category == category }
     }
 
-    /// 알림 한 줄 요약: "식비 · 80% · 12,000원 남음" / 초과 시 "... · 120% · 3,000원 초과".
-    static func alertSummary(for line: Line) -> String {
+    /// 상태 스트립 한 줄 요약: "식비 · 80% · 12,000원 남음" / 초과 시 "... · 120% · 3,000원 초과".
+    static func statusSummary(for line: Line) -> String {
         let percent = usagePercent(ratio: line.ratio)
         let tail = line.remaining >= 0
             ? "\(line.remaining.formatted())원 남음"

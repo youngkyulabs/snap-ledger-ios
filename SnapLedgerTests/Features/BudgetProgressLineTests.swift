@@ -54,11 +54,43 @@ struct BudgetProgressLineTests {
 
     @Test func summaryUnderBudget() {
         let line = BudgetProgress.Line(category: "식비", spent: 120_000, limit: 150_000, state: .near)
-        #expect(BudgetProgress.alertSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
+        #expect(BudgetProgress.statusSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
     }
 
     @Test func summaryOverBudget() {
         let line = BudgetProgress.Line(category: "식비", spent: 180_000, limit: 150_000, state: .over)
-        #expect(BudgetProgress.alertSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
+        #expect(BudgetProgress.statusSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
+    }
+
+    private func parsed(_ y: Int, _ m: Int, _ d: Int, amount: Int, category: String?) -> ParsedEntry {
+        ParsedEntry(date: date(y, m, d), amount: amount, merchant: "M", category: category, confidence: 1.0)
+    }
+
+    @Test func thresholdLineNilWhenUnderBudget() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 150_000, effectiveFrom: 202_606))
+        ctx.insert(saved(2026, 6, 10, amount: 30_000, category: "식비"))
+        try ctx.save()
+        let entry = parsed(2026, 6, 11, amount: 5_000, category: "식비")
+        #expect(BudgetProgress.thresholdLine(for: entry, in: ctx) == nil)
+    }
+
+    @Test func thresholdLineReturnsWhenNearOrOver() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 150_000, effectiveFrom: 202_606))
+        ctx.insert(saved(2026, 6, 10, amount: 120_000, category: "식비"))
+        try ctx.save()
+        let entry = parsed(2026, 6, 11, amount: 1_000, category: "식비")
+        let line = BudgetProgress.thresholdLine(for: entry, in: ctx)
+        #expect(line?.state == .near)
+        #expect(line?.category == "식비")
+    }
+
+    @Test func thresholdLineNilWhenNoCategory() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 150_000, effectiveFrom: 202_606))
+        try ctx.save()
+        let entry = parsed(2026, 6, 11, amount: 200_000, category: nil)
+        #expect(BudgetProgress.thresholdLine(for: entry, in: ctx) == nil)
     }
 }
