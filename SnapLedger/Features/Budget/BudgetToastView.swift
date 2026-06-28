@@ -26,7 +26,9 @@ struct BudgetToastView: View {
         .contentShape(Rectangle())
         .onTapGesture { onDismiss() }
         .task {
-            try? await Task.sleep(for: .seconds(2.5))
+            // 취소(연속 저장으로 토스트 교체 등) 시 onDismiss를 호출하면
+            // 방금 뜬 다음 토스트를 닫아버리므로, 정상 만료일 때만 닫는다.
+            guard (try? await Task.sleep(for: .seconds(2.5))) != nil else { return }
             onDismiss()
         }
         .accessibilityElement(children: .combine)
