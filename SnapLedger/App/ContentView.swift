@@ -21,6 +21,11 @@ struct ContentView: View {
         allParsedEntries.filter { $0.status == .pending }.count
     }
 
+    /// 토스트의 카테고리 색을 예산·통계 탭과 동일한 매핑으로 맞추기 위한 presets.
+    private var budgetToastPresets: [String] {
+        allSettings.first?.categoryPresets ?? AppSettings.defaultPresets
+    }
+
     /// 탭 선택 바인딩. 이미 선택된 탭을 다시 탭하면 같은 값으로 set이 호출되는데,
     /// 그때 통계·예산이면 리셋 신호를 올려 해당 화면을 현재 월로 되돌린다.
     private var tabSelection: Binding<AppTab> {
@@ -63,7 +68,7 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) {
             if let budgetToast {
-                BudgetToastView(line: budgetToast) { self.budgetToast = nil }
+                BudgetToastView(line: budgetToast, presets: budgetToastPresets) { self.budgetToast = nil }
                     .id(toastNonce)
                     .padding(.horizontal)
                     .padding(.bottom, 60)
