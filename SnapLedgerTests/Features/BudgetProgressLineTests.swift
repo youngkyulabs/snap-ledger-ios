@@ -54,12 +54,12 @@ struct BudgetProgressLineTests {
 
     @Test func summaryUnderBudget() {
         let line = BudgetProgress.Line(category: "식비", spent: 120_000, limit: 150_000, state: .near)
-        #expect(BudgetProgress.statusSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
+        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
     }
 
     @Test func summaryOverBudget() {
         let line = BudgetProgress.Line(category: "식비", spent: 180_000, limit: 150_000, state: .over)
-        #expect(BudgetProgress.statusSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
+        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
     }
 
     private func parsed(_ y: Int, _ m: Int, _ d: Int, amount: Int, category: String?) -> ParsedEntry {

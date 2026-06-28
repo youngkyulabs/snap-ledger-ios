@@ -10,7 +10,7 @@ struct EntryEditorView: View {
     @Bindable var entry: ParsedEntry
     var insertOnSave: Bool = false
     /// 저장이 성공한 직후(닫기 전) 호출. 인자는 그 항목이 그 달 예산 임계점(near/over)에
-    /// 닿았을 때의 라인(아니면 nil) — 검토 탭이 상태 스트립을 띄우는 데 쓴다. 실패 이미지에서
+    /// 닿았을 때의 라인(아니면 nil) — 검토 탭이 토스트를 띄우는 데 쓴다. 실패 이미지에서
     /// 수동 입력으로 들어온 경우 원본 PendingImage·inbox 파일 정리도 이 콜백에서 함께 한다.
     var onSaved: ((BudgetProgress.Line?) -> Void)?
     @Environment(\.modelContext) private var modelContext

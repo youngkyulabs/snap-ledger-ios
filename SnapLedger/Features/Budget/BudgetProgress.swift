@@ -101,7 +101,7 @@ enum BudgetProgress {
     }
 
     /// 저장 직후 그 항목이 그 달 예산 임계점(near/over)에 닿았는지. 한도가 없거나
-    /// 아직 여유(under)면 nil — 검토 탭 상태 스트립을 띄울지 결정하는 단일 진입점.
+    /// 아직 여유(under)면 nil — 검토 탭 토스트를 띄울지 결정하는 단일 진입점.
     @MainActor
     static func thresholdLine(for entry: ParsedEntry, in context: ModelContext) -> Line? {
         guard let category = entry.category, !category.isEmpty else { return nil }
@@ -111,7 +111,7 @@ enum BudgetProgress {
         return line
     }
 
-    /// 검토 탭 상태 스트립용: 그 달 해당 카테고리의 예산 라인. 한도(유효 monthlyLimit > 0)가 없으면 nil.
+    /// 검토 탭 토스트용: 그 달 해당 카테고리의 예산 라인. 한도(유효 monthlyLimit > 0)가 없으면 nil.
     /// compute를 재사용해 예산 탭과 숫자 일관성을 보장한다.
     @MainActor
     static func line(for category: String, asOf month: Int, in context: ModelContext) -> Line? {
@@ -140,9 +140,9 @@ enum BudgetProgress {
             : "\((-line.remaining).formatted())원 초과"
     }
 
-    /// 상태 스트립 한 줄 요약: "식비 · 80% · 12,000원 남음" / 초과 시 "... · 120% · 3,000원 초과".
-    /// (스트립은 부분별 색을 달리하려고 조각을 직접 조립하고, 이 문자열은 접근성 라벨로 쓴다.)
-    static func statusSummary(for line: Line) -> String {
+    /// 토스트 한 줄 요약: "식비 · 80% · 12,000원 남음" / 초과 시 "... · 120% · 3,000원 초과".
+    /// (토스트는 부분별 색을 달리하려고 조각을 직접 조립하고, 이 문자열은 접근성 라벨로 쓴다.)
+    static func toastSummary(for line: Line) -> String {
         "\(line.category) · \(usagePercent(ratio: line.ratio))% · \(remainderText(for: line))"
     }
 }

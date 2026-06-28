@@ -34,8 +34,8 @@ struct ReviewListView: View {
     @State private var failedManual: FailedManualContext?
     @State private var retryUnavailable = false
     // 저장 직후 예산 임계(near/over)를 알리는 하단 플로팅 토스트(검토 탭 한정). 표시·자동닫기는
-    // .budgetStatusStrip 모디파이어가 담당한다 — BudgetStatusStrip.swift 참고.
-    @State private var budgetStrip: BudgetStripItem?
+    // .budgetToast 모디파이어가 담당한다 — BudgetToastView.swift 참고.
+    @State private var budgetToast: BudgetToastItem?
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -141,18 +141,18 @@ struct ReviewListView: View {
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isDropTargeted)
-            .budgetStatusStrip($budgetStrip, reduceMotion: reduceMotion)
+            .budgetToast($budgetToast, reduceMotion: reduceMotion)
         }
         .sheet(item: $editingEntry) { entry in
-            EntryEditorView(entry: entry) { presentBudgetStrip($0) }
+            EntryEditorView(entry: entry) { presentBudgetToast($0) }
         }
         .sheet(item: $manualEntry) { entry in
-            EntryEditorView(entry: entry, insertOnSave: true) { presentBudgetStrip($0) }
+            EntryEditorView(entry: entry, insertOnSave: true) { presentBudgetToast($0) }
         }
         .sheet(item: $failedManual) { context in
             EntryEditorView(entry: context.entry, insertOnSave: true) { line in
                 deleteFailedPending(context.pending)
-                presentBudgetStrip(line)
+                presentBudgetToast(line)
             }
         }
         .photosPicker(
@@ -344,7 +344,7 @@ struct ReviewListView: View {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
                 .save(entry, in: modelContext)
-            presentBudgetStrip(BudgetProgress.thresholdLine(for: entry, in: modelContext))
+            presentBudgetToast(BudgetProgress.thresholdLine(for: entry, in: modelContext))
         } catch {
             swipeError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
@@ -362,12 +362,12 @@ struct ReviewListView: View {
 }
 
 extension ReviewListView {
-    /// 저장 직후 임계 라인을 받아 상태 스트립을 띄운다(nil이면 표시하지 않음).
+    /// 저장 직후 임계 라인을 받아 토스트를 띄운다(nil이면 표시하지 않음).
     /// 매번 새 id를 부여해 같은 카테고리를 연속 저장해도 자동닫기 타이머가 새로 시작된다.
-    fileprivate func presentBudgetStrip(_ line: BudgetProgress.Line?) {
+    fileprivate func presentBudgetToast(_ line: BudgetProgress.Line?) {
         guard let line else { return }
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            budgetStrip = BudgetStripItem(line: line)
+            budgetToast = BudgetToastItem(line: line)
         }
     }
 
