@@ -41,6 +41,32 @@ struct NotificationScheduler {
         try? await center.setBadgeCount(max(0, count))
     }
 
+    /// 저장한 카테고리가 예산 임계점(near/over)에 닿았을 때 즉시 로컬 알림을 보낸다.
+    /// 여유(under)면 보내지 않고, 권한 미허용 시에도 조용히 무시한다.
+    /// trigger를 nil로 둬 곧바로 발사되고, 같은 카테고리는 식별자가 같아 교체된다(쌓이지 않음).
+    func notifyBudgetThreshold(_ line: BudgetProgress.Line) async {
+        guard line.state != .under else { return }
+        switch await center.notificationSettings().authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            break
+        default:
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = BudgetAlertContent.title(for: line.state)
+        content.body = BudgetProgress.toastSummary(for: line)
+        content.sound = .default
+        content.categoryIdentifier = BudgetAlertContent.categoryIdentifier
+
+        let request = UNNotificationRequest(
+            identifier: BudgetAlertContent.identifier(for: line.category),
+            content: content,
+            trigger: nil
+        )
+        try? await center.add(request)
+    }
+
     func refresh(hour: Int, minute: Int, pendingCount: Int) async {
         center.removePendingNotificationRequests(withIdentifiers: [ReminderContent.identifier])
         guard ReminderContent.shouldSchedule(pendingCount: pendingCount) else { return }
