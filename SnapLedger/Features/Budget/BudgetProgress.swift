@@ -104,9 +104,21 @@ enum BudgetProgress {
     /// compute를 재사용해 예산 탭과 숫자 일관성을 보장한다.
     @MainActor
     static func line(for category: String, asOf month: Int, in context: ModelContext) -> Line? {
-        let entries = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
-        let budgets = (try? context.fetch(FetchDescriptor<CategoryBudget>())) ?? []
-        return compute(entries: entries, budgets: budgets, targetMonth: month)
+        let calendar = Calendar.current
+        // 대상 월·카테고리로 fetch를 좁혀 전체 집계를 피한다(compute는 targetMonth만 사용).
+        guard let monthStart = calendar.date(from: DateComponents(year: month / 100, month: month % 100)),
+              let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else {
+            return nil
+        }
+        let entryDescriptor = FetchDescriptor<SavedEntry>(
+            predicate: #Predicate { $0.date >= monthStart && $0.date < monthEnd }
+        )
+        let budgetDescriptor = FetchDescriptor<CategoryBudget>(
+            predicate: #Predicate { $0.category == category }
+        )
+        let entries = (try? context.fetch(entryDescriptor)) ?? []
+        let budgets = (try? context.fetch(budgetDescriptor)) ?? []
+        return compute(entries: entries, budgets: budgets, targetMonth: month, calendar: calendar)
             .lines.first { $0.category == category }
     }
 
