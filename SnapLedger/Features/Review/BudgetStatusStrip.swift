@@ -17,7 +17,7 @@ struct BudgetStatusStrip: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            Image(systemName: isOver ? "exclamationmark.triangle.fill" : "gauge.medium")
+            Image(systemName: isOver ? "exclamationmark.triangle.fill" : "exclamationmark.circle.fill")
                 .font(.subheadline)
                 .foregroundStyle(line.state.tintColor)
             Text(line.category)
