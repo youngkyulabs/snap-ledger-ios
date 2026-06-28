@@ -12,6 +12,8 @@ struct EntryEditorView: View {
     /// 저장이 성공한 직후(닫기 전) 호출. 실패 이미지에서 수동 입력으로 들어온 경우
     /// 원본 PendingImage·inbox 파일을 정리하는 데 쓴다.
     var onSaved: (() -> Void)?
+    /// 저장 성공 시 그 카테고리의 예산 라인(있으면)을 부모로 올려 토스트를 띄우게 한다.
+    var onBudgetToast: ((BudgetProgress.Line) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -339,10 +341,20 @@ struct EntryEditorView: View {
             try SaveCoordinator(categoryLearner: CategoryLearner())
                 .save(entry, in: modelContext)
             onSaved?()
+            notifyBudgetToast()
             dismiss()
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
+        }
+    }
+
+    /// 저장한 카테고리에 그 달 예산 한도가 있을 때만 토스트를 요청한다(한도 없으면 조용히 넘어감).
+    private func notifyBudgetToast() {
+        guard let onBudgetToast, let category = entry.category, !category.isEmpty else { return }
+        let month = CategoryBudgetStore.monthKey(from: entry.date)
+        if let line = BudgetProgress.line(for: category, asOf: month, in: modelContext) {
+            onBudgetToast(line)
         }
     }
 

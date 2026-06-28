@@ -12,6 +12,10 @@ struct ContentView: View {
     /// 이미 선택된 통계·예산 탭을 한 번 더 탭하면 그 탭을 현재 월로 되돌리기 위한 신호(카운터).
     @State private var statsResetNonce = 0
     @State private var budgetResetNonce = 0
+    /// 저장 직후 잠깐 띄우는 예산 진행률 토스트. nil이면 표시 안 함.
+    @State private var budgetToast: BudgetProgress.Line?
+    /// 같은 카테고리를 연속 저장해도 토스트를 새로 띄우고 타이머를 리셋하기 위한 신호.
+    @State private var toastNonce = 0
 
     private var pendingReviewCount: Int {
         allParsedEntries.filter { $0.status == .pending }.count
@@ -38,7 +42,10 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: tabSelection) {
             Tab("검토", systemImage: "tray.full", value: AppTab.review) {
-                ReviewListView()
+                ReviewListView { line in
+                    budgetToast = line
+                    toastNonce += 1
+                }
             }
             .badge(pendingReviewCount)
             Tab("최근 기록", systemImage: "list.bullet.rectangle", value: AppTab.history) {
@@ -54,6 +61,16 @@ struct ContentView: View {
                 SettingsView(path: $settingsPath)
             }
         }
+        .overlay(alignment: .bottom) {
+            if let budgetToast {
+                BudgetToastView(line: budgetToast) { self.budgetToast = nil }
+                    .id(toastNonce)
+                    .padding(.horizontal)
+                    .padding(.bottom, 60)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: budgetToast)
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: pendingReviewCount)
         .sheet(isPresented: shouldShowOnboardingBinding) {
             if let settings = currentSettingsIfExists() {

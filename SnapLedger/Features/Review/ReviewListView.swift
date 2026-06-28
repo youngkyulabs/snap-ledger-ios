@@ -16,6 +16,8 @@ private struct DroppedImage: Transferable, Sendable {
 }
 
 struct ReviewListView: View {
+    /// ContentView가 주입. 검토 팝업 저장 성공 시 예산 라인을 받아 토스트로 띄운다.
+    var onBudgetToast: ((BudgetProgress.Line) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \ParsedEntry.createdAt, order: .reverse) private var allEntries: [ParsedEntry]
@@ -140,15 +142,18 @@ struct ReviewListView: View {
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isDropTargeted)
         }
         .sheet(item: $editingEntry) { entry in
-            EntryEditorView(entry: entry)
+            EntryEditorView(entry: entry, onBudgetToast: onBudgetToast)
         }
         .sheet(item: $manualEntry) { entry in
-            EntryEditorView(entry: entry, insertOnSave: true)
+            EntryEditorView(entry: entry, insertOnSave: true, onBudgetToast: onBudgetToast)
         }
         .sheet(item: $failedManual) { context in
-            EntryEditorView(entry: context.entry, insertOnSave: true) {
-                deleteFailedPending(context.pending)
-            }
+            EntryEditorView(
+                entry: context.entry,
+                insertOnSave: true,
+                onSaved: { deleteFailedPending(context.pending) },
+                onBudgetToast: onBudgetToast
+            )
         }
         .photosPicker(
             isPresented: $isPhotoPickerPresented,
