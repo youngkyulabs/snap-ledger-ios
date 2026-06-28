@@ -20,15 +20,17 @@ struct BudgetToastView: View {
             ProgressView(value: min(line.ratio, 1.0))
                 .tint(line.state.tintColor)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // iOS 26 Liquid Glass 캡슐. 틴트는 상태색을 옅게 깔아 진행 바와 한 톤으로 묶는다.
-        .glassEffect(
-            .regular.tint(line.state.tintColor.opacity(0.18)).interactive(),
-            in: .capsule
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(line.state.tintColor.opacity(0.35), lineWidth: 1)
         )
-        .contentShape(.capsule)
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+        .contentShape(Rectangle())
         .onTapGesture { onDismiss() }
         .task {
             // 취소(연속 저장으로 토스트 교체 등) 시 onDismiss를 호출하면
