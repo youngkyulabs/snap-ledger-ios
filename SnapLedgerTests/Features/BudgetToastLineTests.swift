@@ -51,4 +51,14 @@ struct BudgetToastLineTests {
         try ctx.save()
         #expect(BudgetProgress.line(for: "식비", asOf: 202_606, in: ctx) == nil)
     }
+
+    @Test func summaryUnderBudget() {
+        let line = BudgetProgress.Line(category: "식비", spent: 120_000, limit: 150_000, state: .near)
+        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
+    }
+
+    @Test func summaryOverBudget() {
+        let line = BudgetProgress.Line(category: "식비", spent: 180_000, limit: 150_000, state: .over)
+        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
+    }
 }

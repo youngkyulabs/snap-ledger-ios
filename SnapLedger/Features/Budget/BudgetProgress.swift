@@ -109,4 +109,13 @@ enum BudgetProgress {
         return compute(entries: entries, budgets: budgets, targetMonth: month)
             .lines.first { $0.category == category }
     }
+
+    /// 토스트 한 줄 요약: "식비 · 80% · 12,000원 남음" / 초과 시 "... · 120% · 3,000원 초과".
+    static func toastSummary(for line: Line) -> String {
+        let percent = usagePercent(ratio: line.ratio)
+        let tail = line.remaining >= 0
+            ? "\(line.remaining.formatted())원 남음"
+            : "\((-line.remaining).formatted())원 초과"
+        return "\(line.category) · \(percent)% · \(tail)"
+    }
 }
