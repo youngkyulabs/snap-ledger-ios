@@ -186,7 +186,7 @@ struct BudgetView: View {
                         value: Double(min(summary.totalSpent, summary.totalLimit)),
                         total: Double(max(summary.totalLimit, 1))
                     )
-                    .tint(budgetStateColor(summary.overallState))
+                    .tint(summary.overallState.tintColor)
                 }
             }
             .padding(.vertical, 4)
@@ -277,11 +277,14 @@ private func monthLabelText(_ key: Int) -> String {
     "\(key / 100)년 \(key % 100)월"
 }
 
-private func budgetStateColor(_ state: BudgetProgress.State) -> Color {
-    switch state {
-    case .under: return .accentColor
-    case .near: return .orange
-    case .over: return .red
+extension BudgetProgress.State {
+    /// 진행률 막대·테두리 등에 쓰는 상태색. 예산 탭과 저장 토스트가 공유한다.
+    var tintColor: Color {
+        switch self {
+        case .under: return .accentColor
+        case .near: return .orange
+        case .over: return .red
+        }
     }
 }
 
@@ -367,7 +370,7 @@ private struct LineRow: View {
                 value: Double(min(line.spent, line.limit)),
                 total: Double(max(line.limit, 1))
             )
-            .tint(budgetStateColor(line.state))
+            .tint(line.state.tintColor)
         }
         .padding(.vertical, 2)
         .contentShape(.rect)

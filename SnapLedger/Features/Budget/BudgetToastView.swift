@@ -12,7 +12,7 @@ struct BudgetToastView: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.primary)
             ProgressView(value: min(line.ratio, 1.0))
-                .tint(color)
+                .tint(line.state.tintColor)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -20,7 +20,7 @@ struct BudgetToastView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(color.opacity(0.35), lineWidth: 1)
+                .strokeBorder(line.state.tintColor.opacity(0.35), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
         .contentShape(Rectangle())
@@ -34,14 +34,5 @@ struct BudgetToastView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(BudgetProgress.toastSummary(for: line))
         .accessibilityHint("탭하면 닫혀요.")
-    }
-
-    // 예산 탭 LineRow와 동일한 상태색 규칙(BudgetView.swift).
-    private var color: Color {
-        switch line.state {
-        case .under: return .accentColor
-        case .near: return .orange
-        case .over: return .red
-        }
     }
 }
