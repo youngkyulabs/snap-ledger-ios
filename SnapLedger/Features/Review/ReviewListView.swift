@@ -33,6 +33,9 @@ struct ReviewListView: View {
     // Section 에 직접 붙이면 첫 표시에서 바로 닫히는 문제가 있다.
     @State private var failedManual: FailedManualContext?
     @State private var retryUnavailable = false
+    // 저장 직후 예산 임계(near/over)를 알리는 하단 플로팅 토스트(검토 탭 한정). 표시·자동닫기는
+    // .budgetToast 모디파이어가 담당한다 — BudgetToastView.swift 참고.
+    @State private var budgetToast: BudgetToastItem?
 
     private var pendingEntries: [ParsedEntry] {
         allEntries.filter { $0.status == .pending }
@@ -138,16 +141,18 @@ struct ReviewListView: View {
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isDropTargeted)
+            .budgetToast($budgetToast, reduceMotion: reduceMotion)
         }
         .sheet(item: $editingEntry) { entry in
-            EntryEditorView(entry: entry)
+            EntryEditorView(entry: entry) { presentBudgetToast($0) }
         }
         .sheet(item: $manualEntry) { entry in
-            EntryEditorView(entry: entry, insertOnSave: true)
+            EntryEditorView(entry: entry, insertOnSave: true) { presentBudgetToast($0) }
         }
         .sheet(item: $failedManual) { context in
-            EntryEditorView(entry: context.entry, insertOnSave: true) {
+            EntryEditorView(entry: context.entry, insertOnSave: true) { line in
                 deleteFailedPending(context.pending)
+                presentBudgetToast(line)
             }
         }
         .photosPicker(
@@ -339,6 +344,7 @@ struct ReviewListView: View {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
                 .save(entry, in: modelContext)
+            presentBudgetToast(BudgetProgress.thresholdLine(for: entry, in: modelContext))
         } catch {
             swipeError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
@@ -356,6 +362,15 @@ struct ReviewListView: View {
 }
 
 extension ReviewListView {
+    /// 저장 직후 임계 라인을 받아 토스트를 띄운다(nil이면 표시하지 않음).
+    /// 매번 새 id를 부여해 같은 카테고리를 연속 저장해도 자동닫기 타이머가 새로 시작된다.
+    fileprivate func presentBudgetToast(_ line: BudgetProgress.Line?) {
+        guard let line else { return }
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            budgetToast = BudgetToastItem(line: line)
+        }
+    }
+
     fileprivate func pasteFromClipboard() {
         let board = UIPasteboard.general
         let images: [UIImage] = board.images ?? board.image.map { [$0] } ?? []

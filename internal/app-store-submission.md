@@ -1,6 +1,6 @@
 # App Store 제출 메타데이터
 
-찰칵가계부 App Store Connect 제출용 메타데이터 (현재 버전 1.2).
+찰칵가계부 App Store Connect 제출용 메타데이터 (현재 버전 1.2.1).
 업데이트 시 이 문서를 single source of truth로 유지한다.
 
 ---
@@ -15,7 +15,7 @@
 | Apple ID | `6772852897` |
 | SKU | `snapledger-001` |
 | Primary Language | Korean |
-| Version | 1.2 |
+| Version | 1.2.1 |
 | Copyright | `2026 YOUNGKYU SEO` (©는 시스템이 자동 부착) |
 | Primary Category | Finance |
 | Secondary Category | Productivity |
@@ -90,15 +90,15 @@
 피드백은 설정 → 의견 보내기에서 직접 보내주세요. 빠르게 반영하겠습니다.
 ```
 
-### What's New in This Version (1.2 출시 노트)
+### What's New in This Version (1.2.1 출시 노트)
 ```
-• iCloud 동기화가 추가됐습니다. 가계부·예산·정산 데이터가 본인 iCloud 계정에 안전하게 저장되어, 새 기기에서도 그대로 이어서 쓸 수 있어요.
-• 저장 폴더의 월별 CSV는 이제 백업·내보내기 전용입니다. 데이터는 iCloud에 보관되므로 폴더를 고르지 않아도 안전해요. 카테고리 예산도 월별 CSV(budgets-YYYY-MM.csv)로 함께 내보내져 지출 내역과 묶어 AI 분석에 쓰기 좋아요.
-• 안정성 개선과 여러 문구·동작을 다듬었습니다.
+• 지출을 저장하면 그 카테고리가 이번 달 예산의 80%에 닿았거나 초과했을 때 검토 화면 아래에 토스트로 바로 알려줘요. 남은 금액(또는 초과 금액)을 한눈에 볼 수 있고, 별도 권한 없이 앱 안에서만 표시돼요.
+• 자잘한 버그를 고치고 동작을 다듬었습니다.
 ```
 
 #### 이전 버전 노트
 ```
+1.2 — iCloud 동기화가 추가됐습니다. 가계부·예산·정산 데이터가 본인 iCloud 계정에 안전하게 저장되어 새 기기에서도 이어서 쓸 수 있고, 월별 CSV는 백업·내보내기 전용이 됐습니다(예산도 budgets-YYYY-MM.csv로 함께 내보내짐).
 1.1 — 예산 탭(카테고리별 월 한도)과 월 정산('실제 쓴 돈' vs '기록한 돈' 대조)이 추가됐습니다.
 1.0 — 첫 출시입니다. 결제 알림 스크린샷을 공유 시트로 보내면 Apple Intelligence가 가계부에 자동으로 옮겨 적습니다.
 ```
@@ -168,3 +168,4 @@ There is no account sign-up, no purchase, no advertising.
 | 1.1 | 2026-06-14 갱신 | 예산 탭(카테고리 한도) + 월 정산 + 정산 CSV 추가 |
 | 1.2 | 2026-06-22 갱신 | CloudKit 전환 — iCloud(CloudKit private DB)가 진실원, 기기 간 동기화. CSV는 한 방향 export 백업으로 격하(파일→앱 import·외부 변경 감지·충돌 제거) |
 | 1.2 | 2026-06-25 갱신 | 예산 CSV(budgets-YYYY-MM.csv) export 추가 — 추출물 3종(지출·정산·예산) |
+| 1.2.1 | 2026-06-28 갱신 | 검토 저장 시 예산 임계(80%/초과) 하단 플로팅 토스트 표시 (검토 탭, 권한 불필요) |

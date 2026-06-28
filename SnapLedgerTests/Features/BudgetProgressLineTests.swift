@@ -1,0 +1,96 @@
+// swiftlint:disable force_unwrapping
+
+import Foundation
+import SwiftData
+import Testing
+@testable import SnapLedger
+
+@MainActor
+struct BudgetProgressLineTests {
+    private func makeContext() throws -> ModelContext {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Schema(AppSchema.models), configurations: [config])
+        return ModelContext(container)
+    }
+
+    private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
+        var c = DateComponents()
+        c.year = y; c.month = m; c.day = d; c.hour = 12
+        return Calendar.current.date(from: c)!
+    }
+
+    private func saved(_ y: Int, _ m: Int, _ d: Int, amount: Int, category: String) -> SavedEntry {
+        SavedEntry(date: date(y, m, d), amount: amount, merchant: "M", category: category,
+                   savedAt: date(y, m, d), csvFile: "expenses-\(y)-\(String(format: "%02d", m)).csv")
+    }
+
+    @Test func returnsLineWhenBudgetExists() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 150_000, effectiveFrom: 202_606))
+        ctx.insert(saved(2026, 6, 10, amount: 120_000, category: "식비"))
+        try ctx.save()
+
+        let line = BudgetProgress.line(for: "식비", asOf: 202_606, in: ctx)
+        #expect(line?.spent == 120_000)
+        #expect(line?.limit == 150_000)
+        #expect(line?.remaining == 30_000)
+        #expect(line?.state == .near)
+    }
+
+    @Test func nilWhenNoBudget() throws {
+        let ctx = try makeContext()
+        ctx.insert(saved(2026, 6, 10, amount: 10_000, category: "카페"))
+        try ctx.save()
+        #expect(BudgetProgress.line(for: "카페", asOf: 202_606, in: ctx) == nil)
+    }
+
+    @Test func nilWhenTombstone() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 0, effectiveFrom: 202_606))
+        ctx.insert(saved(2026, 6, 10, amount: 50_000, category: "식비"))
+        try ctx.save()
+        #expect(BudgetProgress.line(for: "식비", asOf: 202_606, in: ctx) == nil)
+    }
+
+    @Test func summaryUnderBudget() {
+        let line = BudgetProgress.Line(category: "식비", spent: 120_000, limit: 150_000, state: .near)
+        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 80% · \(30_000.formatted())원 남음")
+    }
+
+    @Test func summaryOverBudget() {
+        let line = BudgetProgress.Line(category: "식비", spent: 180_000, limit: 150_000, state: .over)
+        #expect(BudgetProgress.toastSummary(for: line) == "식비 · 120% · \(30_000.formatted())원 초과")
+    }
+
+    private func parsed(_ y: Int, _ m: Int, _ d: Int, amount: Int, category: String?) -> ParsedEntry {
+        ParsedEntry(date: date(y, m, d), amount: amount, merchant: "M", category: category, confidence: 1.0)
+    }
+
+    @Test func thresholdLineNilWhenUnderBudget() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 150_000, effectiveFrom: 202_606))
+        ctx.insert(saved(2026, 6, 10, amount: 30_000, category: "식비"))
+        try ctx.save()
+        let entry = parsed(2026, 6, 11, amount: 5_000, category: "식비")
+        #expect(BudgetProgress.thresholdLine(for: entry, in: ctx) == nil)
+    }
+
+    @Test func thresholdLineReturnsWhenNearOrOver() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 150_000, effectiveFrom: 202_606))
+        ctx.insert(saved(2026, 6, 10, amount: 120_000, category: "식비"))
+        try ctx.save()
+        let entry = parsed(2026, 6, 11, amount: 1_000, category: "식비")
+        let line = BudgetProgress.thresholdLine(for: entry, in: ctx)
+        #expect(line?.state == .near)
+        #expect(line?.category == "식비")
+    }
+
+    @Test func thresholdLineNilWhenNoCategory() throws {
+        let ctx = try makeContext()
+        ctx.insert(CategoryBudget(category: "식비", monthlyLimit: 150_000, effectiveFrom: 202_606))
+        try ctx.save()
+        let entry = parsed(2026, 6, 11, amount: 200_000, category: nil)
+        #expect(BudgetProgress.thresholdLine(for: entry, in: ctx) == nil)
+    }
+}

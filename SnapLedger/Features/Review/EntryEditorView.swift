@@ -9,9 +9,10 @@ struct EntryEditorView: View {
 
     @Bindable var entry: ParsedEntry
     var insertOnSave: Bool = false
-    /// 저장이 성공한 직후(닫기 전) 호출. 실패 이미지에서 수동 입력으로 들어온 경우
-    /// 원본 PendingImage·inbox 파일을 정리하는 데 쓴다.
-    var onSaved: (() -> Void)?
+    /// 저장이 성공한 직후(닫기 전) 호출. 인자는 그 항목이 그 달 예산 임계점(near/over)에
+    /// 닿았을 때의 라인(아니면 nil) — 검토 탭이 토스트를 띄우는 데 쓴다. 실패 이미지에서
+    /// 수동 입력으로 들어온 경우 원본 PendingImage·inbox 파일 정리도 이 콜백에서 함께 한다.
+    var onSaved: ((BudgetProgress.Line?) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -338,7 +339,7 @@ struct EntryEditorView: View {
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
                 .save(entry, in: modelContext)
-            onSaved?()
+            onSaved?(BudgetProgress.thresholdLine(for: entry, in: modelContext))
             dismiss()
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription
