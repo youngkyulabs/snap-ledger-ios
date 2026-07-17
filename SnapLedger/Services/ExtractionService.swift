@@ -86,7 +86,8 @@ struct FoundationModelsExtractionService: ExtractionService {
         A) 영수증: 합계/총금액/결제금액 같은 최종 합산 라인 + 품목 단가가 보임.
            → transaction 정확히 1개, 품목은 items 배열로만. 합산 라인이 여러 라벨로 반복돼도 한 번만 — 절대 더하지 마세요.
         B) 결제 알림: "<금액>원 일시불/할부/승인/일반승인" 라인이 1개 이상.
-           → 알림 행 하나당 transaction 1개, items는 항상 []. 카드사명 헤더(현대카드·신한카드 등)는 별도 transaction 아님.
+           → 서로 다른 결제(가맹점·금액·시각이 다름)마다 transaction 1개, items는 항상 []. 카드사명 헤더(현대카드·신한카드 등)는 별도 transaction 아님.
+           → 결제 1건이 여러 줄로 나뉘거나 같은 금액이 반복 표기돼도(예: 한 금액에 '일시불'과 '승인'이 함께 등장) transaction은 1개로 합치세요. '취소·부분취소' 표기가 붙은 금액은 별도 거래로 만들지 마세요.
 
         공통: '누적·한도·잔액·월 사용액·부가세·과세물품가액·포인트·적립·캐시백·마일리지·사용가능' 라인의 숫자는 amount로 절대 사용 금지. 광고 배너 무시. 거래 못 찾으면 transactions=[].
 
@@ -119,6 +120,12 @@ struct FoundationModelsExtractionService: ExtractionService {
         출력: transactions=[
           {date="2026-05-17", amount=7777, merchant="예시상호3", category="\(example2Category)",
             items=[{name="예시품목1", amount=3333}, {name="예시품목2", amount=4444}]}
+        ]
+
+        예시 3 (알림 1건인데 같은 금액이 반복 표기 → 나누지 말고 1개로 합침):
+        입력: "현대카드 승인  9,900원 일시불  9,900원 승인완료  5/17  예시상호4  누적 12,345원"
+        출력: transactions=[
+          {date="2026-05-17", amount=9900, merchant="예시상호4", category="\(example1Category)", items=[]}
         ]
 
         불확실하면 빈 문자열 또는 0.
