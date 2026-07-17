@@ -91,7 +91,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         공통: '누적·한도·잔액·월 사용액·부가세·과세물품가액·포인트·적립·캐시백·마일리지·사용가능' 라인의 숫자는 amount로 절대 사용 금지. 광고 배너 무시. 거래 못 찾으면 transactions=[].
 
         각 transaction 필드:
-        - date: YYYY-MM-DD. 입력이 'YYYY-MM-DD', 'YYYY/MM/DD', 'YYYY.MM.DD', 'M/D HH:mm' 등 어떤 형식이든 정규화. 연도 누락이면 오늘(\(dateFormatter.string(from: today)))의 연도.
+        - date: YYYY-MM-DD. 입력이 'YYYY-MM-DD', 'YYYY/MM/DD', 'YYYY.MM.DD', 'M/D HH:mm' 등 어떤 형식이든 정규화. 연도 누락이면 오늘(\(dateFormatter.string(from: today)))의 연도. **입력 텍스트에 날짜 표기가 전혀 없으면 빈 문자열 — 오늘 날짜나 임의의 날짜를 절대 지어내지 마세요.**
         - amount: KRW 정수, 결제 한 건. 영수증은 합계/총금액/결제금액 라인 숫자, 알림은 "<금액>원" 패턴. 입력에 결제 금액이 보이면 amount는 0 금지.
         - merchant: 가맹점 상호만. 카드사명·결제처리사명·캐셔/서명 이름·대괄호 결제수단 표기는 merchant 아님. 매장 상호가 전혀 없으면 빈 문자열.
         \(categoryLine)
@@ -187,6 +187,20 @@ struct FoundationModelsExtractionService: ExtractionService {
         "TOSS PAYMENTS": "토스페이",
     ]
 
+    /// OCR 원문에 날짜 표기(YYYY-MM-DD / YYYY.MM.DD / M/D / M.D 등)가 하나라도 있는지.
+    /// 시간(`HH:mm`)은 날짜가 아니므로 제외한다. 원문에 날짜가 없는데 모델이 date를
+    /// 지어내는 환각을 걸러내는 결정적 근거로 쓴다.
+    private static let datePresence: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b\d{1,2}[-./]\d{1,2}\b"#
+    )
+
+    static func hasDateToken(_ text: String) -> Bool {
+        // 정규식 컴파일 실패 시 보수적으로 "있음" 취급 — 가드가 잘못 비우지 않도록.
+        guard let re = datePresence else { return true }
+        let range = NSRange(text.startIndex..., in: text)
+        return re.firstMatch(in: text, range: range) != nil
+    }
+
     /// 모델이 `M/D` 같은 부분 날짜를 만나면 instructions에 명시한 "오늘의 연도" 규칙을
     /// 무시하고 학습 분포의 이전 연도(2024/2025 등)로 채우는 환각이 자주 나온다.
     /// 카드 알림·영수증은 "결제 시점 ≈ 추출 시점"이라는 강한 invariant가 있으므로
@@ -239,12 +253,18 @@ struct FoundationModelsExtractionService: ExtractionService {
     static func normalize(
         _ extraction: PaymentExtraction,
         today: Date = .now,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        ocrText: String? = nil
     ) -> PaymentExtraction {
+        // ocrText가 주어졌고 그 안에 날짜 토큰이 하나도 없으면, 모델이 지어낸 date를
+        // 통째로 버린다(→ 다운스트림 오늘 폴백). normalizeYear는 연도만 보정할 뿐
+        // 환각한 월·일은 못 걸러내므로, "원문에 날짜 없음"이라는 결정적 근거로 차단.
+        // (ocrText 미제공인 기존 호출부는 가드를 건너뛰고 normalizeYear만 적용.)
+        let dropDates = ocrText.map { !hasDateToken($0) } ?? false
         let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
             if looksLikeExampleLeak(trans) { return nil }
             var t = trans
-            t.date = normalizeYear(t.date, today: today, calendar: calendar)
+            t.date = dropDates ? "" : normalizeYear(t.date, today: today, calendar: calendar)
             let raw = t.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
             if isCardIssuerName(raw) {
                 t.merchant = ""
@@ -264,7 +284,7 @@ struct FoundationModelsExtractionService: ExtractionService {
             )
         )
         let response = try await session.respond(to: text, generating: PaymentExtraction.self)
-        return Self.normalize(response.content, today: today)
+        return Self.normalize(response.content, today: today, ocrText: text)
     }
 }
 

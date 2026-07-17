@@ -12,4 +12,19 @@ enum CandidateAutoFill {
     static func amount(current: Int, candidates: [Int]) -> Int {
         current == 0 && candidates.count == 1 ? candidates[0] : current
     }
+
+    /// 카테고리: 학습값이 **현재 presets 안일 때만** 우선 적용하고, 프리셋 밖(off-list)
+    /// 이거나 비어 있으면 버리고 추출값으로 폴백한다. 둘 다 없으면 nil(사용자가 직접 선택).
+    ///
+    /// 학습값이 추출값을 무조건 이기던 기존 동작은, 사용자가 프리셋에서 지운/바꾼 옛
+    /// 카테고리를 검토 자동채움에 계속 되살리는 문제가 있었다. off-list 판정은
+    /// `CategoryValidation`(경고 기준)과 같은 단일 규칙을 재사용한다.
+    static func category(learned: String?, extracted: String?, presets: [String]) -> String? {
+        if let learned,
+           !learned.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !CategoryValidation.isOffPreset(learned, presets: presets) {
+            return learned
+        }
+        return extracted
+    }
 }
