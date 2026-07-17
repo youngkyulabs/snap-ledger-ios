@@ -34,4 +34,51 @@ struct CandidateAutoFillTests {
     @Test func amountNonZeroKeepsCurrent() {
         #expect(CandidateAutoFill.amount(current: 3000, candidates: [5000]) == 3000)
     }
+
+    // MARK: - 카테고리: 학습값이 현재 프리셋 안일 때만 우선, 아니면 추출값으로
+
+    @Test func categoryPrefersValidLearnedOverExtraction() {
+        let out = CandidateAutoFill.category(
+            learned: "카페", extracted: "식비", presets: AppSettings.defaultPresets
+        )
+        #expect(out == "카페")
+    }
+
+    @Test func categoryDropsOffPresetLearnedAndFallsBackToExtraction() {
+        // 프리셋에서 지운 옛 카테고리는 자동채움에서 되살리지 않고 추출값으로.
+        let out = CandidateAutoFill.category(
+            learned: "옛카테고리", extracted: "식비", presets: AppSettings.defaultPresets
+        )
+        #expect(out == "식비")
+    }
+
+    @Test func categoryReturnsNilWhenLearnedOffPresetAndNoExtraction() {
+        let out = CandidateAutoFill.category(
+            learned: "옛카테고리", extracted: nil, presets: AppSettings.defaultPresets
+        )
+        #expect(out == nil)
+    }
+
+    @Test func categoryUsesExtractionWhenNoLearned() {
+        let out = CandidateAutoFill.category(
+            learned: nil, extracted: "카페", presets: AppSettings.defaultPresets
+        )
+        #expect(out == "카페")
+    }
+
+    @Test func categoryTreatsBlankLearnedAsAbsent() {
+        let out = CandidateAutoFill.category(
+            learned: "   ", extracted: "식비", presets: AppSettings.defaultPresets
+        )
+        #expect(out == "식비")
+    }
+
+    @Test func categoryTrimsValidLearnedValue() {
+        // 학습 저장은 카테고리를 trim하지 않으므로, 공백 낀 유효 학습값도
+        // 프리셋과 일치로 판정되고 trim된 값으로 반환돼야 한다.
+        let out = CandidateAutoFill.category(
+            learned: " 카페 ", extracted: "식비", presets: AppSettings.defaultPresets
+        )
+        #expect(out == "카페")
+    }
 }

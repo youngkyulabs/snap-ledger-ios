@@ -9,7 +9,7 @@ struct PaymentExtraction: Equatable, Sendable {
 
 @Generable
 struct PaymentTransaction: Equatable, Sendable {
-    @Guide(description: "결제 일자, YYYY-MM-DD 형식. 알림에 연도가 없으면 instructions에 제공된 오늘 날짜의 연도를 사용. 모르면 빈 문자열.")
+    @Guide(description: "결제 일자, YYYY-MM-DD 형식. 알림에 연도가 없으면 instructions에 제공된 오늘 날짜의 연도를 사용. 입력에 날짜 표기가 전혀 없으면 지어내지 말고 빈 문자열.")
     var date: String
 
     @Guide(description: "결제 금액(원), 정수. '일시불', '할부', '승인' 직전에 등장하는 금액 한 건만 선택. '누적', '잔액', '한도', '포인트', '적립', '월 사용액' 등의 보조 금액은 절대 선택하지 않음. 모르면 0.")

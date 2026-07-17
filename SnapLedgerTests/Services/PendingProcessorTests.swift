@@ -139,36 +139,6 @@ struct PendingProcessorTests {
         #expect(amounts == [3000, 5000])
     }
 
-    @Test func learnedCategoryOverridesExtractionCategory() async throws {
-        let ctx = ModelContext(try makeContainer())
-        let inbox = try makeInbox()
-        let filename = try writeFakeImage("gs.jpg", in: inbox)
-
-        // Pre-existing learned mapping
-        try CategoryLearner().learn(merchant: "GS25", category: "편의점", in: ctx)
-
-        let pending = PendingImage(filename: filename)
-        ctx.insert(pending)
-        try ctx.save()
-
-        let extraction = PaymentExtraction(transactions: [
-            PaymentTransaction(
-                date: "2026-05-17", amount: 3000,
-                merchant: "GS25", category: "기타", items: []
-            ),
-        ])
-        let processor = PendingProcessor(
-            inboxURL: inbox,
-            ocrService: StubOCRService(text: "5,000원 일시불"),
-            extractionService: StubExtractionService(result: extraction),
-            categoryLearner: CategoryLearner()
-        )
-        await processor.process(pending, in: ctx)
-
-        let parsed = try ctx.fetch(FetchDescriptor<ParsedEntry>())
-        #expect(parsed.first?.category == "편의점")
-    }
-
     @Test func ocrFailureMarksPendingFailed() async throws {
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()

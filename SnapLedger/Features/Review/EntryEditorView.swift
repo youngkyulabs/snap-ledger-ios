@@ -359,9 +359,11 @@ struct EntryEditorView: View {
 
 // MARK: - 날짜 경고 (검토 팝업 전용)
 private extension EntryEditorView {
-    /// 선택된 날짜가 정상 범위(오늘·어제)를 벗어났는지 판정 — tooOld/future면 경고.
+    /// 선택된 날짜가 정상 범위(어제·오늘)를 벗어났는지 판정 — tooOld/future면 경고.
+    /// 비교 기준은 '지금'이 아니라 항목이 검토 목록에 들어온 시각(`entry.createdAt`)이다.
+    /// 며칠 지나서 검토해도 캡처 당시엔 오늘·어제였던 날짜가 오탐으로 경고되지 않는다.
     var dateStatus: ReviewDateStatus {
-        ReviewDateCheck.status(for: entry.date)
+        ReviewDateCheck.status(for: entry.date, now: entry.createdAt)
     }
 
     /// 경고 상태일 때 VoiceOver로 읽어줄 문구 (화면엔 아이콘만 노출).

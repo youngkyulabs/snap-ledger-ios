@@ -199,14 +199,16 @@ struct PendingProcessor {
         sourceFilename: String,
         in context: ModelContext
     ) -> [ParsedEntry] {
-        enriched.flatMap { et in
-            entries(for: et, sourceFilename: sourceFilename, in: context)
+        let presets = AppSettings.currentCategories(in: context)
+        return enriched.flatMap { et in
+            entries(for: et, sourceFilename: sourceFilename, presets: presets, in: context)
         }
     }
 
     private func entries(
         for enriched: EnrichedTransaction,
         sourceFilename: String,
+        presets: [String],
         in context: ModelContext
     ) -> [ParsedEntry] {
         let txn = enriched.base
@@ -216,7 +218,11 @@ struct PendingProcessor {
             let v = txn.category.trimmingCharacters(in: .whitespacesAndNewlines)
             return v.isEmpty ? nil : v
         }()
-        let categoryForRow = learnedCategory ?? trimmedExtractionCategory
+        // 학습값이 현재 프리셋 안일 때만 우선 적용 — 프리셋에서 지운 옛 카테고리를
+        // 검토 자동채움에 되살리지 않고 추출값(프리셋으로 제약됨)으로 폴백한다.
+        let categoryForRow = CandidateAutoFill.category(
+            learned: learnedCategory, extracted: trimmedExtractionCategory, presets: presets
+        )
 
         if txn.items.isEmpty {
             // 빈 칸은 후보로 자동 채움 — 설명은 첫 후보, 금액은 후보가 정확히 1개일 때만.

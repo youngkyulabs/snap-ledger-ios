@@ -86,12 +86,14 @@ struct FoundationModelsExtractionService: ExtractionService {
         A) 영수증: 합계/총금액/결제금액 같은 최종 합산 라인 + 품목 단가가 보임.
            → transaction 정확히 1개, 품목은 items 배열로만. 합산 라인이 여러 라벨로 반복돼도 한 번만 — 절대 더하지 마세요.
         B) 결제 알림: "<금액>원 일시불/할부/승인/일반승인" 라인이 1개 이상.
-           → 알림 행 하나당 transaction 1개, items는 항상 []. 카드사명 헤더(현대카드·신한카드 등)는 별도 transaction 아님.
+           → 서로 다른 결제(가맹점·금액·시각이 다름)마다 transaction 1개, items는 항상 []. 카드사명 헤더(현대카드·신한카드 등)는 별도 transaction 아님.
+           → 결제 1건이 여러 줄로 나뉘거나 같은 금액이 반복 표기돼도(예: 한 금액에 '일시불'과 '승인'이 함께 등장) transaction은 1개로 합치세요. '취소·부분취소' 표기가 붙은 금액은 별도 거래로 만들지 마세요.
+           → 반대로 가맹점이나 결제 시각이 서로 다르면 금액이 같아도 별개 거래입니다 — 합치지 마세요.
 
         공통: '누적·한도·잔액·월 사용액·부가세·과세물품가액·포인트·적립·캐시백·마일리지·사용가능' 라인의 숫자는 amount로 절대 사용 금지. 광고 배너 무시. 거래 못 찾으면 transactions=[].
 
         각 transaction 필드:
-        - date: YYYY-MM-DD. 입력이 'YYYY-MM-DD', 'YYYY/MM/DD', 'YYYY.MM.DD', 'M/D HH:mm' 등 어떤 형식이든 정규화. 연도 누락이면 오늘(\(dateFormatter.string(from: today)))의 연도.
+        - date: YYYY-MM-DD. 입력이 'YYYY-MM-DD', 'YYYY/MM/DD', 'YYYY.MM.DD', 'M/D HH:mm' 등 어떤 형식이든 정규화. 연도 누락이면 오늘(\(dateFormatter.string(from: today)))의 연도. **입력 텍스트에 날짜 표기가 전혀 없으면 빈 문자열 — 오늘 날짜나 임의의 날짜를 절대 지어내지 마세요.**
         - amount: KRW 정수, 결제 한 건. 영수증은 합계/총금액/결제금액 라인 숫자, 알림은 "<금액>원" 패턴. 입력에 결제 금액이 보이면 amount는 0 금지.
         - merchant: 가맹점 상호만. 카드사명·결제처리사명·캐셔/서명 이름·대괄호 결제수단 표기는 merchant 아님. 매장 상호가 전혀 없으면 빈 문자열.
         \(categoryLine)
@@ -119,6 +121,12 @@ struct FoundationModelsExtractionService: ExtractionService {
         출력: transactions=[
           {date="2026-05-17", amount=7777, merchant="예시상호3", category="\(example2Category)",
             items=[{name="예시품목1", amount=3333}, {name="예시품목2", amount=4444}]}
+        ]
+
+        예시 3 (알림 1건인데 같은 금액이 반복 표기 → 나누지 말고 1개로 합침):
+        입력: "현대카드 승인  9,900원 일시불  9,900원 승인완료  5/17  예시상호4  누적 12,345원"
+        출력: transactions=[
+          {date="2026-05-17", amount=9900, merchant="예시상호4", category="\(example1Category)", items=[]}
         ]
 
         불확실하면 빈 문자열 또는 0.
@@ -187,6 +195,26 @@ struct FoundationModelsExtractionService: ExtractionService {
         "TOSS PAYMENTS": "토스페이",
     ]
 
+    /// OCR 원문에 날짜 표기가 하나라도 있는지. 지원 형식:
+    /// - 완전 날짜: `YYYY-MM-DD` / `YYYY.MM.DD` / `YYYY/MM/DD`
+    /// - 부분 `M/D`·`M.D`: 월 1–12·일 1–31 범위일 때만 — 소수·비율(`10.0%`, `13.5`)이
+    ///   날짜로 오탐돼 환각 가드를 무력화하지 않도록 범위를 제약한다.
+    /// - 한국식: `2026년 5월 17일`·`5월 17일`(연도 유무 무관) — 영수증에 흔한 표기.
+    /// 시간(`HH:mm`)은 날짜가 아니므로 제외한다. `1/2`·`4.5`처럼 실제 날짜(1월2일·4월5일)와
+    /// 구분 불가능한 값은 여전히 "날짜 있음"으로 잡히지만, 이 오탐은 가드 미발동(=기존
+    /// normalizeYear만 적용)이라 안전한 방향이다.
+    /// 원문에 날짜가 없는데 모델이 date를 지어내는 환각을 걸러내는 결정적 근거로 쓴다.
+    private static let datePresence: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b(0?[1-9]|1[0-2])[-./](0?[1-9]|[12]\d|3[01])\b|\d{1,2}\s*월\s*\d{1,2}\s*일"#
+    )
+
+    static func hasDateToken(_ text: String) -> Bool {
+        // 정규식 컴파일 실패 시 보수적으로 "있음" 취급 — 가드가 잘못 비우지 않도록.
+        guard let re = datePresence else { return true }
+        let range = NSRange(text.startIndex..., in: text)
+        return re.firstMatch(in: text, range: range) != nil
+    }
+
     /// 모델이 `M/D` 같은 부분 날짜를 만나면 instructions에 명시한 "오늘의 연도" 규칙을
     /// 무시하고 학습 분포의 이전 연도(2024/2025 등)로 채우는 환각이 자주 나온다.
     /// 카드 알림·영수증은 "결제 시점 ≈ 추출 시점"이라는 강한 invariant가 있으므로
@@ -239,12 +267,18 @@ struct FoundationModelsExtractionService: ExtractionService {
     static func normalize(
         _ extraction: PaymentExtraction,
         today: Date = .now,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        ocrText: String? = nil
     ) -> PaymentExtraction {
+        // ocrText가 주어졌고 그 안에 날짜 토큰이 하나도 없으면, 모델이 지어낸 date를
+        // 통째로 버린다(→ 다운스트림 오늘 폴백). normalizeYear는 연도만 보정할 뿐
+        // 환각한 월·일은 못 걸러내므로, "원문에 날짜 없음"이라는 결정적 근거로 차단.
+        // (ocrText 미제공인 기존 호출부는 가드를 건너뛰고 normalizeYear만 적용.)
+        let dropDates = ocrText.map { !hasDateToken($0) } ?? false
         let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
             if looksLikeExampleLeak(trans) { return nil }
             var t = trans
-            t.date = normalizeYear(t.date, today: today, calendar: calendar)
+            t.date = dropDates ? "" : normalizeYear(t.date, today: today, calendar: calendar)
             let raw = t.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
             if isCardIssuerName(raw) {
                 t.merchant = ""
@@ -264,7 +298,7 @@ struct FoundationModelsExtractionService: ExtractionService {
             )
         )
         let response = try await session.respond(to: text, generating: PaymentExtraction.self)
-        return Self.normalize(response.content, today: today)
+        return Self.normalize(response.content, today: today, ocrText: text)
     }
 }
 
