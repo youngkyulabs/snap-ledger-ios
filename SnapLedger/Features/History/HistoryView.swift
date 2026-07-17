@@ -9,36 +9,54 @@ struct HistoryView: View {
     @State private var isLoadingMore = false
     @State private var editingEntry: SavedEntry?
     @State private var reorderError: String?
+    @State private var searchText = ""
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var filteredEntries: [SavedEntry] {
+        EntrySearch.filter(entries, query: searchText)
+    }
 
     private var allMonths: [HistoryGrouping.MonthGroup] {
-        HistoryGrouping.group(entries: entries)
+        HistoryGrouping.group(entries: filteredEntries)
     }
 
     private var displayedMonths: [HistoryGrouping.MonthGroup] {
-        Array(allMonths.prefix(monthsBack + 1))
+        // 검색 중엔 페이지네이션을 우회하고 매칭되는 모든 달을 보여준다.
+        isSearching ? allMonths : Array(allMonths.prefix(monthsBack + 1))
     }
 
     private var hasMore: Bool {
-        displayedMonths.count < allMonths.count
+        !isSearching && displayedMonths.count < allMonths.count
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if allMonths.isEmpty {
+                if entries.isEmpty {
                     ContentUnavailableView(
                         "기록 없음",
                         systemImage: "list.bullet.rectangle",
                         description: Text("저장한 항목이 여기 쌓여요.")
                     )
+                } else if allMonths.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
                 } else {
                     historyList
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: allMonths.isEmpty)
+            // 표준 .searchable — 큰 제목 아래에 검색창이 놓이고, 위로 스크롤하면 함께 접혀 숨는다.
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: "설명·카테고리·메모·금액 검색"
+            )
             .toolbar {
                 // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
-                if !allMonths.isEmpty {
+                if !entries.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             PastMonthsView()
@@ -56,7 +74,13 @@ struct HistoryView: View {
     private var historyList: some View {
         List {
             ForEach(displayedMonths) { month in
-                MonthSections(month: month, editingEntry: $editingEntry, onMove: moveEntries)
+                MonthSections(
+                    month: month,
+                    editingEntry: $editingEntry,
+                    onMove: moveEntries,
+                    // 검색 중엔 보이는 부분집합만 재정렬되어 안 보이는 항목까지 순서가 흔들리므로 막는다.
+                    reorderEnabled: !isSearching
+                )
             }
 
             footerSection
@@ -78,7 +102,10 @@ struct HistoryView: View {
 
     @ViewBuilder
     private var footerSection: some View {
-        if isLoadingMore {
+        if isSearching {
+            // 검색 결과에는 '더 보기'/'끝까지 봤어요' 푸터를 숨긴다.
+            EmptyView()
+        } else if isLoadingMore {
             Section {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -136,6 +163,9 @@ struct MonthSections: View {
     @Binding var editingEntry: SavedEntry?
     /// 같은 날짜 안 드래그 이동 (행을 꾹 눌러 재정렬). day 섹션별 ForEach에 붙어 섹션 간 이동은 불가능.
     let onMove: (HistoryGrouping.DayGroup, IndexSet, Int) -> Void
+    /// 전체가 보일 때만 재정렬 허용. 검색 등 부분집합만 보이는 화면에선 false로 막는다
+    /// (기본값 true — 월별 상세처럼 항상 전체를 보여주는 화면용).
+    var reorderEnabled = true
 
     var body: some View {
         ForEach(month.days) { day in
@@ -147,6 +177,7 @@ struct MonthSections: View {
                         HistoryRow(entry: entry)
                     }
                     .buttonStyle(.plain)
+                    .moveDisabled(!reorderEnabled)
                 }
                 .onMove { source, destination in
                     onMove(day, source, destination)

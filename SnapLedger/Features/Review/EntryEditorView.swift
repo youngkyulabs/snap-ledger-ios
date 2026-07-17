@@ -34,7 +34,7 @@ struct EntryEditorView: View {
                 }
 
                 Section("내용") {
-                    DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
+                    dateRow
                     TextField("설명", text: $entry.merchant)
                         .focused($focusedField, equals: .merchant)
                         .submitLabel(.done)
@@ -97,6 +97,7 @@ struct EntryEditorView: View {
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: entry.confidence < 0.8)
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isOffPreset)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: dateStatus.isWarning)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
@@ -353,5 +354,41 @@ struct EntryEditorView: View {
             try? modelContext.save()
         }
         dismiss()
+    }
+}
+
+// MARK: - 날짜 경고 (검토 팝업 전용)
+private extension EntryEditorView {
+    /// 선택된 날짜가 정상 범위(오늘·어제)를 벗어났는지 판정 — tooOld/future면 경고.
+    var dateStatus: ReviewDateStatus {
+        ReviewDateCheck.status(for: entry.date)
+    }
+
+    /// 경고 상태일 때 VoiceOver로 읽어줄 문구 (화면엔 아이콘만 노출).
+    var dateWarningLabel: String? {
+        switch dateStatus {
+        case .tooOld: return "날짜가 예상보다 오래됐어요 — 확인해 주세요."
+        case .future: return "날짜가 미래로 되어 있어요 — 확인해 주세요."
+        case .today, .yesterday: return nil
+        }
+    }
+
+    /// 날짜 행. 정상 범위(오늘·어제)를 벗어나면 날짜 컨트롤 왼쪽에 노란 경고
+    /// 아이콘만 붙인다 (문구 없음, 접근성 라벨로 의미 보존).
+    var dateRow: some View {
+        HStack {
+            // 라벨은 아래 DatePicker가 접근성으로 소유 — 여기 Text는 시각 표기용이라
+            // VoiceOver 중복 낭독('날짜'를 두 번)을 막기 위해 접근성에서 숨긴다.
+            Text("날짜")
+                .accessibilityHidden(true)
+            Spacer()
+            if let dateWarningLabel {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .accessibilityLabel(dateWarningLabel)
+            }
+            DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
+                .labelsHidden()
+        }
     }
 }
