@@ -9,36 +9,49 @@ struct HistoryView: View {
     @State private var isLoadingMore = false
     @State private var editingEntry: SavedEntry?
     @State private var reorderError: String?
+    @State private var searchText = ""
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var filteredEntries: [SavedEntry] {
+        EntrySearch.filter(entries, query: searchText)
+    }
 
     private var allMonths: [HistoryGrouping.MonthGroup] {
-        HistoryGrouping.group(entries: entries)
+        HistoryGrouping.group(entries: filteredEntries)
     }
 
     private var displayedMonths: [HistoryGrouping.MonthGroup] {
-        Array(allMonths.prefix(monthsBack + 1))
+        // 검색 중엔 페이지네이션을 우회하고 매칭되는 모든 달을 보여준다.
+        isSearching ? allMonths : Array(allMonths.prefix(monthsBack + 1))
     }
 
     private var hasMore: Bool {
-        displayedMonths.count < allMonths.count
+        !isSearching && displayedMonths.count < allMonths.count
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if allMonths.isEmpty {
+                if entries.isEmpty {
                     ContentUnavailableView(
                         "기록 없음",
                         systemImage: "list.bullet.rectangle",
                         description: Text("저장한 항목이 여기 쌓여요.")
                     )
+                } else if allMonths.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
                 } else {
                     historyList
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: allMonths.isEmpty)
+            .searchable(text: $searchText, prompt: "설명·카테고리·메모 검색")
             .toolbar {
                 // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
-                if !allMonths.isEmpty {
+                if !entries.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             PastMonthsView()
@@ -78,7 +91,10 @@ struct HistoryView: View {
 
     @ViewBuilder
     private var footerSection: some View {
-        if isLoadingMore {
+        if isSearching {
+            // 검색 결과에는 '더 보기'/'끝까지 봤어요' 푸터를 숨긴다.
+            EmptyView()
+        } else if isLoadingMore {
             Section {
                 HStack(spacing: 8) {
                     ProgressView()

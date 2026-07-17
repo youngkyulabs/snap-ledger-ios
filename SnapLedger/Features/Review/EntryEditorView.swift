@@ -35,6 +35,10 @@ struct EntryEditorView: View {
 
                 Section("내용") {
                     DatePicker("날짜", selection: $entry.date, displayedComponents: .date)
+                    if dateStatus != .today {
+                        dateAccessoryRow
+                            .transition(.opacity)
+                    }
                     TextField("설명", text: $entry.merchant)
                         .focused($focusedField, equals: .merchant)
                         .submitLabel(.done)
@@ -97,6 +101,7 @@ struct EntryEditorView: View {
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: entry.confidence < 0.8)
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: isOffPreset)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: dateStatus)
             .contentMargins(.bottom, 24, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .overlay(alignment: .bottom) {
@@ -353,5 +358,40 @@ struct EntryEditorView: View {
             try? modelContext.save()
         }
         dismiss()
+    }
+}
+
+// MARK: - 날짜 경고 + '오늘' 되돌리기 (검토 팝업 전용)
+private extension EntryEditorView {
+    /// 선택된 날짜가 정상 범위(오늘·어제)를 벗어났는지 판정 — tooOld/future면 경고.
+    var dateStatus: ReviewDateStatus {
+        ReviewDateCheck.status(for: entry.date)
+    }
+
+    var dateWarningText: String? {
+        switch dateStatus {
+        case .tooOld: return "날짜가 예상보다 예전이에요 — 확인해 주세요."
+        case .future: return "날짜가 미래로 되어 있어요 — 확인해 주세요."
+        case .today, .yesterday: return nil
+        }
+    }
+
+    /// 날짜가 오늘이 아닐 때 DatePicker 아래에 붙는 행: (경고) + '오늘' 되돌리기 버튼.
+    /// iOS 기본 캘린더에 '오늘로 가기'가 없어 이 버튼으로 대체한다.
+    @ViewBuilder
+    var dateAccessoryRow: some View {
+        HStack {
+            if let dateWarningText {
+                Label(dateWarningText, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+            Spacer(minLength: 8)
+            Button("오늘") {
+                entry.date = Date()
+            }
+            .font(.footnote)
+            .buttonStyle(.borderless)
+        }
     }
 }
