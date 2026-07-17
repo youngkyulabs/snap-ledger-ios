@@ -74,7 +74,13 @@ struct HistoryView: View {
     private var historyList: some View {
         List {
             ForEach(displayedMonths) { month in
-                MonthSections(month: month, editingEntry: $editingEntry, onMove: moveEntries)
+                MonthSections(
+                    month: month,
+                    editingEntry: $editingEntry,
+                    onMove: moveEntries,
+                    // 검색 중엔 보이는 부분집합만 재정렬되어 안 보이는 항목까지 순서가 흔들리므로 막는다.
+                    reorderEnabled: !isSearching
+                )
             }
 
             footerSection
@@ -157,6 +163,9 @@ struct MonthSections: View {
     @Binding var editingEntry: SavedEntry?
     /// 같은 날짜 안 드래그 이동 (행을 꾹 눌러 재정렬). day 섹션별 ForEach에 붙어 섹션 간 이동은 불가능.
     let onMove: (HistoryGrouping.DayGroup, IndexSet, Int) -> Void
+    /// 전체가 보일 때만 재정렬 허용. 검색 등 부분집합만 보이는 화면에선 false로 막는다
+    /// (기본값 true — 월별 상세처럼 항상 전체를 보여주는 화면용).
+    var reorderEnabled = true
 
     var body: some View {
         ForEach(month.days) { day in
@@ -168,6 +177,7 @@ struct MonthSections: View {
                         HistoryRow(entry: entry)
                     }
                     .buttonStyle(.plain)
+                    .moveDisabled(!reorderEnabled)
                 }
                 .onMove { source, destination in
                     onMove(day, source, destination)

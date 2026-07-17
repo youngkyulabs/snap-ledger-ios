@@ -367,7 +367,7 @@ private extension EntryEditorView {
     /// 경고 상태일 때 VoiceOver로 읽어줄 문구 (화면엔 아이콘만 노출).
     var dateWarningLabel: String? {
         switch dateStatus {
-        case .tooOld: return "날짜가 예상보다 예전이에요 — 확인해 주세요."
+        case .tooOld: return "날짜가 예상보다 오래됐어요 — 확인해 주세요."
         case .future: return "날짜가 미래로 되어 있어요 — 확인해 주세요."
         case .today, .yesterday: return nil
         }
@@ -377,11 +377,14 @@ private extension EntryEditorView {
     /// 아이콘만 붙인다 (문구 없음, 접근성 라벨로 의미 보존).
     var dateRow: some View {
         HStack {
+            // 라벨은 아래 DatePicker가 접근성으로 소유 — 여기 Text는 시각 표기용이라
+            // VoiceOver 중복 낭독('날짜'를 두 번)을 막기 위해 접근성에서 숨긴다.
             Text("날짜")
+                .accessibilityHidden(true)
             Spacer()
             if let dateWarningLabel {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .symbolRenderingMode(.multicolor)
+                    .foregroundStyle(.orange)
                     .accessibilityLabel(dateWarningLabel)
             }
             DatePicker("날짜", selection: $entry.date, displayedComponents: .date)

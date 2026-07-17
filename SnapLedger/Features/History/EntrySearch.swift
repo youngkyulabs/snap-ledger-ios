@@ -5,17 +5,21 @@ import Foundation
 /// 순수 함수라 뷰(무한 스크롤·그룹핑)와 분리해 단위 테스트한다 (HistoryGrouping 옆).
 enum EntrySearch {
     static func matches(_ entry: SavedEntry, query: String) -> Bool {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return true }
-        if entry.merchant.localizedCaseInsensitiveContains(trimmed) { return true }
-        if let category = entry.category, category.localizedCaseInsensitiveContains(trimmed) { return true }
-        if let note = entry.note, note.localizedCaseInsensitiveContains(trimmed) { return true }
+        matches(entry, trimmedQuery: query.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// 이미 trim된 쿼리로 비교 — `filter`가 항목마다 쿼리를 다시 trim하지 않도록 내부 경로를 분리.
+    private static func matches(_ entry: SavedEntry, trimmedQuery: String) -> Bool {
+        guard !trimmedQuery.isEmpty else { return true }
+        if entry.merchant.localizedCaseInsensitiveContains(trimmedQuery) { return true }
+        if let category = entry.category, category.localizedCaseInsensitiveContains(trimmedQuery) { return true }
+        if let note = entry.note, note.localizedCaseInsensitiveContains(trimmedQuery) { return true }
         return false
     }
 
     static func filter(_ entries: [SavedEntry], query: String) -> [SavedEntry] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return entries }
-        return entries.filter { matches($0, query: trimmed) }
+        return entries.filter { matches($0, trimmedQuery: trimmed) }
     }
 }
