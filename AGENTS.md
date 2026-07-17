@@ -86,6 +86,7 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
     CandidateAutoFill.swift          # 검토 항목 신규 입력 시 가맹점 등으로 카테고리·금액 자동 채움 (pure)
     EntryReorder.swift               # 항목 드래그 재정렬 → sortOrder 재계산 (pure, 정산 항목 공용)
     EntrySaveValidation.swift        # 검토 저장 전 필수 필드 검증 (pure)
+    ReviewDateStatus.swift           # 검토 날짜가 정상 범위(오늘·어제) 밖인지 판정 → tooOld/future 경고 (pure, 기준시각은 entry.createdAt)
     SyncCoordinator.swift            # CSV 한 방향 export 오케스트레이션 (지출+정산+예산) + 폴더 도달성 확인(isFolderReachable)
     SyncCoordinator+Files.swift      # 파일명 ↔ monthKey 경계 헬퍼
     SyncCoordinator+Reconciliation.swift # 정산 CSV export·monthKeys (도메인 → ReconciliationCSV)
@@ -108,9 +109,10 @@ SnapLedger/                          # 메인 앱 타겟 (synchronized root grou
 
   Features/                          # UI 화면
     MonthNavigationRow.swift         # ◀ 현재 월(메뉴) ▶ 월 선택 행 (예산·통계 탭 공용)
-    Review/                          # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row), FailedImagesSection·InboxImage
-    History/                         # HistoryView (@Query SavedEntry, 일별 섹션), SavedEntryEditorView,
-                                     # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping (pure)
+    Review/                          # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row + 날짜 경고 아이콘 ReviewDateStatus 소비),
+                                     #            BudgetToastView (저장 시 예산 임계 하단 플로팅 토스트), FailedImagesSection·InboxImage
+    History/                         # HistoryView (@Query SavedEntry, 일별 섹션 + .searchable), SavedEntryEditorView,
+                                     # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping·EntrySearch (pure — 검색은 가맹점·카테고리·메모 부분일치 + 금액 정확일치)
     Statistics/                      # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure),
                                      # CategoryColor (pure), CategoryEntriesSheet (도넛 조각 탭 → 그 카테고리 항목 목록)
     Budget/                          # BudgetView (월 선택 → 정산 진입 + 카테고리별 한도 진행률), BudgetProgress (pure: 한도 대비 사용),
