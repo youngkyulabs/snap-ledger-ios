@@ -48,7 +48,12 @@ struct HistoryView: View {
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: allMonths.isEmpty)
-            .searchable(text: $searchText, prompt: "설명·카테고리·메모 검색")
+            // 표준 .searchable — 큰 제목 아래에 검색창이 놓이고, 위로 스크롤하면 함께 접혀 숨는다.
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: "설명·카테고리·메모 검색"
+            )
             .toolbar {
                 // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
                 if !entries.isEmpty {
