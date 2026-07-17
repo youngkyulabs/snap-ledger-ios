@@ -88,6 +88,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         B) 결제 알림: "<금액>원 일시불/할부/승인/일반승인" 라인이 1개 이상.
            → 서로 다른 결제(가맹점·금액·시각이 다름)마다 transaction 1개, items는 항상 []. 카드사명 헤더(현대카드·신한카드 등)는 별도 transaction 아님.
            → 결제 1건이 여러 줄로 나뉘거나 같은 금액이 반복 표기돼도(예: 한 금액에 '일시불'과 '승인'이 함께 등장) transaction은 1개로 합치세요. '취소·부분취소' 표기가 붙은 금액은 별도 거래로 만들지 마세요.
+           → 반대로 가맹점이나 결제 시각이 서로 다르면 금액이 같아도 별개 거래입니다 — 합치지 마세요.
 
         공통: '누적·한도·잔액·월 사용액·부가세·과세물품가액·포인트·적립·캐시백·마일리지·사용가능' 라인의 숫자는 amount로 절대 사용 금지. 광고 배너 무시. 거래 못 찾으면 transactions=[].
 
@@ -194,11 +195,17 @@ struct FoundationModelsExtractionService: ExtractionService {
         "TOSS PAYMENTS": "토스페이",
     ]
 
-    /// OCR 원문에 날짜 표기(YYYY-MM-DD / YYYY.MM.DD / M/D / M.D 등)가 하나라도 있는지.
-    /// 시간(`HH:mm`)은 날짜가 아니므로 제외한다. 원문에 날짜가 없는데 모델이 date를
-    /// 지어내는 환각을 걸러내는 결정적 근거로 쓴다.
+    /// OCR 원문에 날짜 표기가 하나라도 있는지. 지원 형식:
+    /// - 완전 날짜: `YYYY-MM-DD` / `YYYY.MM.DD` / `YYYY/MM/DD`
+    /// - 부분 `M/D`·`M.D`: 월 1–12·일 1–31 범위일 때만 — 소수·비율(`10.0%`, `13.5`)이
+    ///   날짜로 오탐돼 환각 가드를 무력화하지 않도록 범위를 제약한다.
+    /// - 한국식: `2026년 5월 17일`·`5월 17일`(연도 유무 무관) — 영수증에 흔한 표기.
+    /// 시간(`HH:mm`)은 날짜가 아니므로 제외한다. `1/2`·`4.5`처럼 실제 날짜(1월2일·4월5일)와
+    /// 구분 불가능한 값은 여전히 "날짜 있음"으로 잡히지만, 이 오탐은 가드 미발동(=기존
+    /// normalizeYear만 적용)이라 안전한 방향이다.
+    /// 원문에 날짜가 없는데 모델이 date를 지어내는 환각을 걸러내는 결정적 근거로 쓴다.
     private static let datePresence: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b\d{1,2}[-./]\d{1,2}\b"#
+        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b(0?[1-9]|1[0-2])[-./](0?[1-9]|[12]\d|3[01])\b|\d{1,2}\s*월\s*\d{1,2}\s*일"#
     )
 
     static func hasDateToken(_ text: String) -> Bool {

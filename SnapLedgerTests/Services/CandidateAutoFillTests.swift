@@ -72,4 +72,13 @@ struct CandidateAutoFillTests {
         )
         #expect(out == "식비")
     }
+
+    @Test func categoryTrimsValidLearnedValue() {
+        // 학습 저장은 카테고리를 trim하지 않으므로, 공백 낀 유효 학습값도
+        // 프리셋과 일치로 판정되고 trim된 값으로 반환돼야 한다.
+        let out = CandidateAutoFill.category(
+            learned: " 카페 ", extracted: "식비", presets: AppSettings.defaultPresets
+        )
+        #expect(out == "카페")
+    }
 }

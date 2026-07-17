@@ -20,10 +20,14 @@ enum CandidateAutoFill {
     /// 카테고리를 검토 자동채움에 계속 되살리는 문제가 있었다. off-list 판정은
     /// `CategoryValidation`(경고 기준)과 같은 단일 규칙을 재사용한다.
     static func category(learned: String?, extracted: String?, presets: [String]) -> String? {
-        if let learned,
-           !learned.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !CategoryValidation.isOffPreset(learned, presets: presets) {
-            return learned
+        // 학습값은 한 번 trim해서 판정·반환에 같은 값을 쓴다 — 학습 저장 시 카테고리를
+        // trim하지 않으므로(CategoryLearner) 공백이 낀 학습값이 isOffPreset(정확 일치)에
+        // off-preset로 오판돼 유효한 값이 버려지는 것을 막는다.
+        if let learned {
+            let trimmed = learned.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !CategoryValidation.isOffPreset(trimmed, presets: presets) {
+                return trimmed
+            }
         }
         return extracted
     }

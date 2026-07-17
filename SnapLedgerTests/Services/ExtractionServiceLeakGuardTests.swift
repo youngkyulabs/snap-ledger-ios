@@ -35,6 +35,8 @@ struct ExtractionServiceLeakGuardTests {
         )
         #expect(prompt.contains("1개로 합치세요"))
         #expect(prompt.contains("예시상호4"))
+        // 과병합 방지: 가맹점·시각이 다르면 같은 금액이어도 별개 거래로 유지.
+        #expect(prompt.contains("별개 거래"))
     }
 
     // MARK: - normalize 측 방어선
