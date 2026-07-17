@@ -52,7 +52,7 @@ struct HistoryView: View {
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .automatic),
-                prompt: "설명·카테고리·메모 검색"
+                prompt: "설명·카테고리·메모·금액 검색"
             )
             .toolbar {
                 // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
