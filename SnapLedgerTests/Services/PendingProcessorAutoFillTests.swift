@@ -36,7 +36,7 @@ struct PendingProcessorAutoFillTests {
         ctx.insert(pending)
         try ctx.save()
 
-        // OCR이 가맹점 1개·금액 1개만 갖는 텍스트. LLM은 둘 다 비워서 반환.
+        // Empty extraction fills single candidates
         let ocr = "스타벅스\n5,000원 일시불"
         let extraction = PaymentExtraction(transactions: [
             PaymentTransaction(date: "2026-05-17", amount: 0, merchant: "", category: "", items: []),
@@ -64,7 +64,7 @@ struct PendingProcessorAutoFillTests {
         ctx.insert(pending)
         try ctx.save()
 
-        // 금액 후보가 2개(모호) → 자동 채움 안 함, 0 유지. 설명은 비었으니 첫 후보로 채움.
+        // Ambiguous multiple amount candidates remain 0
         let ocr = "스타벅스\n5,000원 일시불\n10,000원"
         let extraction = PaymentExtraction(transactions: [
             PaymentTransaction(date: "2026-05-17", amount: 0, merchant: "", category: "", items: []),

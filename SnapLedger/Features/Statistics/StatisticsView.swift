@@ -3,7 +3,7 @@ import SwiftData
 import Charts
 
 struct StatisticsView: View {
-    /// ContentView가 통계 탭 재선택 시 올리는 신호. 바뀌면 선택 월을 비워 최신(현재) 월로 되돌린다.
+    /// Signal from ContentView to reset selection back to the current month.
     var resetNonce: Int = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,7 +12,7 @@ struct StatisticsView: View {
 
     @State private var selectedMonthID: DateComponents?
     @State private var categoryDetail: CategoryEntriesDetail?
-    /// 월별 추세 필터 — nil이면 전체(카테고리 스택), 값이 있으면 그 카테고리만.
+    /// Trend filter selection; nil displays stacked categories.
     @State private var trendCategory: String?
 
     private var months: [StatisticsAggregation.MonthlyStats] {
@@ -30,7 +30,7 @@ struct StatisticsView: View {
         return months.first
     }
 
-    /// 섹션 노출 기준 — 필터로 행이 비어도 섹션(과 필터 메뉴)은 남아 있어야 한다.
+    /// Whether trend section remains visible when filter yields empty rows.
     private var overallTrendPoints: [StatisticsAggregation.TrendPoint] {
         StatisticsAggregation.trend(months: months)
     }
@@ -39,8 +39,7 @@ struct StatisticsView: View {
         StatisticsAggregation.trend(months: months, category: trendCategory)
     }
 
-    // 차트는 항상 6개월 슬롯을 그대로 보여주고, 기록 없는 달은 빈 막대로 둔다.
-    // 리스트만 leading-zero trim이 적용된다 (trendPoints).
+    // Chart retains 6-month window; list trims leading zero months.
     private var chartPoints: [StatisticsAggregation.TrendPoint] {
         StatisticsAggregation.trend(months: months, trimLeadingZeros: false, category: trendCategory)
     }
@@ -69,7 +68,7 @@ struct StatisticsView: View {
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
             .navigationTitle("통계")
         }
-        // 탭 재선택 → 선택 월을 비워 최신 달로 복귀 (selectedMonth가 months.first로 폴백).
+        // Tab re-selection resets to latest month.
         .onChange(of: resetNonce) { _, _ in
             selectedMonthID = nil
         }
@@ -99,7 +98,7 @@ struct StatisticsView: View {
         }
     }
 
-    // 화살표는 기록이 있는 달 사이만 이동 (빈 달은 통계가 없으므로 건너뛴다).
+    // Step only between months with recorded entries.
     private var monthPickerSection: some View {
         Section {
             MonthNavigationRow(
@@ -114,7 +113,7 @@ struct StatisticsView: View {
         }
     }
 
-    /// months는 최신순 정렬 — index 0이 가장 최근 달.
+    /// Sorted months descending, index 0 being the latest.
     private var selectedIndex: Int? {
         guard let id = selectedMonth?.id else { return nil }
         return months.firstIndex { $0.id == id }
@@ -236,22 +235,15 @@ private struct CategoryDonutChart: View {
                 }
             }
         }
-        // 카테고리별 색상을 고정 매핑한다. foregroundStyle(by:)의 자동 매핑은
-        // 슬라이스 순서가 바뀌면 같은 카테고리도 색이 달라져, 월 전환 보간 시
-        // 색이 흐르는 어색함의 원인이 된다.
+        // Deterministic category color mapping.
         .chartForegroundStyleScale(mapping: color(for:))
         .chartLegend(position: .bottom, alignment: .center, spacing: 8)
         .chartBackground { proxy in
-            // 범례(.chartLegend)가 차트 하단을 차지하므로, 차트 전체가 아니라
-            // 실제 도넛이 그려지는 plot 영역의 중심에 맞춰 정렬해야 텍스트가
-            // 도넛 한가운데에 온다. (proxy 없이 두면 범례 높이만큼 아래로 치우친다.)
+            // Center text within donut plot area.
             GeometryReader { geo in
                 if let plotFrame = proxy.plotFrame {
                     let frame = geo[plotFrame]
-                    // 금액 텍스트 자체가 도넛 중심에 오도록 amount를 plot 중심에
-                    // position하고, "총 지출" 라벨은 amount 레이아웃에 영향을 주지
-                    // 않는 overlay로 바로 아래에 띄운다. (금액+라벨을 VStack으로
-                    // 묶어 중심을 잡으면 금액이 살짝 위로 떠 보인다.)
+                    // Center amount in donut with secondary label overlay.
                     Text("\(total.formatted(.number))원")
                         .font(.headline.monospacedDigit())
                         .contentTransition(.numericText())
@@ -320,7 +312,7 @@ private struct TrendChart: View {
                 }
             }
         }
-        // 카테고리 전환 등 데이터가 바뀌면 막대 높이가 부드럽게 변형되도록.
+        // Animate bar height changes on data updates.
         .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: points.map(\.total))
     }
 }

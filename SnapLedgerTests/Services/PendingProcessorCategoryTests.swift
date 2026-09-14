@@ -3,9 +3,7 @@ import Testing
 import SwiftData
 @testable import SnapLedger
 
-/// 검토 항목 생성 시 가맹점→카테고리 학습값의 적용 규칙.
-/// 학습값이 현재 프리셋 안일 때만 추출값을 이기고, 프리셋 밖(사용자가 지운 옛
-/// 카테고리)이면 되살리지 않고 추출값으로 폴백한다.
+/// Verifies learned category resolution rules.
 @MainActor
 @Suite(.serialized)
 struct PendingProcessorCategoryTests {
@@ -30,7 +28,7 @@ struct PendingProcessorCategoryTests {
         return name
     }
 
-    /// 학습값이 현재 프리셋 안(유효)이면 추출 카테고리를 이긴다.
+    /// Learned category in presets takes precedence.
     @Test func learnedCategoryOverridesExtractionCategory() async throws {
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
@@ -60,8 +58,7 @@ struct PendingProcessorCategoryTests {
         #expect(parsed.first?.category == "카페")
     }
 
-    /// 프리셋에서 지운 옛 학습값은 검토 자동채움에서 되살리지 않고 추출값으로 폴백한다.
-    /// "편의점"은 기본 프리셋에 없으므로(off-list) 드롭되고 추출 카테고리 "기타"가 남는다.
+    /// Off-preset learned categories fallback to extracted value.
     @Test func offPresetLearnedCategoryFallsBackToExtraction() async throws {
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()

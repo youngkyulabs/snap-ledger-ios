@@ -39,7 +39,7 @@ struct ReconciliationSummary: Equatable {
     let recordedSpending: Int
     let difference: Int
     let hasReconciliationData: Bool
-    /// 사용자가 실제 정산값을 입력했는지(월초≠월말 또는 카드 금액 입력). 프리필/빈 상태는 false.
+    /// Whether user entered non-zero reconciliation figures.
     let hasStartedReconciliation: Bool
 
     var isBalanced: Bool { difference == 0 }
@@ -63,7 +63,7 @@ struct ReconciliationSummary: Equatable {
         let opening = monthBalances.reduce(0) { $0 + $1.openingBalance }
         let closing = monthBalances.reduce(0) { $0 + $1.closingBalance }
         let interest = monthBalances.reduce(0) { $0 + $1.interestAmount }
-        // 수입·카드는 항목별 합계.
+        // Sum amounts across items
         let salary = monthIncomes.reduce(0) { $0 + $1.amount }
         let card = monthCards.reduce(0) { $0 + $1.amount }
         let savings = monthSavings.reduce(0) { $0 + $1.amount }
@@ -76,9 +76,7 @@ struct ReconciliationSummary: Equatable {
             }
         }
         let recordedExpense = monthEntries.reduce(0) { $0 + $1.amount }
-        // 저축은 "실제 쓴 돈"(실제 소비)에서 제외한다. 저축으로 빠진 돈은 소비가 아니므로 잔액 변화에서
-        // 차감하고, "기록한 돈"에는 지출 기록만 남긴다. 저축을 actual에서 빼든 recorded에 더하든
-        // difference(정산 차이·판정)는 동일하게 유지된다 — 표시 숫자만 바뀐다.
+        // Calculate actual spending (excluding savings)
         let actual = opening + salary + interest + adjustmentNet + card - closing - savings
         let recorded = recordedExpense
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
@@ -106,14 +104,13 @@ struct ReconciliationSummary: Equatable {
     }
 }
 
-/// 정산 대상 달이 아직 진행 중(현재·미래 달)인지, 이미 마감된 과거 달인지.
-/// 진행 중인 달은 아직 마감 전이라 정산 차이가 의미 없으므로 '진행 중'으로만 표시한다.
+/// Lifecycle status of the target reconciliation month.
 enum ReconciliationPeriodStatus: Equatable {
     case inProgress
     case closed
 }
 
-/// 정산 결과를 사용자에게 보여줄 한 줄 판정 (제목 + 보조 설명 + 색상 톤).
+/// Presentation verdict for reconciliation results.
 struct ReconciliationVerdict: Equatable {
     enum Tone: Equatable {
         case balanced
@@ -132,9 +129,7 @@ extension ReconciliationSummary {
         return month >= currentMonth ? .inProgress : .closed
     }
 
-    /// 화면에 정산 결과를 '확정값'으로 보여줄지 여부.
-    /// - 마감된 달: 저장된 정산 데이터가 있으면 확정(잔액 변화가 없어 '정상'이어도 표시).
-    /// - 진행 중인 달: 사용자가 실제 값을 입력했을 때만 확정(프리필 노이즈 차단).
+    /// Whether to display finalized reconciliation verdict.
     func isReconciled(status: ReconciliationPeriodStatus) -> Bool {
         switch status {
         case .closed:     return hasReconciliationData
@@ -142,9 +137,7 @@ extension ReconciliationSummary {
         }
     }
 
-    /// `revealInProgressDifference`가 true면 진행 중인 달이라도 차이가 있을 때 그 차이를 보여준다
-    /// (정산 화면 전용 — 입력하면서 차이를 바로 확인). 톤은 '진행 중'(중립)으로 두어 확정 전임을 알린다.
-    /// 차이가 0이면 빈 달이 '정상'으로 오표기되지 않도록 '진행 중'으로 표시한다.
+    /// Determines headline, detail, and tone for the summary.
     func verdict(
         status: ReconciliationPeriodStatus,
         revealInProgressDifference: Bool = false
@@ -173,14 +166,12 @@ extension ReconciliationSummary {
 }
 
 extension ReconciliationVerdict {
-    /// 아직 저장된 정산 데이터가 없는 달(전월 값으로 프리필만 됐거나 빈 달)에 보여줄 중립 판정.
+    /// Default verdict when no reconciliation data exists.
     static let notReconciled = ReconciliationVerdict(tone: .inProgress, headline: "아직 정산 전", detail: "")
 }
 
 extension ReconciliationSummary {
-    /// 화면 표시용 판정. 저장된 정산 데이터가 없으면(`isReconciled == false`) 차이 대신
-    /// '아직 정산 전'을 보여준다 — 전월 값으로 프리필만 된 정산 화면과 빈 DB를 읽는 예산 탭이
-    /// 같은 달에 대해 같은 결론을 내도록 맞춘다.
+    /// Returns user-facing reconciliation verdict for display.
     func displayVerdict(
         status: ReconciliationPeriodStatus,
         isReconciled: Bool,

@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// 월 선택 행 — ◀ 현재 월(메뉴) ▶. 예산·통계 탭 공용.
-/// 화살표 한 칸의 의미(달력 인접 vs 데이터 인접)는 호출부가 정한다.
+/// Shared month selection row: ◀ Month (Menu) ▶.
 struct MonthNavigationRow<Key: Hashable>: View {
     struct Option: Identifiable {
         let key: Key

@@ -24,12 +24,12 @@ enum CashAdjustmentDirection: String, Codable, CaseIterable, Sendable {
 @Model
 final class CashAdjustment {
     var id = UUID()
-    /// YYYYMM (예: 202606)
+    /// Target month key (YYYYMM).
     var monthKey = 0
     var title = ""
     var direction = CashAdjustmentDirection.withdrawal
     var amount = 0
-    // 기존 모델에 추가된 속성 — 기존 데이터의 자동 경량 마이그레이션이 0으로 백필되도록 기본값을 둔다.
+    /// Sort order index.
     var sortOrder = 0
     var note: String?
 

@@ -149,14 +149,14 @@ struct ModelsTests {
         try ctx.save()
 
         let fetched = try ctx.fetch(FetchDescriptor<AppSettings>())
-        // 알림은 명시적 opt-in — 동의 전에는 꺼져 있어야 한다 (App Store 4.5.4).
+        // Notifications require explicit user opt-in.
         #expect(fetched.first?.reminderEnabled == false)
         #expect(fetched.first?.reminderHour == 21)
         #expect(fetched.first?.reminderMinute == 0)
         #expect(fetched.first?.csvFolderBookmark == nil)
         #expect(fetched.first?.categoryPresets.contains("식비") == true)
         #expect(fetched.first?.categoryPresets.contains("기타") == true)
-        // 2026-06 기본값 8→10 (생활·구독 추가, 리서치 기반).
+        // Default presets count.
         #expect(fetched.first?.categoryPresets.contains("생활") == true)
         #expect(fetched.first?.categoryPresets.contains("구독") == true)
         #expect(fetched.first?.categoryPresets.count == 10)

@@ -1,7 +1,6 @@
 import FoundationModels
 
-/// Apple Intelligence(SystemLanguageModel) 가용성을 사용자 친화 문구로 매핑한다.
-/// 설정/온보딩/검토 탭이 모두 같은 메시지·아이콘·심각도를 쓰도록 단일 진입점.
+/// Model representing Apple Intelligence availability status and user-facing copy.
 enum AppleIntelligenceStatus: Equatable, CaseIterable {
     case available
     case appleIntelligenceOff
@@ -30,7 +29,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
 
     var isAvailable: Bool { self == .available }
 
-    /// 상태 행에 표시되는 한 줄 라벨.
+    /// Summary title text.
     var shortLabel: String {
         switch self {
         case .available:
@@ -44,7 +43,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
         }
     }
 
-    /// 섹션 푸터/도움말에 표시되는 설명. 동작 방식, 호환 기기, 켜는 법 포함.
+    /// Detailed description text.
     var detailMessage: String {
         switch self {
         case .available:
@@ -58,7 +57,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
         }
     }
 
-    /// 짧은 안내 배지(온보딩)에서 쓰는 라벨. 꺼져 있을 때 켜는 경로를 함께 보여준다.
+    /// Status badge text.
     var badgeLabel: String {
         switch self {
         case .available:
@@ -72,7 +71,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
         }
     }
 
-    /// 검토 탭의 빈 상태/배너에 표시되는 본문.
+    /// Review screen banner text.
     var reviewTabMessage: String {
         switch self {
         case .available:
@@ -102,7 +101,7 @@ enum AppleIntelligenceStatus: Equatable, CaseIterable {
         }
     }
 
-    /// "설정 앱 열기" 행을 보여줄지 — 사용자가 시스템 설정에서 직접 켤 수 있는 경우에만.
+    /// Whether to show a direct link to system Settings.
     var offersSystemSettingsLink: Bool {
         self == .appleIntelligenceOff
     }

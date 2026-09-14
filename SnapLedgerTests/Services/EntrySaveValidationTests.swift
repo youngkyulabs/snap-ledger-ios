@@ -3,7 +3,7 @@ import Testing
 
 @MainActor
 struct EntrySaveValidationTests {
-    // MARK: - 검토(추출 결과) 저장 — 0원 차단
+    // MARK: - Review Entry Save (Blocks 0 amount)
 
     @Test func reviewRejectsEmptyMerchant() {
         #expect(!EntrySaveValidation.canSaveReview(merchant: "", amount: 5000))
@@ -21,7 +21,7 @@ struct EntrySaveValidationTests {
         #expect(EntrySaveValidation.canSaveReview(merchant: "스타벅스", amount: 5000))
     }
 
-    // MARK: - 편집(기록 수정) 저장 — 0원 허용, 음수만 차단
+    // MARK: - History Entry Save (Allows 0 amount, blocks negative)
 
     @Test func editRejectsEmptyMerchant() {
         #expect(!EntrySaveValidation.canSaveEdit(merchant: "", amount: 0))

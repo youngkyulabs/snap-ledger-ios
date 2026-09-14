@@ -193,7 +193,7 @@ struct OnboardingSetupPage: View {
         }
     }
 
-    /// 온보딩에서의 알림 선택을 모델에 반영 — 켜짐은 사용자가 직접 켜고 권한을 허용한 경우에만.
+    /// Persists onboarding notification selection to settings.
     private func persistReminderEnabled(_ value: Bool) {
         settings.reminderEnabled = value
         try? modelContext.save()

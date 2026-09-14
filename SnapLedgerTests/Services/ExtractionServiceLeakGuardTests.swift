@@ -2,15 +2,12 @@ import Foundation
 import Testing
 @testable import SnapLedger
 
-/// FoundationModels가 instructions의 예시 블록 데이터를 그대로 베껴 응답하던
-/// 환각을 막기 위한 두 가지 방어선:
-///   1) prompt 자체에 명백한 placeholder('예시상호N', '예시품목N')만 노출
-///   2) normalize에서 placeholder로 시작하는 merchant/items.name이 보이면 transaction을 통째로 drop
+/// Verifies placeholder guards preventing prompt example leakage.
 @MainActor
 struct ExtractionServiceLeakGuardTests {
     private let defaultCategories = AppSettings.defaultPresets
 
-    // MARK: - prompt 측 방어선
+    // MARK: - Prompt Placeholders
 
     @Test func instructionsUsePlaceholderTokensNotRealBrands() {
         let prompt = FoundationModelsExtractionService.instructions(
@@ -23,23 +20,22 @@ struct ExtractionServiceLeakGuardTests {
         #expect(!prompt.contains("아메리카노"))
         #expect(!prompt.contains("카페라떼"))
         #expect(!prompt.contains("쿠팡"))
-        // "Apple"은 짧고 일반적이라 정확 매치만 — 예시 머천트로는 안 쓴다는 확인.
+        // Verify Apple is not used as an example merchant.
         #expect(!prompt.contains("merchant=\"Apple\""))
     }
 
-    /// 한 결제가 여러 줄/중복 금액으로 보여도 1건으로 합치라는 anti-split 가이드와
-    /// 반례(예시상호4)가 프롬프트에 유지되는지 — 리팩터로 조용히 사라지는 것 방지.
+    /// Verifies anti-split guidance and example in prompt.
     @Test func instructionsIncludeSingleChargeMergeGuidance() {
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
         #expect(prompt.contains("1개로 합치세요"))
         #expect(prompt.contains("예시상호4"))
-        // 과병합 방지: 가맹점·시각이 다르면 같은 금액이어도 별개 거래로 유지.
+        // Anti-merge rule: keep separate transactions if merchant or time differs.
         #expect(prompt.contains("별개 거래"))
     }
 
-    // MARK: - normalize 측 방어선
+    // MARK: - Normalize Dropping
 
     @Test func normalizeDropsTransactionWithExampleMerchantToken() {
         let input = PaymentExtraction(transactions: [
@@ -98,7 +94,7 @@ struct ExtractionServiceLeakGuardTests {
     }
 
     @Test func normalizeDoesNotDropMerchantsThatMerelyContainExampleSubstring() {
-        // prefix 일치만 잡고, 본문 어딘가에 "예시상호"가 들어가는 합법 머천트는 통과.
+        // Only prefix match triggers placeholder drop.
         let input = PaymentExtraction(transactions: [
             PaymentTransaction(
                 date: "2026-05-17", amount: 5000, merchant: "한국예시상호연구소",

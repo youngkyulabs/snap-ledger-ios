@@ -4,9 +4,9 @@ import SwiftData
 @Model
 final class CategoryBudget {
     var category: String = ""
-    /// > 0: 한도 / 0: 이 달부터 한도 해제(과거 보존용 tombstone)
+    /// Monthly limit amount (0 indicates cancellation tombstone).
     var monthlyLimit: Int = 0
-    /// YYYYMM (예: 202606) — 이 달부터 적용, 다음 변경 전까지 매월 자동 반복
+    /// Effective starting month (YYYYMM).
     var effectiveFrom: Int = 0
     var updatedAt = Date.now
 

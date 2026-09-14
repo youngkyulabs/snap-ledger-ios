@@ -5,21 +5,12 @@ struct CategoryEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \CategoryPreset.sortOrder) private var presetRecords: [CategoryPreset]
-    @Query private var settingsList: [AppSettings]
     @State private var newCategoryText = ""
     @FocusState private var addFieldFocused: Bool
 
     private let store = CategoryPresetStore()
 
     private var presets: [String] { presetRecords.map(\.name) }
-
-    private var settings: AppSettings {
-        if let existing = settingsList.first { return existing }
-        let new = AppSettings()
-        modelContext.insert(new)
-        try? modelContext.save()
-        return new
-    }
 
     var body: some View {
         List {
@@ -59,7 +50,7 @@ struct CategoryEditorView: View {
                 ToolbarItem(placement: .primaryAction) { EditButton() }
             }
         }
-        // 화면 진입 시 원격 기기 변경을 캐시에 반영.
+        // Sync remote changes into local cache on appear.
         .task { store.refreshCache(cloud: modelContext, local: modelContext) }
     }
 
@@ -89,7 +80,7 @@ struct CategoryEditorView: View {
             }
             store.refreshCache(cloud: modelContext, local: modelContext)
         }
-        // 삭제된 카테고리의 예산은 이번 달부터 해제(지난 달 한도는 보존).
+        // Clear budget limit starting this month for deleted category.
         let currentMonthKey = CategoryBudgetStore.monthKey(from: Date())
         let budgetStore = CategoryBudgetStore()
         for category in removed {

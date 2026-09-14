@@ -53,7 +53,7 @@ struct BookmarkStoreTests {
     }
 
     @Test func reachableDirectoryRejectsTrashedFolder() throws {
-        // 실제로 존재하는 디렉토리지만 .Trash 안에 있으면 사용 가능한 폴더로 보지 않는다.
+        // Directories inside .Trash are considered unreachable.
         let trashed = try makeTempFolder()
             .appendingPathComponent(".Trash", isDirectory: true)
             .appendingPathComponent("MyFolder", isDirectory: true)

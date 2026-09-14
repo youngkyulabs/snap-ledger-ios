@@ -4,9 +4,7 @@ import Foundation
 import Testing
 @testable import SnapLedger
 
-/// `normalizeYear` 후처리에 대한 테스트.
-/// 모델이 instructions의 "오늘의 연도" 규칙을 무시하고 학습 분포의 이전 연도로
-/// 채우는 환각을, "결제 시점 ≈ 추출 시점" invariant로 사후 보정한다.
+/// Verifies year normalization for parsed dates.
 @MainActor
 struct ExtractionServiceYearNormalizationTests {
     private func makeDate(year: Int, month: Int, day: Int) -> Date {
@@ -17,7 +15,7 @@ struct ExtractionServiceYearNormalizationTests {
     }
 
     @Test func normalizeYearKeepsRecentPastUntouched() {
-        // 오늘이 2026-05-25일 때 같은 주의 과거 날짜는 그대로 둔다.
+        // Past date within same week remains unchanged.
         let today = makeDate(year: 2026, month: 5, day: 25)
         let out = FoundationModelsExtractionService.normalizeYear(
             "2026-05-23", today: today
@@ -26,8 +24,7 @@ struct ExtractionServiceYearNormalizationTests {
     }
 
     @Test func normalizeYearShiftsImpossibleFutureBackOneYear() {
-        // 모델이 "5/24" → "2027-05-24"로 환각하면 1년+ 미래.
-        // 카드 알림은 미래일 수 없으므로 -1년 보정.
+        // Dates > 2 days in future adjust -1 year.
         let today = makeDate(year: 2026, month: 5, day: 25)
         let out = FoundationModelsExtractionService.normalizeYear(
             "2027-05-24", today: today
@@ -36,7 +33,7 @@ struct ExtractionServiceYearNormalizationTests {
     }
 
     @Test func normalizeYearShiftsPriorYearForwardWhenNearlyAYearOld() {
-        // 모델이 "5/26" → "2025-05-26"으로 채우면 거의 1년 전. +1년 보정.
+        // Dates < -330 days in past adjust +1 year.
         let today = makeDate(year: 2026, month: 5, day: 25)
         let out = FoundationModelsExtractionService.normalizeYear(
             "2025-05-26", today: today
@@ -45,7 +42,7 @@ struct ExtractionServiceYearNormalizationTests {
     }
 
     @Test func normalizeYearAllowsSmallFutureSlackForTimezone() {
-        // 1~2일 미래는 timezone 슬랙으로 허용 (보정 없음).
+        // 1-2 days in future tolerated for timezone slack.
         let today = makeDate(year: 2026, month: 5, day: 25)
         let out = FoundationModelsExtractionService.normalizeYear(
             "2026-05-27", today: today
@@ -54,7 +51,7 @@ struct ExtractionServiceYearNormalizationTests {
     }
 
     @Test func normalizeYearAllowsModeratelyOldDates() {
-        // 한 달 전 같은 보통의 과거는 보정하지 않는다 (사용자가 늦게 처리할 수 있음).
+        // Normal past dates remain unchanged.
         let today = makeDate(year: 2026, month: 5, day: 25)
         let out = FoundationModelsExtractionService.normalizeYear(
             "2026-04-15", today: today
@@ -65,7 +62,7 @@ struct ExtractionServiceYearNormalizationTests {
     @Test func normalizeYearPreservesEmptyAndWhitespace() {
         let today = makeDate(year: 2026, month: 5, day: 25)
         #expect(FoundationModelsExtractionService.normalizeYear("", today: today).isEmpty)
-        // trim 결과가 비면 raw 그대로 리턴 (공백 보존)
+        // Empty trimmed string returns raw value.
         #expect(FoundationModelsExtractionService.normalizeYear("   ", today: today) == "   ")
     }
 
@@ -79,7 +76,7 @@ struct ExtractionServiceYearNormalizationTests {
     }
 
     @Test func normalizeYearAcceptsSlashAndDotSeparators() {
-        // 모델이 instructions를 무시하고 비표준 구분자를 줘도 후처리는 동작.
+        // Non-standard delimiters normalized properly.
         let today = makeDate(year: 2026, month: 5, day: 25)
         #expect(FoundationModelsExtractionService.normalizeYear(
             "2025/05/26", today: today) == "2026-05-26")

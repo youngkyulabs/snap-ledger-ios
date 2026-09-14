@@ -51,7 +51,7 @@ struct PendingProcessorTests {
         ctx.insert(pending)
         try ctx.save()
 
-        // OCR이 여러 가맹점·금액 후보를 갖는 영수증·푸시 텍스트라고 가정
+        // Multi-candidate OCR text fixture
         let ocr = "스타벅스\n투썸플레이스\n5,000원 일시불\n10,000원\n부가세 909"
         let extraction = PaymentExtraction(transactions: [
             PaymentTransaction(
@@ -193,8 +193,7 @@ struct PendingProcessorTests {
     }
 
     @Test func processKeepsInboxFileOnSuccess() async throws {
-        // 검토 편집 화면에서 영수증을 보여주기 위해, 성공해도 원본을 보관한다.
-        // 회수는 검토 완료 후 cleanupResolvedImages 가 담당.
+        // Original image retained until review completion.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("ok.jpg", in: inbox)
@@ -223,7 +222,7 @@ struct PendingProcessorTests {
     }
 
     @Test func processKeepsInboxFileOnFailure() async throws {
-        // 실패한 이미지는 사용자가 검토 탭 배너에서 정리할 때까지 보관한다.
+        // Failed images retained until dismissed by user.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("bad.jpg", in: inbox)
@@ -341,8 +340,7 @@ struct PendingProcessorTests {
     }
 
     @Test func processEmptyTransactionsMarksPendingFailed() async throws {
-        // OCR 텍스트에 결제 신호는 있지만 LLM 추출 결과가 비어 있는 경우
-        // ParsedEntry 를 만들지 않고 PendingImage 자체를 failed 로 표시한다.
+        // Empty LLM extraction marks PendingImage as failed.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("empty.jpg", in: inbox)
@@ -461,17 +459,17 @@ struct PendingProcessorReconcileInboxTests {
 @Suite
 struct PendingProcessorRetryEligibilityTests {
     @Test func noPaymentSignalFailureIsNotRetryable() {
-        // 결제 신호 없음은 OCR→휴리스틱이 결정적이라 재시도해도 같은 결과 — 재시도 불가.
+        // No payment signal is deterministic: non-retryable.
         #expect(PendingProcessor.isRetryable(failureMessage: PendingProcessor.noPaymentSignalReason) == false)
     }
 
     @Test func errorFailureIsRetryable() {
-        // OCR/FM 에러 등은 일시적일 수 있어 재시도 허용.
+        // System/OCR errors are retryable.
         #expect(PendingProcessor.isRetryable(failureMessage: "invalidImage") == true)
     }
 
     @Test func nilFailureIsRetryable() {
-        // 사유 미상은 안전하게 재시도 허용으로 본다.
+        // Unknown errors default to retryable.
         #expect(PendingProcessor.isRetryable(failureMessage: nil) == true)
     }
 }
@@ -501,8 +499,7 @@ struct PendingProcessorPaymentSignalGateTests {
     }
 
     @Test func processSkipsExtractionWhenOCRTextHasNoPaymentSignal() async throws {
-        // 풍경 사진의 OCR 결과처럼 결제 신호가 없는 텍스트에서는 LLM이 환각으로
-        // 가짜 거래를 만들어내더라도 게이트가 잘라내 빈 placeholder만 남아야 한다.
+        // Gating blocks hallucinated transactions on non-payment images.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("landscape.jpg", in: inbox)
@@ -525,9 +522,7 @@ struct PendingProcessorPaymentSignalGateTests {
         )
         await processor.process(pending, in: ctx)
 
-        // 결제 신호가 없는 텍스트는 처음부터 LLM 호출도 안 하고, ParsedEntry 도
-        // 만들지 않는다. PendingImage 만 failed 로 표시되어 검토 탭 배너에 카운트로
-        // 노출된다 — 환각 가맹점이 검토 항목에 새지 않음을 보증.
+        // Non-payment images skip LLM and mark PendingImage as failed.
         #expect(pending.state == .failed)
         #expect(pending.failureMessage == PendingProcessor.noPaymentSignalReason)
         let parsed = try ctx.fetch(FetchDescriptor<ParsedEntry>())
@@ -535,7 +530,7 @@ struct PendingProcessorPaymentSignalGateTests {
     }
 
     @Test func processCallsExtractionWhenOCRTextHasPaymentSignal() async throws {
-        // OCR에 결제 신호가 보이면 게이트 통과 — 정상 추출 흐름.
+        // OCR text with payment signals passes gating.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("receipt.jpg", in: inbox)

@@ -2,7 +2,7 @@
 import Foundation
 import SwiftData
 
-/// 시딩 결과 건수(알럿 표시·테스트용).
+/// Counts of inserted sample entities.
 struct SampleSeedCounts: Equatable {
     let expenses: Int
     let reconciliationMonths: Int
@@ -10,7 +10,7 @@ struct SampleSeedCounts: Equatable {
     let reviewItems: Int
 }
 
-/// 임베드 샘플 데이터를 SwiftData에 적용/클리어한다. 멱등: seed는 항상 clear 후 삽입.
+/// Idempotent seeder applying sample data fixtures to SwiftData.
 @MainActor
 struct SampleDataSeeder {
     private let reconciliationStore = ReconciliationStore()
@@ -63,7 +63,7 @@ struct SampleDataSeeder {
     private func seedExpenses(into context: ModelContext) throws -> Int {
         var seeds = SampleDataParsing.parseExpenses(SampleDataFixtures.expenses202605)
         seeds += SampleDataParsing.parseExpenses(SampleDataFixtures.expenses202606)
-        // 같은 날 항목들이 CSV 순서대로 최근 기록 탭에 보이도록 savedAt을 단조 증가시킨다.
+        // Monotonic savedAt ensures predictable display ordering
         let base = Date(timeIntervalSince1970: 1_700_000_000)
         for (index, seed) in seeds.enumerated() {
             context.insert(SavedEntry(
@@ -99,7 +99,7 @@ struct SampleDataSeeder {
     @discardableResult
     private func seedReview(into context: ModelContext) throws -> Int {
         let seeds = SampleDataFixtures.reviewSeeds
-        // createdAt을 단조 감소 — index 0이 가장 최신(검토 탭 상단)
+        // Monotonic createdAt ensures reverse-chronological order
         let base = Date(timeIntervalSince1970: 1_750_000_000)
         var inserted = 0
         for (index, seed) in seeds.enumerated() {

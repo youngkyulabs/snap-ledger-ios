@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - 항목 편집 시트 (수입·저축·카드 공용)
+// MARK: - Item Editor Sheet (Income, Savings, Card Usage)
 
 struct ReconciliationItemEditor: View {
     let navTitle: String
@@ -53,7 +53,7 @@ struct ReconciliationItemEditor: View {
     }
 }
 
-// MARK: - 계좌 편집 시트
+// MARK: - Account Balance Editor Sheet
 
 struct ReconciliationAccountEditor: View {
     let initial: BalanceDraft?
@@ -106,7 +106,7 @@ struct ReconciliationAccountEditor: View {
     }
 }
 
-// MARK: - 자금변동 편집 시트
+// MARK: - Cash Adjustment Editor Sheet
 
 struct ReconciliationAdjustmentEditor: View {
     let initial: AdjustmentDraft?
@@ -158,14 +158,13 @@ struct ReconciliationAdjustmentEditor: View {
     }
 }
 
-// MARK: - 공용 헬퍼
+// MARK: - Shared Helpers
 
 private func reconciliationMoneyField(_ title: String, value: Binding<Int>) -> some View {
     HStack {
         Text(title)
         Spacer()
-        // 검토·수정 팝업과 동일한 value+format 방식. 입력 중에도 천 단위 콤마가 즉시 적용된다.
-        // (이전의 text 바인딩 방식은 편집 중 포맷 문자열이 필드에 다시 반영되지 않아 콤마가 안 보였다.)
+        // Formatted amount TextField with comma grouping.
         TextField("0", value: reconciliationAmountValue(value), format: .number)
             .keyboardType(.numberPad)
             .multilineTextAlignment(.trailing)
@@ -175,7 +174,7 @@ private func reconciliationMoneyField(_ title: String, value: Binding<Int>) -> s
     }
 }
 
-/// 0을 빈 칸(placeholder "0")으로 보여주려고 Int?로 감싼다 (검토·수정 팝업의 amountBinding과 동일).
+/// Wraps 0 as nil for clean placeholder display.
 private func reconciliationAmountValue(_ value: Binding<Int>) -> Binding<Int?> {
     Binding(
         get: { value.wrappedValue == 0 ? nil : value.wrappedValue },

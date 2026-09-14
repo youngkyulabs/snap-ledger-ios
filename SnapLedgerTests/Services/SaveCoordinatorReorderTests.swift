@@ -41,7 +41,7 @@ struct SaveCoordinatorReorderTests {
         let base: Date
     }
 
-    /// 같은 날짜에 A→B→C 순으로 저장된 세 항목을 만들고 savedAt을 결정적으로 부여한다.
+    /// Creates three entries on same date with deterministic savedAt timestamps.
     private func makeThreeEntries(
         coord: SaveCoordinator,
         in ctx: ModelContext
@@ -73,16 +73,16 @@ struct SaveCoordinatorReorderTests {
         let coord = SaveCoordinator(categoryLearner: CategoryLearner())
         let fx = try makeThreeEntries(coord: coord, in: ctx)
 
-        // 표시(내림차순)는 [C, B, A]. C와 B를 바꿔 [B, C, A]로 재배열.
+        // Reorder [C, B, A] to [B, C, A]
         try coord.reorder([fx.b, fx.c, fx.a], in: ctx)
 
         #expect(fx.b.savedAt > fx.c.savedAt)
         #expect(fx.c.savedAt > fx.a.savedAt)
-        // 새 savedAt은 기존 값들의 순열 — 다른 날·다른 달과 간섭하지 않는다.
+        // New savedAt is a permutation of existing timestamps
         let expected = Set([fx.base, fx.base.addingTimeInterval(60), fx.base.addingTimeInterval(120)])
         #expect(Set([fx.a.savedAt, fx.b.savedAt, fx.c.savedAt]) == expected)
 
-        // CSV는 savedAt 오름차순으로 다시 쓰인다 → 행 순서 [A, C, B].
+        // CSV rewritten in ascending savedAt order
         let csv = try String(
             contentsOf: folder.appendingPathComponent("expenses-2026-05.csv"),
             encoding: .utf8
@@ -93,24 +93,23 @@ struct SaveCoordinatorReorderTests {
         #expect(merchants == ["A", "C", "B"])
     }
 
-    // Phase 2: CloudKit이 진실원 — CSV 쓰기가 실패해도(읽기 전용 폴더) reorder는 성공하고
-    // 새 순서가 DB에 영속된다. CSV export는 best-effort라 순서를 롤백하지 않는다.
+    // Best-effort CSV export failure does not roll back reordering.
     @Test func reorderSucceedsWhenCSVWriteFails() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
         let coord = SaveCoordinator(categoryLearner: CategoryLearner())
         let fx = try makeThreeEntries(coord: coord, in: ctx)
 
-        // 폴더를 읽기 전용으로 만들어 CSV 쓰기를 실패시킨다.
+        // Make folder read-only to trigger CSV write failure
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
         }
 
-        // throw 없이 성공해야 한다.
+        // Reorder succeeds without throwing
         try coord.reorder([fx.b, fx.c, fx.a], in: ctx)
 
-        // 새 순서가 적용된다(CSV 실패와 무관). 새 savedAt은 기존 값들의 순열.
+        // Updated order persisted in database despite CSV failure
         #expect(fx.b.savedAt > fx.c.savedAt)
         #expect(fx.c.savedAt > fx.a.savedAt)
         let expected = Set([fx.base, fx.base.addingTimeInterval(60), fx.base.addingTimeInterval(120)])

@@ -1,14 +1,12 @@
 import SwiftUI
 
-/// 검토 탭 예산 토스트 한 건. 매번 새 id를 받아, 같은 라인을 다시 띄워도
-/// `.task(id:)` 자동닫기 타이머가 현재 표시 항목에 새로 묶이도록 한다.
+/// Budget threshold toast item.
 struct BudgetToastItem: Identifiable {
     let id = UUID()
     let line: BudgetProgress.Line
 }
 
-/// 저장 직후 예산 임계(near/over)를 알리는 하단 플로팅 캡슐 토스트.
-/// 아이콘·퍼센트만 상태색(임박 주황 / 초과 빨강)으로 강조하고 나머지는 차분하게 둔다.
+/// Floating capsule toast view for budget threshold warnings.
 struct BudgetToastView: View {
     let line: BudgetProgress.Line
     var onDismiss: () -> Void
@@ -52,7 +50,7 @@ private struct BudgetToastModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // 리스트 위에 떠서 표시(overlay) — 레이아웃을 밀지 않아 저장 때마다 화면이 덜컹이지 않는다.
+            // Floating overlay at the bottom
             .overlay(alignment: .bottom) {
                 if let item {
                     BudgetToastView(line: item.line) { dismiss() }
@@ -61,16 +59,14 @@ private struct BudgetToastModifier: ViewModifier {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            // 자동닫기 타이머를 현재 항목 id에 묶는다. 새 토스트가 뜨면 이전 타이머가
-            // 취소되고(이전 타이머가 새 토스트를 닫지 않음) 새로 시작한다.
+            // Auto-dismiss timer after 4 seconds
             .task(id: item?.id) {
                 guard item != nil else { return }
                 try? await Task.sleep(for: .seconds(4))
                 guard !Task.isCancelled else { return }
                 dismiss()
             }
-            // 검토 탭을 벗어나면 타이머가 취소되므로, 떠날 때 즉시 비운다.
-            // (안 그러면 4초 전 탭 전환 후 돌아왔을 때 토스트가 그대로 남는다.)
+            // Reset toast when leaving the view
             .onDisappear { item = nil }
     }
 
@@ -80,7 +76,7 @@ private struct BudgetToastModifier: ViewModifier {
 }
 
 extension View {
-    /// 검토 탭 하단에 예산 임계 토스트를 띄운다(item이 nil이면 숨김, 4초 후 자동닫기).
+    /// ViewModifier presenting a budget threshold toast.
     func budgetToast(_ item: Binding<BudgetToastItem?>, reduceMotion: Bool) -> some View {
         modifier(BudgetToastModifier(item: item, reduceMotion: reduceMotion))
     }

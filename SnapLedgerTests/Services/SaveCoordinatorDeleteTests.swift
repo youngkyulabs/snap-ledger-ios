@@ -80,8 +80,7 @@ struct SaveCoordinatorDeleteTests {
         #expect(jun.contains("2026-06-01,Jun,,1000"))
     }
 
-    // Phase 2: CloudKit이 진실원 — CSV 쓰기가 실패해도(읽기 전용 폴더) delete는 성공하고
-    // 삭제가 DB에 영속된다. CSV export는 best-effort라 삭제를 롤백하지 않는다.
+    // Best-effort CSV export failure does not roll back database delete.
     @Test func deleteSucceedsWhenCSVWriteFails() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
@@ -94,16 +93,16 @@ struct SaveCoordinatorDeleteTests {
         try coord.save(entry, in: ctx)
         let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
 
-        // 폴더를 읽기 전용으로 만들어 CSV 쓰기를 실패시킨다.
+        // Make folder read-only to trigger CSV write failure
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
         }
 
-        // throw 없이 성공해야 한다.
+        // Deletion succeeds without throwing
         try coord.delete(saved, in: ctx)
 
-        // CSV 쓰기 실패와 무관하게 삭제는 DB에 영속된다.
+        // Deletion persisted in database despite CSV failure
         let remaining = try ModelContext(ctx.container).fetch(FetchDescriptor<SavedEntry>())
         #expect(remaining.isEmpty)
     }

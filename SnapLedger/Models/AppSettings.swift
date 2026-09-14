@@ -4,23 +4,20 @@ import SwiftData
 @Model
 final class AppSettings {
     var csvFolderBookmark: Data?
-    /// 알림은 명시적 opt-in. 사용자가 직접 켜고 권한을 허용해야만 true가 된다 (App Store 4.5.4).
+    /// Whether reminder notifications are enabled.
     var reminderEnabled: Bool = false
     var reminderHour: Int
     var reminderMinute: Int
     var categoryPresets: [String]
     var customExtractionGuide: String = ""
     var hasCompletedOnboarding: Bool = false
-    /// 기존 사용자의 예산·카테고리를 CloudKit 스토어로 1회성 이전했는지.
-    /// 한 번 true가 되면, 사용자가 카테고리를 전부 지워도 재시드하지 않도록 이 플래그로만 가드한다.
+    /// Whether budgets and category presets have migrated to CloudKit.
     var hasMigratedToCloudStore: Bool = false
-    /// 기존 사용자의 지출(SavedEntry)을 CloudKit 스토어로 1회성 이전했는지.
-    /// Phase 1 플래그와 분리 — Phase 1 사용자는 hasMigratedToCloudStore가 이미 true라
-    /// 재사용하면 지출 이전이 실행되지 않는다.
+    /// Whether saved entries have migrated to CloudKit.
     var hasMigratedEntriesToCloudStore: Bool = false
-    /// Phase 3: 정산 6종을 CloudKit 스토어로 이전 완료했는지. 독립 가드.
+    /// Whether reconciliation records have migrated to CloudKit.
     var hasMigratedReconciliationToCloudStore: Bool = false
-    /// Phase 3: MerchantCategory를 CloudKit 스토어로 이전 완료했는지. 독립 가드.
+    /// Whether merchant category mappings have migrated to CloudKit.
     var hasMigratedMerchantsToCloudStore: Bool = false
 
     init(

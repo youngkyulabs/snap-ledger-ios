@@ -1,9 +1,7 @@
 import Foundation
 import SwiftData
 
-/// SwiftData(CloudKit 진실원)를 월별 CSV로 **한 방향 내보내기**한다.
-/// CloudKit이 모든 영속 데이터의 진실원이므로 CSV는 AI 분석·백업용 추출물이다.
-/// 파일→앱 import·외부 변경 감지·충돌 해소는 Phase 4에서 제거됐다.
+/// One-way exporter from SwiftData to monthly CSV files.
 @MainActor
 struct SyncCoordinator {
     enum SyncError: Error, LocalizedError {
@@ -21,8 +19,7 @@ struct SyncCoordinator {
         }
     }
 
-    /// 저장 폴더에 실제 접근 가능한지. bookmark는 있으나 폴더가 삭제/이동된 경우 false.
-    /// 폴더 미설정이면 nil.
+    /// Checks whether storage folder bookmark is reachable.
     func isFolderReachable(in context: ModelContext) -> Bool? {
         guard let settings = try? CSVFolderAccess.fetchOrCreateSettings(in: context),
               let bookmark = settings.csvFolderBookmark else {
@@ -37,9 +34,9 @@ struct SyncCoordinator {
         return BookmarkStore.isReachableDirectory(url)
     }
 
-    // MARK: - Export (앱 → 파일, 한 방향)
+    // MARK: - Export (App -> Files, One-way)
 
-    /// 앱에 있는 모든 지출·정산 달을 폴더로 내보낸다(수동 전체 내보내기·새 폴더 백필용).
+    /// Backfills all months to CSV files in the storage folder.
     func exportAll(in context: ModelContext) throws {
         let savedKeys = Set(
             ((try? context.fetch(FetchDescriptor<SavedEntry>())) ?? [])
@@ -55,7 +52,7 @@ struct SyncCoordinator {
         }
     }
 
-    /// 폴더를 이미 연 호출자(`SaveCoordinator`)용. security scope를 새로 열지 않는다.
+    /// Rewrites expense CSV files for specified months.
     func exportMonths(_ keys: [String], folderURL: URL, in context: ModelContext) throws {
         let writer = CSVWriter(folder: folderURL)
         let allSaved = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
@@ -76,10 +73,9 @@ struct SyncCoordinator {
         }
     }
 
-    // MARK: - 폴더 접근
+    // MARK: - Folder Access
 
-    /// 폴더 접근(resolve·scope·도달성·stale 갱신)은 `CSVFolderAccess`에 위임하고,
-    /// 그 중립 에러를 사용자 노출용 `SyncError`로 매핑한다.
+    /// Provides scoped access to the configured storage folder.
     private func withFolder<T>(
         in context: ModelContext,
         _ body: (URL, ModelContext) throws -> T

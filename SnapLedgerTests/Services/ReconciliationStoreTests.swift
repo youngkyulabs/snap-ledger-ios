@@ -17,12 +17,12 @@ struct ReconciliationStoreTests {
     @Test func saveKeepsNewDataWhenCSVWriteFails() throws {
         let context = try makeContext()
 
-        // 기존 저장 데이터(2026-06)가 있다.
+        // Existing saved data for 2026-06
         context.insert(MonthlyReconciliation(monthKey: 202_606))
         context.insert(IncomeItem(monthKey: 202_606, title: "기존", amount: 111, sortOrder: 0))
         try context.save()
 
-        // 폴더를 읽기 전용으로 만들어 CSV 쓰기를 실패시킨다.
+        // Make folder read-only to trigger CSV write failure
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReconReadonly-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -37,11 +37,11 @@ struct ReconciliationStoreTests {
         var draft = ReconciliationDraft()
         draft.incomes = [IncomeItemDraft(title: "새값", amount: 999)]
 
-        // CloudKit이 진실원 — CSV 쓰기 실패는 best-effort라 저장(DB)은 성공하고, export 실패만 false로 보고한다.
+        // Best-effort CSV export failure does not fail DB save
         let exported = try ReconciliationStore().save(draft, month: 202_606, in: context)
         #expect(exported == false)
 
-        // DB는 새 값으로 갱신된다 (롤백 없음).
+        // Database remains updated without rollback
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>()).filter { $0.monthKey == 202_606 }
         #expect(incomes.count == 1)
         #expect(incomes.first?.title == "새값")
@@ -67,22 +67,22 @@ struct ReconciliationStoreTests {
 
         let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
 
-        // 전월 수입 항목이 이름·금액 그대로 이월된다.
+        // Prior month income carried forward with title and amount
         #expect(draft.incomes.map(\.amount).reduce(0, +) == 3_000_000)
         #expect(draft.incomes.first?.title == "월급")
-        // 전월 카드는 이름만 이월되고 금액은 0으로 비운다(매월 변동).
+        // Prior month cards carried forward with title and 0 amount
         #expect(draft.cards.first?.title == "신한카드")
         #expect(draft.cards.map(\.amount).reduce(0, +) == 0)
         #expect(draft.savings.map(\.amount).reduce(0, +) == 500_000)
         #expect(draft.savings.first?.title == "적금")
         #expect(draft.balances.count == 1)
         #expect(draft.balances.first?.accountName == "입출금")
-        // 전월 기말이 이번 달 기초로 이월되고, 이자는 0으로 초기화된다.
+        // Closing balance carried forward as opening balance; interest reset to 0
         #expect(draft.balances.first?.opening == 2_000_000)
         #expect(draft.balances.first?.closing == 2_000_000)
         #expect(draft.balances.first?.interest == 0)
 
-        // 불러오기만으로는 이번 달(202606)에 아무것도 영속화되지 않아야 한다.
+        // Draft load alone must not persist any entities
         let reconciliations = try context.fetch(FetchDescriptor<MonthlyReconciliation>())
         #expect(!reconciliations.contains { $0.monthKey == 202_606 })
         let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
@@ -98,12 +98,12 @@ struct ReconciliationStoreTests {
         context.insert(CardUsageItem(monthKey: 202_605, title: "현대", amount: 200_000, sortOrder: 1))
         try context.save()
 
-        // 다음 달은 비어 있으므로 카드 항목은 이름만 이월되고 금액은 0으로 비운다.
+        // Next month cards prefilled with title and 0 amount
         let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(draft.cards.map(\.title) == ["신한", "현대"])
         #expect(draft.cards.map(\.amount) == [0, 0])
 
-        // 저장하면 카드 항목으로 영속화된다.
+        // Saving persists card items
         try ReconciliationStore().save(draft, month: 202_606, in: context)
         let cards = try context.fetch(FetchDescriptor<CardUsageItem>())
             .filter { $0.monthKey == 202_606 }
@@ -119,12 +119,12 @@ struct ReconciliationStoreTests {
         context.insert(IncomeItem(monthKey: 202_605, title: "보너스", amount: 500_000, sortOrder: 1))
         try context.save()
 
-        // 다음 달은 비어 있으므로 수입 항목이 이름·금액 그대로 이월된다.
+        // Next month income prefilled with title and amount
         let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(draft.incomes.map(\.title) == ["월급", "보너스"])
         #expect(draft.incomes.map(\.amount) == [3_000_000, 500_000])
 
-        // 저장하면 수입 항목으로 영속화된다.
+        // Saving persists income items
         try ReconciliationStore().save(draft, month: 202_606, in: context)
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
             .filter { $0.monthKey == 202_606 }
@@ -142,14 +142,14 @@ struct ReconciliationStoreTests {
             AdjustmentDraft(title: "가족 송금", direction: .deposit, amount: 50_000, note: nil, sortOrder: 2),
         ]
 
-        // 폴더 미설정이라 앱에만 저장되지만 DB 영속화·정렬은 동일하게 검증된다.
+        // Unconfigured folder still tests persistence and ordering
         try ReconciliationStore().save(draft, month: 202_606, in: context)
 
-        // draft 배열 순서가 sortOrder로 보존돼 같은 순서로 다시 불러와진다 (이름순 자동정렬 아님).
+        // Array order preserved via sortOrder
         let reloaded = ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(reloaded.adjustments.map(\.title) == ["환급", "전월 카드대금", "가족 송금"])
 
-        // 첫 항목을 끝으로 옮긴 뒤 저장 → 새 순서가 그대로 보존된다.
+        // Reordering items preserves updated order
         var moved = reloaded
         moved.adjustments.append(moved.adjustments.removeFirst())
         try ReconciliationStore().save(moved, month: 202_606, in: context)
@@ -180,8 +180,8 @@ struct ReconciliationStoreTests {
 
         let exported = try ReconciliationStore().save(draft, month: 202_606, in: context)
 
-        #expect(exported == false) // 폴더 미설정 → 앱에만 저장
-        // 수입은 항목으로 영속화된다.
+        #expect(exported == false) // Unconfigured folder -> app-only save
+        // Income is persisted as IncomeItem
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
         #expect(incomes.first { $0.monthKey == 202_606 }?.amount == 2_000_000)
         let balances = try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
@@ -220,7 +220,7 @@ struct ReconciliationStoreTests {
         try context.save()
 
         let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
-        // 이름·방향은 이월되고 금액은 0으로 비운다.
+        // Titles and directions carried forward with 0 amount
         #expect(draft.adjustments.map(\.title) == ["전월 카드대금", "환급"])
         #expect(draft.adjustments.map(\.direction) == [.withdrawal, .deposit])
         #expect(draft.adjustments.map(\.amount) == [0, 0])

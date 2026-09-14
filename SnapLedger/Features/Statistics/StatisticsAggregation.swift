@@ -29,7 +29,7 @@ enum StatisticsAggregation {
         let ratioFromPrevious: Double?
     }
 
-    /// 스택 추세 차트용 — (달, 카테고리)마다 한 포인트.
+    /// Stacked trend chart data point for (month, category).
     struct CategoryTrendPoint: Identifiable, Equatable {
         let monthID: DateComponents
         let shortTitle: String
@@ -141,10 +141,7 @@ enum StatisticsAggregation {
 
         guard trimLeadingZeros else { return raw }
 
-        // 앞쪽의 0 슬롯(아직 기록이 없던 달)은 잘라낸다. 중간에 끼인 0은
-        // "이 달은 기록을 안 했다"는 사실을 보여주기 위해 유지한다.
-        // 트림 후의 첫 슬롯은 직전 0 슬롯과 비교한 delta가 의미 없으므로
-        // "기준 월"로 리셋한다.
+        // Trim leading empty months while preserving intermediate zero months.
         let trimmed = Array(raw.drop { $0.total == 0 })
         guard let first = trimmed.first else { return [] }
         let resetFirst = TrendPoint(
@@ -157,7 +154,7 @@ enum StatisticsAggregation {
         return [resetFirst] + trimmed.dropFirst()
     }
 
-    /// 추세 윈도의 (lookupKey, 슬롯 시작일) 목록 — 오래된 달부터.
+    /// Month intervals for trend window ordered from oldest to newest.
     private static func windowSlots(
         limit: Int,
         referenceDate: Date,
@@ -209,13 +206,13 @@ enum StatisticsAggregation {
             }
     }
 
-    /// 항목의 표시용 카테고리 이름 (nil·빈 값은 "미분류"). 슬라이스·필터가 같은 규칙을 쓴다.
+    /// Display category label, defaulting to uncategorized if empty.
     static func displayCategory(for category: String?) -> String {
         let trimmed = category?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? uncategorizedLabel : trimmed
     }
 
-    /// 카테고리 상세 시트용 — 해당 달(YYYYMM 키)·카테고리의 항목만 추린다.
+    /// Filters entries matching the specified month and category.
     static func filteredEntries(
         _ entries: [SavedEntry],
         category: String,
@@ -228,9 +225,7 @@ enum StatisticsAggregation {
         }
     }
 
-    /// 스택 추세 차트용 — 윈도 안의 (달, 카테고리)별 합계 포인트. 기록 없는 달은
-    /// 포인트를 만들지 않는다 (x축 라벨은 호출부가 도메인으로 고정).
-    /// 막대 안 스택 순서가 달마다 흔들리지 않게, 달 안에서는 윈도 합계 내림차순으로 늘어놓는다.
+    /// Computes stacked trend chart data points within the window.
     static func categoryTrend(
         months: [MonthlyStats],
         limit: Int = 6,
@@ -272,7 +267,7 @@ enum StatisticsAggregation {
         return points
     }
 
-    /// 추세 필터 메뉴용 — 윈도 합계 내림차순(동률은 이름순) 카테고리 목록.
+    /// Categories ordered by total window spending descending.
     static func trendCategories(in points: [CategoryTrendPoint]) -> [String] {
         var totals: [String: Int] = [:]
         for point in points {
@@ -290,15 +285,8 @@ enum StatisticsAggregation {
             .map(\.key)
     }
 
-    /// 카테고리에 매길 색 팔레트 인덱스(0..<paletteCount)를 정한다.
-    /// presets 에 등록된 카테고리는 그 순서(인덱스)로 — 같은 카테고리는 항상 같은 색이면서
-    /// 등록 순서가 다르면 색도 퍼진다. 등록 안 된 카테고리(가져온 CSV의 임의 카테고리,
-    /// 학습된 가맹점 카테고리 등)는 이름의 결정적 해시로 fallback 한다.
-    ///
-    /// `String.hashValue` 는 쓰지 않는다 — Swift 는 해시 DoS 방어로 프로세스 실행마다
-    /// 랜덤 시드를 적용해, 같은 이름이라도 앱을 재시작할 때마다 값이 바뀐다. 그러면
-    /// presets 에 없는 카테고리의 색이 실행마다 달라진다. UTF8 바이트 기반 djb2 해시는
-    /// 프로세스 간 안정적이라 색이 고정된다.
+    /// Computes deterministic color palette index (0..<paletteCount) for a category.
+    /// Presets use their index order; off-list categories fallback to djb2 hash for stability across launches.
     static func colorIndex(for category: String, presets: [String], paletteCount: Int) -> Int {
         guard paletteCount > 0 else { return 0 }
         if let preset = presets.firstIndex(of: category) {

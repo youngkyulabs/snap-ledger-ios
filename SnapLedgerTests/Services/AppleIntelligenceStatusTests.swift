@@ -80,7 +80,7 @@ struct AppleIntelligenceStatusTests {
         }
     }
 
-    /// "자동 추출"이 canonical term. "자동 인식 / 자동으로 분류"같은 옛 표현이 새어 들어오면 잡는다.
+    /// Verifies canonical phrasing for Apple Intelligence status.
     @Test func unifiedTerminology() {
         let allMessages: [String] = AppleIntelligenceStatus.allCases.flatMap {
             [$0.shortLabel, $0.detailMessage, $0.badgeLabel, $0.reviewTabMessage]

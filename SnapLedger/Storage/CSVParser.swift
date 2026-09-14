@@ -3,8 +3,7 @@ import Foundation
 enum CSVParser {
     struct Output: Equatable {
         let rows: [[String]]
-        /// 파일 끝까지 닫히지 않은 따옴표가 있었는지 — 외부 편집기에서
-        /// 구조가 깨진 파일의 신호. 이후 행들이 한 필드로 뭉개졌을 수 있다.
+        /// Indicates whether an unclosed quote was encountered at EOF.
         let hasUnterminatedQuote: Bool
     }
 

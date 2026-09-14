@@ -24,7 +24,7 @@ struct HistoryView: View {
     }
 
     private var displayedMonths: [HistoryGrouping.MonthGroup] {
-        // 검색 중엔 페이지네이션을 우회하고 매칭되는 모든 달을 보여준다.
+        // Bypass pagination during active search to display all matches.
         isSearching ? allMonths : Array(allMonths.prefix(monthsBack + 1))
     }
 
@@ -48,14 +48,14 @@ struct HistoryView: View {
                 }
             }
             .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: allMonths.isEmpty)
-            // 표준 .searchable — 큰 제목 아래에 검색창이 놓이고, 위로 스크롤하면 함께 접혀 숨는다.
+            // Standard searchable collapses on scroll.
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: "설명·카테고리·메모·금액 검색"
             )
             .toolbar {
-                // 1개월일 때도 월별 보기로 진입할 수 있어야 CSVFileView에 도달 가능.
+                // Allow navigation to monthly CSV viewer.
                 if !entries.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
@@ -78,7 +78,7 @@ struct HistoryView: View {
                     month: month,
                     editingEntry: $editingEntry,
                     onMove: moveEntries,
-                    // 검색 중엔 보이는 부분집합만 재정렬되어 안 보이는 항목까지 순서가 흔들리므로 막는다.
+                    // Disable reordering while search filter is active.
                     reorderEnabled: !isSearching
                 )
             }
@@ -86,8 +86,7 @@ struct HistoryView: View {
             footerSection
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
-        // sheet을 부모 레벨에 두어야 자식(MonthSections)이 무한 스크롤이나
-        // SwiftData @Query 갱신으로 재구성될 때도 dismiss되지 않는다.
+        // Sheet at parent level avoids accidental dismissal during query updates.
         .sheet(item: $editingEntry) { entry in
             SavedEntryEditorView(entry: entry)
         }
@@ -103,7 +102,7 @@ struct HistoryView: View {
     @ViewBuilder
     private var footerSection: some View {
         if isSearching {
-            // 검색 결과에는 '더 보기'/'끝까지 봤어요' 푸터를 숨긴다.
+            // Hide pagination footer during active search.
             EmptyView()
         } else if isLoadingMore {
             Section {
@@ -125,9 +124,7 @@ struct HistoryView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                    // monthsBack 변경 시 새 view 인스턴스로 재생성되도록 강제.
-                    // 그래야 SwiftUI lazy 캐싱에 막히지 않고 사용자가 다시
-                    // 스크롤 끝에 도달했을 때 onAppear가 재발화한다.
+                    // Force view identity update to retrigger onAppear on pagination.
                     .id("trigger-\(monthsBack)")
                     .onAppear(perform: loadMoreIfNeeded)
             }
@@ -147,8 +144,7 @@ struct HistoryView: View {
         guard hasMore, !isLoadingMore else { return }
         Task {
             isLoadingMore = true
-            // 즉시 추가되면 사용자가 "방금 더 불러왔구나"를 인지할 시간이 없어
-            // 의도적 딜레이를 둔다. ProgressView가 잠깐 보였다가 새 달이 등장.
+            // Brief delay provides visible feedback before appending next month.
             try? await Task.sleep(for: .milliseconds(400))
             withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
                 monthsBack += 1
@@ -161,10 +157,9 @@ struct HistoryView: View {
 struct MonthSections: View {
     let month: HistoryGrouping.MonthGroup
     @Binding var editingEntry: SavedEntry?
-    /// 같은 날짜 안 드래그 이동 (행을 꾹 눌러 재정렬). day 섹션별 ForEach에 붙어 섹션 간 이동은 불가능.
+    /// Drag-and-drop reordering restricted to the same calendar day.
     let onMove: (HistoryGrouping.DayGroup, IndexSet, Int) -> Void
-    /// 전체가 보일 때만 재정렬 허용. 검색 등 부분집합만 보이는 화면에선 false로 막는다
-    /// (기본값 true — 월별 상세처럼 항상 전체를 보여주는 화면용).
+    /// Reordering enabled only when displaying the full list without active search.
     var reorderEnabled = true
 
     var body: some View {
@@ -317,7 +312,7 @@ struct PastMonthDetailView: View {
     }
 }
 
-/// 드래그 순서 변경의 저장 흐름 (최근 기록·월별 상세 공용).
+/// Coordinates saving updated entry ordering.
 @MainActor
 private enum EntryReorderAction {
     static func perform(

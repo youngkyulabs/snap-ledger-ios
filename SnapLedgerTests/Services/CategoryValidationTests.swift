@@ -1,8 +1,7 @@
 import Testing
 @testable import SnapLedger
 
-/// `CategoryValidation.isOffPreset` — 카테고리가 presets 밖(목록에 없음)인지.
-/// 검토·수정 화면 off-list 경고의 단일 기준이다.
+/// Verifies off-preset category detection.
 struct CategoryValidationTests {
     private let presets = ["식비", "카페", "기타"]
 
@@ -15,7 +14,7 @@ struct CategoryValidationTests {
     }
 
     @Test func whitespaceOnlyIsNotOffPreset() {
-        // 미지정에 준하는 공백만 값은 경고하지 않는다.
+        // Empty/whitespace categories do not trigger off-preset warning.
         #expect(CategoryValidation.isOffPreset("   ", presets: presets) == false)
     }
 

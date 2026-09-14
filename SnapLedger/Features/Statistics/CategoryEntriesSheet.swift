@@ -1,17 +1,16 @@
 import SwiftUI
 import SwiftData
 
-/// 통계·예산 탭에서 카테고리를 탭했을 때 보여줄 대상 (그 달 + 카테고리).
+/// Context for category drill-down sheet (month key and category).
 struct CategoryEntriesDetail: Identifiable, Equatable {
     let category: String
-    /// YYYYMM 정수 키 (`CategoryBudgetStore.monthKey`와 동일 규칙).
+    /// Month integer key (YYYYMM).
     let monthKey: Int
 
     var id: String { "\(monthKey)-\(category)" }
 }
 
-/// 한 달·한 카테고리의 항목 리스트 시트. 통계 탭 '카테고리별 합계'와
-/// 예산 탭 카테고리 행에서 공용으로 쓴다.
+/// Sheet displaying entries for a single category in a given month.
 struct CategoryEntriesSheet: View {
     let detail: CategoryEntriesDetail
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]

@@ -117,7 +117,7 @@ struct StatisticsAggregationTests {
             calendar: kst,
             trimLeadingZeros: false
         )
-        // 차트용 호출. 앞쪽 0도 그대로 살아있다.
+        // Chart retains leading zero months.
         #expect(trend.count == 6)
         #expect(trend.map { $0.id.month } == [12, 1, 2, 3, 4, 5])
         #expect(trend[0].total == 0)
@@ -139,11 +139,11 @@ struct StatisticsAggregationTests {
             calendar: kst
         )
         // [12-2025, 1-2026, 2-2026, 3, 4, 5] = [0, 0, 0, 10000, 15000, 12000]
-        // 앞 3개월(12·1·2)은 트림되어 3·4·5월만 남는다.
+        // Leading 3 zero months are trimmed.
         #expect(trend.count == 3)
         #expect(trend[0].id.month == 3)
         #expect(trend[0].total == 10_000)
-        // 트림 후 첫 슬롯은 직전 비교가 무의미하므로 기준 월로 리셋된다.
+        // First slot after trimming resets delta to nil.
         #expect(trend[0].deltaFromPrevious == nil)
         #expect(trend[0].ratioFromPrevious == nil)
         #expect(trend[1].deltaFromPrevious == 5000)
@@ -153,7 +153,7 @@ struct StatisticsAggregationTests {
     }
 
     @Test func trendKeepsInteriorZeroMonths() {
-        // 3월 데이터, 4월 기록 없음, 5월 데이터 → 4월의 0은 트림되지 않고 유지된다.
+        // Intermediate zero months are preserved.
         let entries = [
             entry(2026, 3, 1, amount: 10_000),
             entry(2026, 5, 1, amount: 8_000),
@@ -171,7 +171,7 @@ struct StatisticsAggregationTests {
         #expect(trend[1].deltaFromPrevious == -10_000)
         #expect(trend[2].total == 8_000)
         #expect(trend[2].deltaFromPrevious == 8_000)
-        // 직전이 0이면 ratio는 nil
+        // Ratio is nil when previous month spending was zero
         #expect(trend[2].ratioFromPrevious == nil)
     }
 
@@ -191,8 +191,7 @@ struct StatisticsAggregationTests {
         #expect(trend.first?.id.month == 3)
         #expect(trend.last?.id.month == 8)
         #expect(trend.first?.total == 3000)
-        // 윈도 첫 슬롯이지만 데이터가 있으므로 트림 없음. 그래도 트림 후 첫 슬롯
-        // 처리 규칙에 따라 delta는 nil(기준 월).
+        // First slot in window has nil delta (base month).
         #expect(trend.first?.deltaFromPrevious == nil)
         #expect(trend.last?.total == 8000)
     }
@@ -206,7 +205,7 @@ struct StatisticsAggregationTests {
             referenceDate: date(2026, 5, 1),
             calendar: kst
         )
-        // 앞 5개월(0)은 모두 트림되어 5월만 남고, 기준 월로 표시된다.
+        // Leading zero months trimmed, leaving single base month.
         #expect(trend.count == 1)
         #expect(trend[0].id.month == 5)
         #expect(trend[0].total == 1000)
@@ -222,8 +221,7 @@ struct StatisticsAggregationTests {
     }
 
     @Test func colorIndexIsDeterministicForUnregisteredCategory() {
-        // presets 에 없는 카테고리도 같은 이름이면 항상 같은 인덱스 — String.hashValue 와 달리
-        // 호출/실행 간 흔들리지 않아야 한다 (앱 재시작마다 색이 바뀌던 버그의 회귀 방지).
+        // Off-preset categories produce stable color index across launches.
         let presets = ["식비", "카페"]
         let first = StatisticsAggregation.colorIndex(for: "학원", presets: presets, paletteCount: 12)
         let second = StatisticsAggregation.colorIndex(for: "학원", presets: presets, paletteCount: 12)
@@ -239,7 +237,7 @@ struct StatisticsAggregationTests {
         }
     }
 
-    // MARK: - 카테고리 표시명·항목 필터 (카테고리 상세 시트용)
+    // MARK: - Category Display Name & Entry Filter
 
     @Test func displayCategoryNormalizesNilAndWhitespace() {
         #expect(StatisticsAggregation.displayCategory(for: nil) == "미분류")
@@ -273,7 +271,7 @@ struct StatisticsAggregationTests {
         #expect(out.map(\.merchant).sorted() == ["A", "B"])
     }
 
-    // MARK: - 카테고리별 월 추세 (스택 차트용)
+    // MARK: - Category Monthly Trends (Stacked Chart)
 
     @Test func categoryTrendEmitsPointsPerMonthAndCategory() {
         let entries = [
@@ -285,7 +283,7 @@ struct StatisticsAggregationTests {
         let points = StatisticsAggregation.categoryTrend(
             months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
         )
-        // 기록 없는 달은 포인트를 만들지 않는다 — 4월 1개 + 5월 2개.
+        // Zero-spending months do not create chart points.
         #expect(points.count == 3)
         #expect(points.filter { $0.monthID.month == 5 }.count == 2)
         let april = points.first { $0.monthID.month == 4 }
@@ -305,8 +303,7 @@ struct StatisticsAggregationTests {
         let points = StatisticsAggregation.categoryTrend(
             months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
         )
-        // 윈도 합계: 식비 5900 > 카페 1200 → 4월이 카페가 더 커도 두 달 모두 식비가 먼저.
-        // 막대 안 스택 순서가 달마다 흔들리지 않게 하기 위함.
+        // Stack order determined by total window spending descending.
         #expect(points.map { $0.monthID.month } == [4, 4, 5, 5])
         #expect(points.map(\.category) == ["식비", "카페", "식비", "카페"])
     }
@@ -320,7 +317,7 @@ struct StatisticsAggregationTests {
         let points = StatisticsAggregation.categoryTrend(
             months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
         )
-        // 윈도(2025-12 ~ 2026-05) 밖의 2025-11은 제외.
+        // Months outside trend window are excluded.
         #expect(points.count == 1)
         let only = try #require(points.first)
         #expect(only.monthID.year == 2026)
@@ -338,11 +335,11 @@ struct StatisticsAggregationTests {
         let points = StatisticsAggregation.categoryTrend(
             months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst
         )
-        // 식비 5900 > 카페 1200 = 교통 1200 → 동률은 이름 오름차순(교통 < 카페).
+        // Ties resolved alphabetically by category name.
         #expect(StatisticsAggregation.trendCategories(in: points) == ["식비", "교통", "카페"])
     }
 
-    // MARK: - 단일 카테고리 월별 추세 (trend의 category 파라미터)
+    // MARK: - Single Category Trend
 
     @Test func trendWithCategoryUsesCategoryTotalsAndDelta() {
         let entries = [
@@ -356,7 +353,7 @@ struct StatisticsAggregationTests {
             months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst,
             category: "식비"
         )
-        // 식비 기준: 3월 10000(기준 월), 4월 6000, 5월 0 (식비 기록 없음 — 뒤쪽 0은 유지).
+        // Trailing zero months are preserved for single category trend.
         #expect(trend.map(\.total) == [10_000, 6000, 0])
         #expect(trend[0].deltaFromPrevious == nil)
         #expect(trend[1].deltaFromPrevious == -4000)
@@ -373,7 +370,7 @@ struct StatisticsAggregationTests {
             months: stats, limit: 6, referenceDate: date(2026, 5, 1), calendar: kst,
             category: "식비"
         )
-        // 식비가 처음 등장한 4월부터. 5월의 0은 trailing이라 유지.
+        // Single category trend starts from first non-zero month.
         #expect(trend.map(\.total) == [2000, 0])
         #expect(trend[0].deltaFromPrevious == nil)
     }

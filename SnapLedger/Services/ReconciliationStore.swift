@@ -4,8 +4,7 @@ import SwiftData
 
 private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "reconciliation")
 
-/// 월 정산 편집 화면이 다루는 메모리 상태. 사용자가 "저장"하기 전까지는
-/// DB·CSV에 아무것도 쓰지 않고 이 값만 들고 있다 (지출 입력 폼과 동일한 방식).
+/// In-memory draft state for monthly reconciliation editor.
 struct ReconciliationDraft: Equatable {
     var incomes: [IncomeItemDraft] = []
     var cards: [CardUsageItemDraft] = []
@@ -14,7 +13,7 @@ struct ReconciliationDraft: Equatable {
     var balances: [BalanceDraft] = []
     var adjustments: [AdjustmentDraft] = []
 
-    /// 저장할 의미 있는 내용이 하나도 없으면 true (저장 시 그 달을 비운다).
+    /// Whether all draft fields are empty.
     var isEmpty: Bool {
         incomes.isEmpty && cards.isEmpty && savings.isEmpty
             && note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -63,10 +62,9 @@ struct AdjustmentDraft: Identifiable, Equatable {
 
 @MainActor
 struct ReconciliationStore {
-    // MARK: - 불러오기 (DB → 편집 폼)
+    // MARK: - Load (DB -> Draft)
 
-    /// 그 달 편집 폼의 초기 상태를 만든다. 저장된 데이터가 있으면 그대로 읽고,
-    /// 없으면 전월 값으로 미리 채운다. **어느 경우에도 DB에는 쓰지 않는다.**
+    /// Loads or carries forward draft state for the given month.
     func loadDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
         let reconciliation = fetchReconciliation(month, in: context)
         let balances = fetchBalances(month, in: context)
@@ -110,16 +108,16 @@ struct ReconciliationStore {
         return draft
     }
 
-    /// 전월 정산을 바탕으로 한 미리 채움 값 (영속화하지 않음). 잔액은 전월 월말을 이번 달 월초로 이월한다.
+    /// Prefills draft state using previous month balances and items.
     private func carryForwardDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
         let previous = Self.previousMonthKey(month)
         var draft = ReconciliationDraft()
         draft.incomes = incomeDrafts(items: fetchIncomes(previous, in: context))
-        // 카드는 매월 변동하므로 이름만 이월하고 금액은 0으로 비운다.
+        // Carry forward card item titles with 0 amounts
         draft.cards = fetchCards(previous, in: context).map {
             CardUsageItemDraft(title: $0.title, amount: 0, sortOrder: $0.sortOrder)
         }
-        // 자금변동도 이름·방향만 이월하고 금액은 0으로 비운다.
+        // Carry forward adjustment titles with 0 amounts
         draft.adjustments = fetchAdjustments(previous, in: context).map {
             AdjustmentDraft(
                 title: $0.title,
@@ -144,21 +142,19 @@ struct ReconciliationStore {
         return draft
     }
 
-    /// 카드 항목을 draft로 변환한다.
+    /// Maps CardUsageItem models to drafts.
     private func cardDrafts(items: [CardUsageItem]) -> [CardUsageItemDraft] {
         items.map { CardUsageItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
     }
 
-    /// 수입 항목을 draft로 변환한다.
+    /// Maps IncomeItem models to drafts.
     private func incomeDrafts(items: [IncomeItem]) -> [IncomeItemDraft] {
         items.map { IncomeItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
     }
 
-    // MARK: - 저장 (편집 폼 → DB + CSV)
+    // MARK: - Save (Draft -> DB + CSV)
 
-    /// 지출 저장(`SaveCoordinator`)과 동일한 흐름: CloudKit이 진실원이므로 DB 저장이 먼저
-    /// 성공하고, 정산 CSV export는 best-effort(폴더 없거나 실패해도 저장은 성공).
-    /// 폴더에 실제로 썼으면 `true`, 폴더 미설정/실패면 `false`.
+    /// Saves reconciliation draft to SwiftData and exports CSV.
     @discardableResult
     func save(
         _ draft: ReconciliationDraft,
@@ -170,8 +166,7 @@ struct ReconciliationStore {
         return exportBestEffort(month: month, in: context)
     }
 
-    /// 영향받은 달의 정산 CSV를 앱 내용으로 다시 쓴다. CSV는 한 방향 추출물이므로
-    /// 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 저장은 성공으로 둔다.
+    /// Best-effort export of reconciliation and budget CSV.
     private func exportBestEffort(month: Int, in context: ModelContext) -> Bool {
         let key = Self.monthString(from: month)
         do {
@@ -182,7 +177,7 @@ struct ReconciliationStore {
             }
             return true
         } catch CSVFolderAccess.AccessError.noCSVFolder {
-            // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
+            // Skip silently if no folder is configured
             return false
         } catch {
             log.error("정산 CSV export(best-effort) failed: \(String(describing: error))")
@@ -251,7 +246,7 @@ struct ReconciliationStore {
         return rows
     }
 
-    /// 그 달의 정산·잔액·자금변동 레코드를 모두 지운다.
+    /// Deletes all reconciliation and item records for the month.
     func deleteMonth(_ month: Int, in context: ModelContext) {
         for item in fetchAllReconciliations(in: context) where item.monthKey == month {
             context.delete(item)
@@ -284,7 +279,7 @@ struct ReconciliationStore {
         return year * 100 + month - 1
     }
 
-    // MARK: - 내부
+    // MARK: - Private
 
     private func replaceMonth(_ month: Int, with draft: ReconciliationDraft, in context: ModelContext) {
         deleteMonth(month, in: context)
@@ -354,7 +349,7 @@ struct ReconciliationStore {
     }
 }
 
-// MARK: - Fetch 헬퍼
+// MARK: - Fetch Helpers
 
 extension ReconciliationStore {
     private func fetchReconciliation(_ month: Int, in context: ModelContext) -> MonthlyReconciliation? {
@@ -417,8 +412,7 @@ extension ReconciliationStore {
 }
 
 extension ReconciliationDraft {
-    /// 편집 중인 (아직 저장 안 된) 값으로 정산 요약을 계산한다. 임시 모델 인스턴스를 만들어
-    /// `ReconciliationSummary.compute`에 넘긴다 (context에 삽입하지 않으므로 영속화되지 않는다).
+    /// Computes reconciliation summary from unpersisted draft state.
     func summary(entries: [SavedEntry], month: Int, calendar: Calendar = .current) -> ReconciliationSummary {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         return ReconciliationSummary.compute(

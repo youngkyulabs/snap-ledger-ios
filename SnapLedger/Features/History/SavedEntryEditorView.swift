@@ -220,7 +220,7 @@ struct SavedEntryEditorView: View {
     }
 
     private func save() {
-        // entry는 여기서 바꾸지 않는다 — update가 쓰기 성공 시에만 대입한다 (실패 시 더티 방지).
+        // Defer model mutation until SaveCoordinator confirms write.
         let edit = SavedEntryEdit(
             date: date,
             merchant: merchant,

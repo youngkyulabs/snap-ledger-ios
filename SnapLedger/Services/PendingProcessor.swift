@@ -23,10 +23,7 @@ struct PendingProcessor {
         )
     }
 
-    /// drain 재진입 가드. drain 은 여러 진입점(앱 시작·포그라운드·이미지 추가·BGTask)에서
-    /// 호출돼 겹칠 수 있다. 동시에 두 drain 이 돌면 (1) 같은 항목을 중복 처리하거나
-    /// (2) 아래 stale-`.processing` 복구가, 다른 drain 이 실제로 처리 중인 항목을 `.queued`
-    /// 로 되돌려 중복 ParsedEntry 를 만들 수 있다. 한 번에 하나만 실행되도록 막는다.
+    /// Prevents concurrent drain executions.
     private static var isDraining = false
 
     func drain(in context: ModelContext) async {
@@ -56,11 +53,7 @@ struct PendingProcessor {
         cleanupResolvedImages(in: context)
     }
 
-    /// 이전 drain 이 처리 도중 중단되면(앱 크래시·강제 종료·BGTask 시간 초과) PendingImage 가
-    /// `.processing` 상태로 남아 검토 탭에 "처리 중"으로 영구 표시된다. drain 은 재진입을
-    /// 막으므로(`isDraining`) 이 시점의 `.processing` 은 모두 중단된 이전 실행의 잔재다 —
-    /// `.queued` 로 되돌려 같은 drain 의 처리 루프에서 재시도한다. (원본 파일이 사라졌다면
-    /// 재처리 중 OCR 단계에서 실패해 `.failed` 로 전이되어 사용자가 검토 탭에서 정리 가능.)
+    /// Requeues stale processing images to queued state.
     func requeueStaleProcessing(in context: ModelContext) {
         let stale: [PendingImage]
         do {
@@ -78,10 +71,7 @@ struct PendingProcessor {
         try? context.save()
     }
 
-    /// 검토가 끝난 이미지를 회수한다. pending 상태의 ParsedEntry 가 더는 참조하지
-    /// 않는 `.done` 이미지의 inbox 파일과 PendingImage row 를 삭제. 검토 중이거나
-    /// 실패/대기 중인 이미지는 보관한다. (한 이미지가 여러 거래로 쪼개진 경우
-    /// 참조가 하나라도 남아 있으면 보관됨.)
+    /// Removes completed inbox images no longer referenced by pending entries.
     func cleanupResolvedImages(in context: ModelContext) {
         let parsedEntries: [ParsedEntry]
         let dones: [PendingImage]
@@ -145,14 +135,9 @@ struct PendingProcessor {
         try? context.save()
 
         let imageURL = inboxURL.appendingPathComponent(pending.filename)
-        // 원본 이미지는 검토가 끝날 때까지 보관한다 — 검토 편집 화면에서 영수증·결제
-        // 화면을 보면서 값을 고칠 수 있게. 검토 항목이 모두 저장/삭제되면
-        // cleanupResolvedImages 가 파일과 .done row 를 회수한다. (실패 이미지는
-        // 사용자가 검토 탭에서 직접 정리할 때까지 그대로 보관.)
         do {
             let ocrText = try await ocrService.recognize(imageURL: imageURL)
-            // 풍경 등 결제 신호가 전혀 없는 이미지는 LLM에 보내지 않고
-            // 빈 추출 결과로 처리 — FM이 환각으로 가짜 거래를 만들어내는 것을 막는다.
+            // Skip extraction if no payment signals are detected in OCR text
             let extraction: PaymentExtraction
             if CandidateHeuristics.hasPaymentSignal(ocrText) {
                 extraction = try await extractionService.extract(from: ocrText)
@@ -162,9 +147,7 @@ struct PendingProcessor {
             }
             let enriched = CandidateHeuristics.enrich(extraction, ocrText: ocrText)
             if enriched.isEmpty {
-                // 결제 신호 없음 / LLM 빈 결과 — ParsedEntry 는 만들지 않고
-                // PendingImage 자체를 failed 로 표시해 검토 탭의 통합 배너에
-                // 카운트로만 노출한다.
+                // Mark as failed if no transactions were extracted
                 pending.state = .failed
                 pending.failureMessage = Self.noPaymentSignalReason
                 try context.save()
@@ -187,9 +170,7 @@ struct PendingProcessor {
 
     nonisolated static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요."
 
-    /// 실패한 이미지를 다시 시도할 가치가 있는지 판단한다.
-    /// 결제 신호 없음(`noPaymentSignalReason`)은 OCR→휴리스틱이 결정적이라 재시도해도
-    /// 같은 결과가 나오므로 false. 그 외(OCR/FM 에러 등)는 일시적일 수 있어 재시도 허용.
+    /// Checks whether failed image is eligible for retry.
     nonisolated static func isRetryable(failureMessage: String?) -> Bool {
         failureMessage != noPaymentSignalReason
     }
@@ -218,14 +199,13 @@ struct PendingProcessor {
             let v = txn.category.trimmingCharacters(in: .whitespacesAndNewlines)
             return v.isEmpty ? nil : v
         }()
-        // 학습값이 현재 프리셋 안일 때만 우선 적용 — 프리셋에서 지운 옛 카테고리를
-        // 검토 자동채움에 되살리지 않고 추출값(프리셋으로 제약됨)으로 폴백한다.
+        // Resolve category restricted to current presets
         let categoryForRow = CandidateAutoFill.category(
             learned: learnedCategory, extracted: trimmedExtractionCategory, presets: presets
         )
 
         if txn.items.isEmpty {
-            // 빈 칸은 후보로 자동 채움 — 설명은 첫 후보, 금액은 후보가 정확히 1개일 때만.
+            // Auto-fill empty fields from candidates
             let filledMerchant = CandidateAutoFill.merchant(
                 current: txn.merchant, candidates: enriched.merchantCandidates
             )

@@ -32,14 +32,14 @@ struct SampleDataParsingTests {
         #expect(first.category == "카페")
         #expect(first.amount == 5_800)
         #expect(first.note == "아메리카노+크루아상")
-        // 시드 날짜는 `.current` 캘린더 정오로 생성되므로 같은 캘린더로 읽으면 타임존 불변.
+        // Seed dates created at noon in current calendar.
         let comps = Calendar.current.dateComponents([.year, .month, .day], from: first.date)
         #expect(comps.year == 2026 && comps.month == 5 && comps.day == 1)
     }
 
     @Test func emptyNoteBecomesNil() {
         let seeds = SampleDataParsing.parseExpenses(SampleDataFixtures.expenses202605)
-        // 2번째 행(GS25 역삼점)은 메모가 빈 칸.
+        // Second row has empty note
         #expect(seeds[1].merchant == "GS25 역삼점")
         #expect(seeds[1].note == nil)
     }
@@ -82,14 +82,14 @@ struct SampleDataParsingTests {
         #expect(summary.actualSpending == 876_500)
         #expect(summary.difference == 0)
         #expect(summary.isBalanced)
-        // 마감된 5월은 정산 데이터가 있으므로 확정 → "정상·차이 없음".
+        // Closed month with reconciliation data -> balanced
         #expect(summary.isReconciled(status: .closed))
     }
 
     @Test func juneReconciliationClosingDefaultsToOpening() {
         let draft = SampleDataParsing.parseReconciliationDraft(SampleDataFixtures.reconciliation202606)
         for balance in draft.balances {
-            #expect(balance.closing == balance.opening) // 기말잔액 행 없음 → 중립
+            #expect(balance.closing == balance.opening) // Default closing to opening balance
         }
     }
 }

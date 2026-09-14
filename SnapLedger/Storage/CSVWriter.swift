@@ -61,27 +61,6 @@ struct CSVWriter {
         "expenses-\(key).csv"
     }
 
-    /// `2026-05` → `2026년 5월`. 사용자 노출 문구에서 월 키를 사람이 읽는 라벨로.
-    /// 패턴이 안 맞으면 입력 키를 그대로 반환한다.
-    /// `LocalizedError.errorDescription`(nonisolated)에서도 부르므로 `nonisolated`.
-    nonisolated static func monthLabel(forMonthKey key: String) -> String {
-        let parts = key.split(separator: "-")
-        guard parts.count == 2, let year = Int(parts[0]), let month = Int(parts[1]) else {
-            return key
-        }
-        return "\(year)년 \(month)월"
-    }
-
-    /// 여러 월 키를 "2026년 5월, 2026년 6월"처럼 라벨로 이어 붙인다.
-    /// 같은 달이 종류별(지출·정산)로 중복돼 들어와도 라벨은 한 번만 보이게 입력 순서를 유지해 중복 제거한다.
-    nonisolated static func monthLabels(_ keys: [String]) -> String {
-        var seen = Set<String>()
-        return keys
-            .filter { seen.insert($0).inserted }
-            .map { monthLabel(forMonthKey: $0) }
-            .joined(separator: ", ")
-    }
-
     private func monthKey(for date: Date) -> String {
         Self.monthKey(for: date, calendar: calendar)
     }
@@ -132,8 +111,7 @@ struct CSVWriter {
         if let err = thrown { throw err }
     }
 
-    // 기존 파일의 헤더가 현재 헤더와 다르면 (예: 4열 → 5열 메모 컬럼 추가)
-    // 전체를 새 헤더로 재기록한다. 기존 row는 컬럼 수에 맞춰 빈 값을 padding.
+    // Rewrite file if existing header differs from expected header.
     private static func migrateHeaderIfNeeded(at url: URL) throws {
         let existing = try String(contentsOf: url, encoding: .utf8)
         let stripped = existing.hasPrefix("\u{FEFF}") ? String(existing.dropFirst()) : existing

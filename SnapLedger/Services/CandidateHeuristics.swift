@@ -14,9 +14,7 @@ enum CandidateHeuristics {
 
     // MARK: - payment signal gate
 
-    /// 풍경/문서 등 결제와 무관한 이미지에서 LLM이 환각하는 것을 막기 위한 사전 게이트.
-    /// 통화 표기·콤마 천 단위 금액·결제 키워드 중 하나라도 보이면 통과시키고,
-    /// 어느 것도 없으면 추출을 건너뛴다.
+    /// Checks whether OCR text contains payment notification signals.
     private static let paymentKeywords: [String] = [
         "승인", "일시불", "할부", "일반승인", "결제",
         "합계", "총액", "총 금액", "결제금액", "영수증",
@@ -24,9 +22,7 @@ enum CandidateHeuristics {
     ]
 
     private static let paymentSignalRegex: NSRegularExpression? = try? NSRegularExpression(
-        // 1) 콤마 천 단위 금액(5,000)
-        // 2) 숫자 + 원/₩/KRW
-        // 3) ₩123, KRW123
+        // Currency and amount pattern matching.
         pattern: #"\d{1,3}(?:,\d{3})+|\d+\s*(?:원|₩|KRW)|[₩]\s*\d+|KRW\s*\d+"#,
         options: [.caseInsensitive]
     )
@@ -43,8 +39,7 @@ enum CandidateHeuristics {
         return paymentKeywords.contains { trimmed.contains($0) }
     }
 
-    /// 콤마-포맷된 KRW (5,000) 또는 명시적 원 suffix가 붙은 정수만 매치.
-    /// 단일 \d+ 매치는 날짜/시간/번호와 혼동되므로 제외.
+    /// Regex for extracting candidate amount expressions.
     private static let amountRegex: NSRegularExpression? = try? NSRegularExpression(
         pattern: #"(\d{1,3}(?:,\d{3})+|\d+(?=\s*원))"#
     )
@@ -63,8 +58,7 @@ enum CandidateHeuristics {
             let raw = ns.substring(with: valueRange).replacingOccurrences(of: ",", with: "")
             guard let value = Int(raw), value > 0 else { continue }
 
-            // 매치 직전 12 chars에 제외 키워드가 있으면 skip (라인 전체가 아니라
-            // 직전 토큰만 — "총액 10,700 부가세 973"에서 총액 10,700은 살리고 973만 제외)
+            // Skip if preceding token contains forbidden keywords.
             let lookback = min(12, match.range.location)
             let precedingRange = NSRange(location: match.range.location - lookback, length: lookback)
             let preceding = ns.substring(with: precedingRange)
@@ -101,7 +95,7 @@ enum CandidateHeuristics {
         var result: [String] = []
         for line in lines where !line.isEmpty {
             if line.count < 3 || line.count > 30 { continue }
-            // [네이버페이 카드], [삼성페이] 같은 대괄호 결제수단 표기 제외
+            // Exclude payment method labels wrapped in brackets.
             if line.hasPrefix("[") { continue }
             if FoundationModelsExtractionService.isCardIssuerName(line) { continue }
             if containsMatch(amountInLine, in: line) { continue }

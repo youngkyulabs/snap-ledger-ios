@@ -107,9 +107,7 @@ struct SaveCoordinatorTests {
         #expect(learned == "편의점")
     }
 
-    // Phase 2: CloudKit이 진실원 — 폴더가 없거나(설정 안 됨) 폴더가 삭제됐어도 저장은 성공한다.
-    // CSV export는 best-effort라 조용히 건너뛴다(저장 실패로 보고하지 않음).
-    // (폴더 미설정 성공 케이스는 saveSucceedsWithoutCSVFolder가 별도로 검증.)
+    // Missing storage folder does not prevent successful database save.
     @Test func saveSucceedsWhenFolderDeleted() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
@@ -201,8 +199,7 @@ struct SaveCoordinatorTests {
         #expect(saved.csvFile == "expenses-2026-06.csv")
     }
 
-    // Phase 2: CloudKit이 진실원 — CSV 쓰기가 실패해도(폴더 삭제 등) update는 성공하고
-    // 변경이 DB에 영속된다. CSV export는 best-effort라 저장을 롤백하지 않는다.
+    // CSV write failure does not roll back database update.
     @Test func updateSucceedsAndPersistsWhenCSVWriteFails() throws {
         let ctx = try makeContext()
         let folder = try makeTempFolderWithBookmark(in: ctx)
@@ -215,10 +212,10 @@ struct SaveCoordinatorTests {
         try coord.save(entry, in: ctx)
         let saved = try #require(try ctx.fetch(FetchDescriptor<SavedEntry>()).first)
 
-        // 폴더를 지워 CSV 쓰기를 실패시킨다.
+        // Remove folder to trigger CSV write failure
         try FileManager.default.removeItem(at: folder)
 
-        // throw 없이 성공해야 한다.
+        // Update succeeds without throwing
         try coord.update(
             saved,
             to: SavedEntryEdit(
@@ -231,7 +228,7 @@ struct SaveCoordinatorTests {
             in: ctx
         )
 
-        // 변경은 모델과 DB에 영속된다(CSV 실패와 무관).
+        // Changes persisted in database despite CSV failure
         #expect(saved.merchant == "바뀐상호")
         #expect(saved.amount == 9999)
         #expect(saved.date == date(2026, 6, 1))
@@ -244,16 +241,16 @@ struct SaveCoordinatorTests {
     }
 
     @Test func saveSucceedsWithoutCSVFolder() throws {
-        // 기존 makeContext() 재사용(SavedEntry 포함, cloudKitDatabase:.none). 폴더 북마크는 만들지 않는다.
+        // Make context without folder bookmark
         let context = try makeContext()
-        context.insert(AppSettings())  // 폴더 미설정 settings
+        context.insert(AppSettings())  // Settings without configured folder
         try context.save()
 
         let coordinator = SaveCoordinator(categoryLearner: CategoryLearner())
         let entry = ParsedEntry(date: .now, amount: 4200, merchant: "김밥천국", category: "식비", note: nil)
         context.insert(entry)
 
-        // 폴더가 없어도 throw 없이 저장되어야 한다.
+        // Save succeeds without throwing even if folder is missing
         try coordinator.save(entry, in: context)
 
         let saved = try context.fetch(FetchDescriptor<SavedEntry>())

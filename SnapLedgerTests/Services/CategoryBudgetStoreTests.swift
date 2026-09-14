@@ -110,7 +110,7 @@ struct CategoryBudgetStoreTests {
         let ctx = try makeContext()
         let store = CategoryBudgetStore()
         try store.setLimit(300_000, for: "식비", effectiveFrom: 202_601, in: ctx)
-        // 과거 달(3월)만 교정 — 이후 달(현재 6월 포함)은 영향 없어야 한다.
+        // Single month correction does not affect subsequent months.
         try store.setLimitForSingleMonth(200_000, for: "식비", month: 202_603, in: ctx)
         let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
         #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_602) == 300_000)
@@ -122,7 +122,7 @@ struct CategoryBudgetStoreTests {
     @Test func singleMonthEditWithNoPriorBudgetRestoresNoBudgetAfter() throws {
         let ctx = try makeContext()
         let store = CategoryBudgetStore()
-        // 한도가 전혀 없던 카테고리의 과거 한 달만 채운다.
+        // Boundary insertion for category without previous limits.
         try store.setLimitForSingleMonth(200_000, for: "식비", month: 202_603, in: ctx)
         let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
         #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_602) == nil)
@@ -138,7 +138,7 @@ struct CategoryBudgetStoreTests {
         try store.setLimitForSingleMonth(200_000, for: "식비", month: 202_603, in: ctx)
         try store.setLimitForSingleMonth(250_000, for: "식비", month: 202_603, in: ctx)
         let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
-        #expect(all.count == 3) // 202601, 202603, 202604(경계)
+        #expect(all.count == 3) // 202601, 202603, 202604(boundary)
         #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_603) == 250_000)
         #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_604) == 300_000)
         #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_606) == 300_000)
@@ -169,9 +169,9 @@ struct CategoryBudgetStoreTests {
     @Test func resolveAllKeepsPresetOrderAndDropsZeroAndMissing() {
         let budgets = [
             CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_601),
-            CategoryBudget(category: "교통", monthlyLimit: 0, effectiveFrom: 202_601), // tombstone → 제외
+            CategoryBudget(category: "교통", monthlyLimit: 0, effectiveFrom: 202_601), // tombstone -> excluded
         ]
-        let presets = ["식비", "교통", "문화"] // 문화: 한도 없음 → 제외
+        let presets = ["식비", "교통", "문화"] // Culture: no limit -> excluded
         let rows = CategoryBudgetStore.resolveAll(in: budgets, asOf: 202_603, presets: presets)
         #expect(rows == [BudgetCSVRow(category: "식비", limit: 300_000)])
     }
@@ -193,7 +193,7 @@ struct CategoryBudgetStoreTests {
 
     @Test func resolveAllIsEmptyWhenNoEffectiveLimits() {
         let budgets = [CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_606)]
-        // asOf가 effectiveFrom보다 이전 → 유효 한도 없음
+        // asOf before effectiveFrom -> no effective limit
         #expect(CategoryBudgetStore.resolveAll(in: budgets, asOf: 202_605, presets: ["식비"]).isEmpty)
     }
 
