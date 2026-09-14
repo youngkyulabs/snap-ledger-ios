@@ -75,7 +75,7 @@ Xcode에서 **SnapLedger**, **SnapLedgerTests**, **SnapLedgerUITests**, **SnapLe
 1. Team을 본인 Apple ID로 설정
 2. (메인 앱 / Share Extension만) App Groups 캐퍼빌리티 추가, `group.com.youngkyu.snapledger` 등록
 
-자세한 컨벤션과 아키텍처는 [CLAUDE.md](CLAUDE.md) 참고.
+자세한 컨벤션과 아키텍처는 [AGENTS.md](AGENTS.md) 참고.
 
 ## 기술 스택
 

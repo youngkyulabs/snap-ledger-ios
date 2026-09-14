@@ -1,18 +1,18 @@
 # AGENTS.md
 
-이 파일은 미래의 AI 어시스턴트 세션에게 SnapLedger 코드베이스를 안내합니다. 새 세션이 빠르게 productive해지도록 핵심 컨벤션·아키텍처·빌드 방법을 압축해서 기록합니다.
+This file guides future AI assistant sessions through the SnapLedger codebase. It compresses key conventions, architecture, and build workflows so a new session can become productive quickly.
 
-## 프로젝트 한 줄 요약
+## One-Line Project Summary
 
-iOS 26 / Apple Intelligence 기반의 한국 가계부 앱. 카드 결제 알림 스크린샷 또는 영수증 사진을 공유받아 OCR(VisionKit) → Foundation Models로 정형 추출 → 사용자 검토 → CloudKit-backed SwiftData(진실원)에 저장. 사용자가 저장 폴더를 지정하면 월별 CSV로 한 방향 export(백업·AI 분석용, 선택 사항).
+A Korean personal finance app built on iOS 26 and Apple Intelligence. Receives card payment notification screenshots or receipt photos via the share sheet → VisionKit OCR → structured extraction via Foundation Models → user review → saved to CloudKit-backed SwiftData (single source of truth). If the user designates a storage folder, exports one-way monthly CSVs (optional, for backup & AI analysis).
 
-## 빌드 / 테스트
+## Build / Test
 
 ```bash
-# Lint (strict, build와 무관하게 빠른 사전 검증)
+# Lint (strict, fast pre-validation independent of build)
 swiftlint --strict --config .swiftlint.yml
 
-# Build (시뮬레이터 generic, 대부분의 일상 빌드 — SwiftLint 페이즈가 strict로 함께 실행됨)
+# Build (generic simulator, standard daily build — runs SwiftLint build phase in strict mode)
 xcodebuild -project SnapLedger.xcodeproj -scheme SnapLedger \
   -destination 'generic/platform=iOS Simulator' build
 
@@ -22,173 +22,175 @@ xcodebuild test -project SnapLedger.xcodeproj -scheme SnapLedger \
   -only-testing:SnapLedgerTests
 ```
 
-SwiftLint는 `brew install swiftlint`로 사전 설치. 미설치 시 빌드 페이즈는 warning 출력 후 통과 (lint 위반은 fail, 도구 부재는 graceful pass).
+SwiftLint should be pre-installed via `brew install swiftlint`. If not installed, the build phase prints a warning and gracefully passes (lint violations fail the build, but tool absence passes).
 
-시뮬레이터 디바이스 이름은 `xcrun simctl list devices available | grep iPhone`로 확인. iPhone 17 Pro 기본.
+Simulator device names can be confirmed with `xcrun simctl list devices available | grep iPhone`. Defaults to `iPhone 17 Pro`. (Note: if multiple iOS runtimes are installed, you can specify `OS=26.5` or use the device ID from `xcrun simctl list devices`).
 
 ## CI / CD
 
-역할 분리:
+Separation of concerns:
 
-- **CI는 GitHub Actions** (`.github/workflows/ci.yml`): 모든 push·PR마다 `swiftlint --strict` + `xcodebuild build` + `xcodebuild test` 풀세트. lint·빌드·테스트 게이트는 전부 여기서 담당.
-- **CD는 Xcode Cloud**: Archive → TestFlight 업로드 전용. `main` push에 빌드에 영향이 있는 코드가 변경되면 자동 트리거 (문서만 바뀌는 경우 스킵하도록 Xcode Cloud 워크플로의 start condition에서 path 필터링). 필요 시 App Store Connect 웹 또는 Xcode Cloud 탭에서 **Start Build**로 수동 실행도 가능. 빌드 번호는 Xcode Cloud 워크플로의 자동 증가 설정으로 관리 (pbxproj `CURRENT_PROJECT_VERSION`은 정적 값 유지).
+- **CI is GitHub Actions** (`.github/workflows/ci.yml`): Full suite of `swiftlint --strict` + `xcodebuild build` + `xcodebuild test` on every push and PR. All lint, build, and test gates are enforced here.
+- **CD is Xcode Cloud**: Archive → TestFlight upload only. Automatically triggered on pushes to `main` when build-affecting code changes (path filtering in the Xcode Cloud workflow's start condition skips doc-only changes). Can also be triggered manually via App Store Connect web or Xcode's Cloud tab (**Start Build**). Build numbers are auto-incremented by Xcode Cloud (`CURRENT_PROJECT_VERSION` in pbxproj remains static).
 
-**SwiftLint 빌드 페이즈는 Xcode Cloud에서 스킵됨**: 빌드 페이즈 첫 줄에서 `CI_XCODE_CLOUD=TRUE`를 감지해 early-exit. 이유는 (1) lint gate는 이미 GitHub Actions가 담당하고 (2) Xcode Cloud 워커마다 매번 SwiftLint를 brew install 하는 비용·warning을 피하기 위함. 로컬과 GitHub Actions에서는 그대로 strict 실행됨.
+**SwiftLint build phase is skipped on Xcode Cloud**: The first line of the build phase detects `CI_XCODE_CLOUD=TRUE` and early-exits. This is because (1) the lint gate is already enforced by GitHub Actions, and (2) it avoids the overhead and warnings of running `brew install swiftlint` on every Xcode Cloud worker. It continues to run strictly in local builds and GitHub Actions.
 
-## 모듈 레이아웃
+## Module Layout
 
-폴더 이름이 곧 역할이다. 어디에 뭐를 둘지 헷갈리면 이 표만 보면 된다.
+Folder names dictate roles. Refer to this table when deciding where code belongs:
 
-| 폴더 | 무엇이 들어가나 | 무엇이 들어가면 안 되나 |
+| Directory | What belongs here | What does NOT belong here |
 |---|---|---|
-| `App/` | 앱 진입점·셸·App Group 상수 | 비즈니스 로직, 도메인 모델 |
-| `Models/` | SwiftData `@Model` (가계부 5종 + 예산·정산 7종) | 비-SwiftData DTO (그건 `Services/`) |
-| `Services/` | 비즈니스 로직 (OCR·추출·저장 오케스트레이션·도메인 헬퍼) | UI, 파일·시스템 IO |
-| `Storage/` | 파일/클립보드/북마크 IO | 비즈니스 결정 (어떤 데이터를 저장할지는 `Services/`) |
-| `Features/` | UI 탭 화면 + 온보딩 (SwiftUI) | 시스템 통합(BGTask/Intent/Notification) → `System/` |
-| `System/` | 시스템 통합 지점 (BGTask·AppIntent·UNUserNotification) | SwiftUI 화면 |
+| `App/` | App entry point, shell, App Group constants | Business logic, domain models |
+| `Models/` | SwiftData `@Model` (5 expense models + 7 budget/reconciliation models) | Non-SwiftData DTOs (those belong in `Services/`) |
+| `Services/` | Business logic (OCR, extraction, save orchestration, domain helpers) | UI, file/system IO |
+| `Storage/` | File, clipboard, and bookmark IO | Business decisions (what data to save belongs in `Services/`) |
+| `Features/` | UI tab views + onboarding (SwiftUI) | System integrations (BGTask/Intent/Notification) → `System/` |
+| `System/` | System integration points (BGTask, AppIntent, UNUserNotification) | SwiftUI views |
 
 ```
-SnapLedger/                          # 메인 앱 타겟 (synchronized root group)
-  App/                               # 앱 진입점
+SnapLedger/                          # Main app target (synchronized root group)
+  App/                               # App entry point
     SnapLedgerApp.swift              # @main, ModelContainer (groupContainer), BGTask register
-    ContentView.swift                # TabView 셸 (검토/최근 기록/통계/예산/설정) + scenePhase 옵저버 + 온보딩 게이트
-                                     #            + 통계·예산 탭 재선택 시 현재 월 복귀(resetNonce)
-    AppGroup.swift                   # group.com.youngkyu.snapledger 컨테이너 / inbox URL
-  Info.plist                         # 부분 plist: BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes
+    ContentView.swift                # TabView shell (Review/History/Statistics/Budget/Settings) + scenePhase observer + onboarding gate
+                                     #            + Return to current month on Statistics/Budget tab reselection (resetNonce)
+    AppGroup.swift                   # group.com.youngkyu.snapledger container / inbox URL
+  Info.plist                         # Partial plist: BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes
                                      #            + ITSAppUsesNonExemptEncryption
   SnapLedger.entitlements            # App Group
   AppIcon.icon / Assets.xcassets
 
   Models/                            # SwiftData @Model
     AppSettings.swift, ParsedEntry.swift, SavedEntry.swift, PendingImage.swift, MerchantCategory.swift
-    AppSchema.swift                  # ModelContainer 스키마 정의 — cloudModels(CloudKit private DB 진실원)/localModels(App Group, 인텐트 공유) 분리. 새 @Model은 여기에만 등록
-    # --- 예산·정산 (예산 탭) ---
-    CategoryBudget.swift             # 카테고리별 월 한도 (effectiveFrom부터 자동 이월, monthlyLimit=0은 해제 tombstone)
-    MonthlyReconciliation.swift      # 월 정산 헤더 (monthKey + note). 금액 항목은 아래 모델들로 분리
-    IncomeItem.swift                 # 월별 수입 항목 (이름+금액, sortOrder)
-    CardUsageItem.swift              # 월별 카드 사용액 항목 (이름+금액)
-    SavingsItem.swift                # 월별 저축 항목 (이름+금액)
-    AccountMonthlyBalance.swift      # 계좌별 월초/월말 잔액 + 이자
-    CashAdjustment.swift             # 자금 변동 (입금/출금, 이름+금액+메모) — CashAdjustmentDirection enum 동거
+    AppSchema.swift                  # ModelContainer schema definition — separates cloudModels (CloudKit private DB source of truth) / localModels (App Group, intent sharing). Register new @Model here only
+    # --- Budget & Reconciliation (Budget tab) ---
+    CategoryBudget.swift             # Per-category monthly limit (auto-carries forward from effectiveFrom, monthlyLimit=0 is cancellation tombstone)
+    MonthlyReconciliation.swift      # Monthly reconciliation header (monthKey + note). Amount items are split into separate models below
+    IncomeItem.swift                 # Monthly income item (name + amount, sortOrder)
+    CardUsageItem.swift              # Monthly card usage item (name + amount)
+    SavingsItem.swift                # Monthly savings item (name + amount)
+    AccountMonthlyBalance.swift      # Per-account starting/ending balance + interest
+    CashAdjustment.swift             # Cash flow adjustments (inflow/outflow, name + amount + note) — co-located with CashAdjustmentDirection enum
 
-  Services/                          # 비즈니스 로직 (전부 unit-testable)
-    OCRService.swift                 # protocol + VisionKitOCRService (한·영 accurate)
-    CandidateHeuristics.swift        # OCR 텍스트의 결제 신호 점수화 (풍경 사진 환각 차단)
-    ExtractionService.swift          # protocol + FoundationModelsExtractionService (dynamic prompt, 다중 거래)
+  Services/                          # Business logic (fully unit-testable)
+    OCRService.swift                 # protocol + VisionKitOCRService (Korean/English accurate)
+    CandidateHeuristics.swift        # Payment signal scoring on OCR text (blocks hallucinations on scenery photos)
+    ExtractionService.swift          # protocol + FoundationModelsExtractionService (dynamic prompt, multi-transaction)
     PaymentExtraction.swift          # @Generable PaymentExtraction(transactions:[Transaction])
-    AppleIntelligenceStatus.swift    # FM 가용성 → 사용자 친화 문구 (설정·온보딩·검토 탭 공통 진입점)
-    PendingProcessor.swift           # @MainActor 파이프라인: reconcile inbox → OCR → heuristic → extract → ParsedEntry
-    SaveCoordinator.swift            # 검토 확정 → CSV append + SavedEntry 생성 + 학습
-    CategoryLearner.swift            # 가맹점 → 카테고리 학습/조회
-    CategoryValidation.swift         # 카테고리가 프리셋 목록(off-list) 밖인지 판정 (경고용, pure)
-    ImageImporter.swift              # + 메뉴에서 사진/클립보드/파일/드롭 → inbox 정규화
-    CandidateAutoFill.swift          # 검토 항목 신규 입력 시 가맹점 등으로 카테고리·금액 자동 채움 (pure)
-    EntryReorder.swift               # 항목 드래그 재정렬 → sortOrder 재계산 (pure, 정산 항목 공용)
-    EntrySaveValidation.swift        # 검토 저장 전 필수 필드 검증 (pure)
-    ReviewDateStatus.swift           # 검토 날짜가 정상 범위(오늘·어제) 밖인지 판정 → tooOld/future 경고 (pure, 기준시각은 entry.createdAt)
-    SyncCoordinator.swift            # CSV 한 방향 export 오케스트레이션 (지출+정산+예산) + 폴더 도달성 확인(isFolderReachable)
-    SyncCoordinator+Files.swift      # 파일명 ↔ monthKey 경계 헬퍼
-    SyncCoordinator+Reconciliation.swift # 정산 CSV export·monthKeys (도메인 → ReconciliationCSV)
-    SyncCoordinator+Budget.swift     # 예산 CSV export·달 범위 계산 (resolveAll로 이월 흡수 → BudgetCSV)
-    SyncFileKind.swift               # export 대상 파일 종류 (.expenses / .reconciliation) 구분
-    CSVFolderAccess.swift            # 저장 폴더 bookmark 해소 + 도달성 확인 래퍼
-    CSVRowParser.swift               # 지출 CSV 한 행 ↔ 도메인 필드 파싱 (저장·동기화 공용)
-    CategoryBudgetStore.swift        # 카테고리 한도 CRUD + effectiveLimit 이월 계산 (monthKey 헬퍼)
-    ReconciliationStore.swift        # 월 정산 draft 로드/저장/삭제·이월(carry-forward)·CSV 행 생성
-    ReconciliationSummary.swift      # 정산 요약 계산 (실제 쓴 돈/기록한 돈/차이, isReconciled 판정) — pure
+    AppleIntelligenceStatus.swift    # FM availability → user-friendly copy (shared entry point for Settings/Onboarding/Review)
+    PendingProcessor.swift           # @MainActor pipeline: reconcile inbox → OCR → heuristic → extract → ParsedEntry
+    SaveCoordinator.swift            # Confirm review → CSV append + SavedEntry creation + category learning
+    CategoryLearner.swift            # Merchant → category learning & lookup
+    CategoryValidation.swift         # Determines if a category is off-list (warning only, pure)
+    ImageImporter.swift              # Normalize imports from + menu (photos, clipboard, files, drop) → inbox
+    CandidateAutoFill.swift          # Auto-fill category/amount by merchant on new review entry (pure)
+    EntryReorder.swift               # Drag-and-drop item reordering → sortOrder recalculation (pure, shared with reconciliation items)
+    EntrySaveValidation.swift        # Required field validation before saving review entry (pure)
+    ReviewDateStatus.swift           # Flags dates outside normal range (today/yesterday) → tooOld/future warnings (pure, relative to entry.createdAt)
+    SyncCoordinator.swift            # CSV one-way export orchestration (expenses + reconciliation + budget) + folder reachability check (isFolderReachable)
+    SyncCoordinator+Files.swift      # Filename ↔ monthKey boundary helpers
+    SyncCoordinator+Reconciliation.swift # Reconciliation CSV export & monthKeys (domain → ReconciliationCSV)
+    SyncCoordinator+Budget.swift     # Budget CSV export & month range calculation (flattens carryover via resolveAll → BudgetCSV)
+    SyncFileKind.swift               # Target export file type (.expenses / .reconciliation) distinction
+    CSVFolderAccess.swift            # Storage folder bookmark resolution + reachability check wrapper
+    CSVRowParser.swift               # Expense CSV row ↔ domain field parsing (shared between save & sync)
+    CategoryBudgetStore.swift        # Category limit CRUD + effectiveLimit carryover calculation (monthKey helpers)
+    ReconciliationStore.swift        # Monthly reconciliation draft load/save/delete, carry-forward, CSV row generation
+    ReconciliationSummary.swift      # Reconciliation summary calculation (actual spending / recorded spending / discrepancy, isReconciled status) — pure
 
-  Storage/                           # 파일·클립보드·북마크 IO
-    CSVWriter.swift                  # NSFileCoordinator 기반 월별 CSV (BOM + 헤더 + escape)
-    CSVParser.swift                  # 기록 탭 월별 CSV 뷰어용 파서
-    BookmarkStore.swift              # security-scoped bookmark 생성/해소
-    FolderBookmarkHelper.swift       # BookmarkStore 래퍼 — URL → AppSettings.csvFolderBookmark 적용
-    ClipboardExporter.swift          # 검토/기록 항목을 TSV(+HTML) 페이로드로 (Numbers paste용)
-    ReconciliationCSV.swift          # 월 정산 CSV(reconciliations-YYYY-MM.csv) writer/parser — AI 분석 친화 export
-    BudgetCSV.swift                  # 월별 예산 CSV(budgets-YYYY-MM.csv) writer (카테고리,한도) — AI 분석 친화 export
+  Storage/                           # File, clipboard, and bookmark IO
+    CSVWriter.swift                  # Monthly CSV based on NSFileCoordinator (BOM + header + escape)
+    CSVParser.swift                  # Parser for History tab monthly CSV viewer
+    BookmarkStore.swift              # Security-scoped bookmark creation & resolution
+    FolderBookmarkHelper.swift       # BookmarkStore wrapper — applies URL → AppSettings.csvFolderBookmark
+    ClipboardExporter.swift          # Exports review/history entries to TSV (+HTML) payload (for pasting into Numbers)
+    ReconciliationCSV.swift          # Monthly reconciliation CSV (reconciliations-YYYY-MM.csv) writer/parser — AI-friendly export
+    BudgetCSV.swift                  # Monthly budget CSV (budgets-YYYY-MM.csv) writer (category, limit) — AI-friendly export
 
-  Features/                          # UI 화면
-    MonthNavigationRow.swift         # ◀ 현재 월(메뉴) ▶ 월 선택 행 (예산·통계 탭 공용)
-    Review/                          # ReviewListView (+ 메뉴/드롭존/뱃지/처리중 표시), EntryEditorView (chip row + 날짜 경고 아이콘 ReviewDateStatus 소비),
-                                     #            BudgetToastView (저장 시 예산 임계 하단 플로팅 토스트), FailedImagesSection·InboxImage
-    History/                         # HistoryView (@Query SavedEntry, 일별 섹션 + .searchable), SavedEntryEditorView,
-                                     # CSVFileView (월별 표 뷰어 + 다중 선택 복사/공유), HistoryGrouping·EntrySearch (pure — 검색은 가맹점·카테고리·메모 부분일치 + 금액 정확일치)
-    Statistics/                      # StatisticsView (카테고리 도넛 + 전월 대비), StatisticsAggregation (pure),
-                                     # CategoryColor (pure), CategoryEntriesSheet (도넛 조각 탭 → 그 카테고리 항목 목록)
-    Budget/                          # BudgetView (월 선택 → 정산 진입 + 카테고리별 한도 진행률), BudgetProgress (pure: 한도 대비 사용),
-                                     # MonthlyReconciliationView (수입/카드/저축/계좌잔액/자금변동 입력 + 월급 마스킹),
-                                     # ReconciliationEditors (계좌/항목 편집 행), ReconciliationVerdict+Color (정상/차이 색)
-    Settings/                        # SettingsView (저장폴더 행=폴더이름→저장 폴더 화면 / reminder / FM 상태),
-                                     # AdvancedSettingsView (카테고리 / 추출 가이드), CategoryEditorView (프리셋 추가·삭제·재정렬),
+  Features/                          # UI views
+    MonthNavigationRow.swift         # ◀ Current Month (menu) ▶ month selection row (shared across Budget & Statistics tabs)
+    Review/                          # ReviewListView (+ menu, drop zone, badge, processing indicator), EntryEditorView (chip row + ReviewDateStatus date warning icon),
+                                     #            BudgetToastView (bottom floating toast on budget threshold during review save), FailedImagesSection, InboxImage
+    History/                         # HistoryView (@Query SavedEntry, daily sections + .searchable), SavedEntryEditorView,
+                                     # CSVFileView (monthly table viewer + multi-select copy/share), HistoryGrouping, EntrySearch (pure — partial match for merchant/category/note + exact match for amount)
+    Statistics/                      # StatisticsView (category donut chart + month-over-month trend), StatisticsAggregation (pure),
+                                     # CategoryColor (pure), CategoryEntriesSheet (donut slice tap → category entries list)
+    Budget/                          # BudgetView (month selector → reconciliation entry + category limit progress), BudgetProgress (pure: usage vs. limit),
+                                     # MonthlyReconciliationView (inputs for income/cards/savings/balances/cash flow + salary masking),
+                                     # ReconciliationEditors (account/item editor rows), ReconciliationVerdict+Color (status/discrepancy colors)
+    Settings/                        # SettingsView (storage folder row = folder name → storage folder view / reminder / FM status),
+                                     # AdvancedSettingsView (categories / extraction guide), CategoryEditorView (preset add/delete/reorder),
                                      # AboutView, FolderPicker, FeedbackMail (pure), MailComposeSheet
-    Sync/                            # FileSyncView (저장 폴더 화면 = 전체 내보내기 + 폴더 변경)
+    Sync/                            # FileSyncView (storage folder view = Export All + Change Folder)
     Onboarding/                      # OnboardingView + ValuePage/SetupPage + AppearStep/PermissionAction (pure)
 
-  System/                            # 시스템 통합 (화면 아님)
+  System/                            # System integrations (not views)
     Background/BackgroundRefresh.swift          # BGAppRefreshTask
     Intents/AddExpenseFromImageIntent.swift     # AppIntent (Spotlight/Siri)
     Intents/SnapLedgerShortcuts.swift           # AppShortcutsProvider
     Notifications/NotificationScheduler.swift   # UNUserNotification wrapper
-    Notifications/ReminderContent.swift         # pure: 시간/카운트 → 본문·1회성 트리거
-    Notifications/ReminderRefresher.swift       # 설정·pending 카운트 → 알림 재예약/해제 (ContentView·BGTask 공용)
+    Notifications/ReminderContent.swift         # pure: time/count → body & single-fire trigger
+    Notifications/ReminderRefresher.swift       # Reschedules/clears notifications from settings & pending count (shared by ContentView & BGTask)
 
-SnapLedgerShareExtension/            # Share Extension 타겟 (synchronized root group, 별도)
-  ShareViewController.swift          # silent UIVC, NSItemProvider 이미지를 App Group inbox에 복사
-  Info.plist                         # 명시적 plist: NSExtensionPrincipalClass, image-only activation
+SnapLedgerShareExtension/            # Share Extension target (synchronized root group, separate)
+  ShareViewController.swift          # Silent UIVC, copies NSItemProvider images to App Group inbox
+  Info.plist                         # Explicit plist: NSExtensionPrincipalClass, image-only activation
   SnapLedgerShareExtension.entitlements   # App Group
 
-SnapLedgerTests/                     # Swift Testing — 소스 구조를 미러링
+SnapLedgerTests/                     # Swift Testing — mirrors source structure
   Models/    Services/    Storage/    Features/    System/
 ```
 
-## 핵심 아키텍처 결정
+## Key Architectural Decisions
 
-1. **공유 시트 → inbox 파일 → 메인 앱 reconcile**
-   Share Extension은 `PendingImage` row를 직접 만들지 않습니다. 파일만 `App Group 컨테이너/inbox/`에 떨어뜨리고 dismiss. 메인 앱이 launch / foreground 진입 / BGTask 실행 시 `PendingProcessor.reconcileInbox`로 inbox를 스캔해 row 없는 파일에 대해 `PendingImage`를 생성. 이렇게 한 이유는 Xcode 16 `PBXFileSystemSynchronizedRootGroup` 사용 시 같은 .swift 파일을 두 타겟 멤버십에 깔끔히 넣기가 어렵기 때문 — Extension은 SwiftData에 의존하지 않고 App Group identifier만 inline 상수로 가지면 충분합니다.
+1. **Share Sheet → Inbox File → Main App Reconcile**
+   The Share Extension does not create `PendingImage` rows directly. It only writes files to `App Group container/inbox/` and dismisses. The main app reconciles the inbox on launch, foreground transition, or BGTask execution via `PendingProcessor.reconcileInbox`, creating `PendingImage` rows for any unmapped files. This design avoids sharing `.swift` files across target memberships under Xcode 16 `PBXFileSystemSynchronizedRootGroup` — the extension only needs an inline App Group identifier constant without depending on SwiftData.
 
-2. **Foundation Models은 가드한다**
-   `FoundationModelsExtractionService.isAvailable`로 체크. unavailable이면 drain은 통째로 스킵하고 (`ContentView.drainPending`, `BackgroundRefresh.handle`), AddExpenseFromImageIntent는 "큐에 추가됨" 메시지로 graceful degrade. 시뮬레이터에서는 Apple Intelligence가 없을 수 있으니 실기기 검증 필요.
+2. **Guard Foundation Models**
+   Always check `FoundationModelsExtractionService.isAvailable`. If unavailable, processing drains are skipped entirely (`ContentView.drainPending`, `BackgroundRefresh.handle`), and `AddExpenseFromImageIntent` gracefully degrades with an "Added to queue" message. Note that Apple Intelligence may be unavailable in simulators, requiring on-device testing.
 
-3. **모든 SwiftData 컨테이너는 group container 사용**
-   `ModelConfiguration(schema: schema, groupContainer: .identifier(AppGroup.identifier))`. 메인 앱과 AppIntent가 같은 store를 봅니다.
+3. **All SwiftData Containers Use Group Container**
+   `ModelConfiguration(schema: schema, groupContainer: .identifier(AppGroup.identifier))`. Both the main app and AppIntents share and inspect the exact same store.
 
-4. **추출 정확도는 prompt + 사용자 가이드로 잡는다**
-   `FoundationModelsExtractionService.instructions(today:customGuide:categories:)`가 단일 source-of-truth. 카드사 알림 형식(`<금액>원 일시불`)과 금지 단어(`누적`, `잔액`, `한도`, `포인트` 등)를 explicit하게 명시. `@Guide`는 instructions에 위임(하드코딩 금지). 사용자가 Settings에서 추가 가이드를 적으면 prompt 끝에 "사용자 가이드 (위 규칙보다 우선 적용)"으로 append됨.
+4. **Extraction Accuracy via Prompt + User Guide**
+   `FoundationModelsExtractionService.instructions(today:customGuide:categories:)` is the single source of truth. Explicitly defines payment notification patterns (`<amount>원 일시불`) and forbidden secondary amounts (`누적`, `잔액`, `한도`, `포인트`, etc.). `@Guide` delegates to instructions (no hardcoding). When users specify custom guides in Settings, they are appended to the end of the prompt under "User Guide (takes precedence over rules above)".
 
-5. **카테고리 목록은 동적**
-   `AppSettings.categoryPresets`(사용자 편집 가능)가 prompt에 그대로 주입됨. 모델은 그 목록 안에서만 선택하도록 soft-constrain.
+5. **Dynamic Category List**
+   `AppSettings.categoryPresets` (user-editable) is injected directly into the prompt. The model is soft-constrained to pick from this list.
 
-6. **CSV 쓰기는 NSFileCoordinator로 보호**
-   `CSVWriter.append`는 `.forMerging`으로 cross-process safe. 헤더는 첫 호출에만 BOM과 함께. 월별 파일은 `expenses-YYYY-MM.csv`.
+6. **CSV Writes Protected by NSFileCoordinator**
+   `CSVWriter.append` uses `.forMerging` for cross-process safety. BOM and header are written only on the first call when creating the file. Monthly files follow `expenses-YYYY-MM.csv`.
 
-7. **CSV는 한 방향 export 백업** (`SyncCoordinator`) — CloudKit이 진실원(Phase 1–4)
-   모든 영속 데이터의 진실원은 CloudKit-backed SwiftData다. CSV는 AI 분석·백업용 **export-only 추출물 3종(지출·정산·예산)**으로, 진실원이 아니다. 따라서 파일→앱 import·외부 변경 감지·충돌 가드·`CSVFileState` 지문·`FileFingerprint`는 Phase 4에서 **전부 제거**됐다.
-   - **export(앱 → 파일)**: 저장/수정/삭제/재정렬 시 영향 받은 달을 **best-effort**로 그 달 CSV에 재기록. 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 저장은 성공으로 둔다 — `SaveCoordinator.exportEntryBestEffort`(지출+그 달 예산) / `ReconciliationStore.exportBestEffort`(정산+그 달 예산) / `CategoryBudgetStore.exportBestEffort`(예산 편집). CSV는 순수 옵션이라 폴더 미설정이어도 데이터는 CloudKit에 안전하다.
-   - **진입점**: **설정 → 저장 폴더 행** → `FileSyncView`("저장 폴더"). 화면에서 **전체 내보내기**(`SyncCoordinator.exportAll`, 앱의 모든 지출·정산·예산 달을 폴더로 백필)와 **폴더 변경**만 제공. 폴더를 새로 고르면 자동으로 전체 내보내기로 백필한다.
-   - **폴더 삭제/이동 처리**: bookmark가 resolve돼도 실제 디렉토리가 없을 수 있음 → `SyncCoordinator.isFolderReachable`(`BookmarkStore.isReachableDirectory`)로 확인. `FileSyncView`는 "폴더를 찾을 수 없어요 + 폴더 변경" 화면을 노출. export는 폴더 부재/접근불가를 조용히(best-effort) 건너뛴다.
+7. **CSV is a One-Way Export Backup (`SyncCoordinator`) — CloudKit as Source of Truth (Phases 1–4)**
+   CloudKit-backed SwiftData is the sole source of truth for all persistent data. CSVs are **export-only backups across 3 kinds (expenses, reconciliation, budget)**, not a source of truth. Consequently, file-to-app import, external modification detection, conflict resolution UI, `CSVFileState` fingerprints, and `FileFingerprint` have all been removed.
+   - **Export (App → File)**: Save, edit, delete, and reorder operations trigger a **best-effort** rewrite of the affected month's CSV. If no folder is configured or writing fails, the commit remains successful — `SaveCoordinator.exportEntryBestEffort` (expenses + that month's budget) / `ReconciliationStore.exportBestEffort` (reconciliation + that month's budget) / `CategoryBudgetStore.exportBestEffort` (budget edits). CSV export is completely optional, so data remains secure in CloudKit even without a configured folder.
+   - **Entry Point**: **Settings → Storage Folder row** → `FileSyncView` ("Storage Folder"). Offers **Export All** (`SyncCoordinator.exportAll`, backfilling all app months for expenses, reconciliations, and budgets into the folder) and **Change Folder**. Selecting a new folder automatically runs a full backfill export.
+   - **Deleted / Moved Folder Handling**: Even if a security-scoped bookmark resolves, the physical directory may no longer exist → verified via `SyncCoordinator.isFolderReachable` (`BookmarkStore.isReachableDirectory`). `FileSyncView` presents a "Folder not found + Change Folder" banner. Export routines quietly skip missing/unreachable folders (best-effort).
 
-8. **카테고리 한도는 effectiveFrom으로 자동 이월** (`CategoryBudget` / `CategoryBudgetStore`)
-   한도는 달마다 row를 만들지 않는다. `CategoryBudget(category, monthlyLimit, effectiveFrom)`은 "이 달부터 다음 변경 전까지" 매월 자동 반복. 특정 달의 유효 한도는 `effectiveFrom <= month` 중 가장 최신 row (`CategoryBudgetStore.resolveLimit`). 한도 해제는 row 삭제가 아니라 `monthlyLimit = 0` tombstone으로 그 달부터 끄기 (과거 달 한도는 보존). 예산 탭은 한도가 자동 이월되므로 미래 달 보기를 막고 현재 달까지만 노출.
-   - **예산 CSV는 그 달 유효 한도 스냅샷**(`budgets-YYYY-MM.csv`): 헤더 `카테고리,한도`, UTF-8+BOM. `CategoryBudgetStore.resolveAll`이 forward-propagation(이월)을 export 시점에 풀어 그 달 유효 한도가 0보다 큰 카테고리만 preset 순(off-list는 뒤에 가나다순)으로 기록. 지출·정산과 동일한 한 방향 best-effort(지출·정산 저장·예산 편집에 동승, `SyncCoordinator.exportAll`이 `[가장 이른 effectiveFrom … 현재 달]` 범위를 백필). 실제지출·사용률은 담지 않고 `expenses-*.csv`와 join해 AI가 계산 (계산값 배제, 원본만). 그 달 유효 한도가 없으면 파일을 쓰지 않고 기존 파일은 제거.
+8. **Category Budgets Auto-Carry Forward via `effectiveFrom` (`CategoryBudget` / `CategoryBudgetStore`)**
+   Budgets do not create rows for every month. `CategoryBudget(category, monthlyLimit, effectiveFrom)` automatically repeats each month from `effectiveFrom` until the next change. The effective limit for a month is the latest row where `effectiveFrom <= month` (`CategoryBudgetStore.resolveLimit`). Clearing a limit is represented by a `monthlyLimit = 0` tombstone starting in that month (preserving historical limits). The Budget tab restricts navigation to months up to the current month because future months are not locked.
+   - **Budget CSV is a Monthly Effective Limit Snapshot (`budgets-YYYY-MM.csv`)**: Header `카테고리,한도`, UTF-8 with BOM. `CategoryBudgetStore.resolveAll` flattens carryover at export time and writes only categories with an effective limit > 0 in preset order (off-list items alphabetical at the end). One-way best-effort export (piggybacking on expense/reconciliation saves and budget edits; `SyncCoordinator.exportAll` backfills `[earliest effectiveFrom ... current month]`). Does not store actual spending or usage percentages — AI calculates those by joining with `expenses-*.csv`. If a month has no active limits, no file is written and any existing file is deleted.
 
-9. **월 정산은 헤더 + 항목 모델 분리, CSV로 round-trip** (`MonthlyReconciliation` 외 6모델 / `ReconciliationStore` / `ReconciliationCSV`)
-   한 달의 정산은 `MonthlyReconciliation`(monthKey + 월 메모)을 헤더로 두고, 금액은 `IncomeItem`·`CardUsageItem`·`SavingsItem`·`AccountMonthlyBalance`·`CashAdjustment`로 분리 저장. 화면 진입 시 `ReconciliationStore.carryForwardDraft`가 전월 값을 "다음 달에도 안정적인 값"만 미리채움 (계좌 이름·잔액 기준선, 수입·저축 이름+금액, 카드·자금변동은 이름만 금액 0).
-   - **요약·판정은 `ReconciliationSummary`(pure)에 단일화**: `실제 쓴 돈`(actualSpending)·`기록한 돈`(recordedSpending)·차이와 `isReconciled(status:)` 판정을 한 곳에서 계산해 예산 탭과 정산 화면이 같은 결론을 낸다. 진행 중인 달은 사용자가 실제 값을 입력(월말≠월초 또는 카드)해야 "정산 진행"으로 보고, 그 전엔 `실제 쓴 돈`을 0으로 게이트(프리필 노이즈 차단). 마감된 달은 저장 데이터가 있으면 확정.
-   - **정산 CSV는 AI 분석 친화 + 무손실 round-trip** (`reconciliations-YYYY-MM.csv`): 헤더 `종류,항목,계좌,방향,금액,메모` 6칼럼, UTF-8+BOM, RFC4180 이스케이프. 소비자가 AI라 self-describing(한글 라벨)로 설계 — `날짜` 칼럼 없음(정산 모델은 전부 `monthKey` 단위라 일자 자체가 없음), 계좌 잔액은 기초/기말/이자 3행으로 펼침, `월메모` 종류로 헤더 메모까지 보존. 지출 CSV와 동일하게 한 방향 export-only(`SyncCoordinator+Reconciliation.exportReconciliationMonths`, best-effort).
+9. **Monthly Reconciliation Splits Header + Item Models, Round-Trips to CSV (`MonthlyReconciliation` + 5 item models / `ReconciliationStore` / `ReconciliationCSV`)**
+   A monthly reconciliation uses `MonthlyReconciliation` (monthKey + monthly note) as the header, with amounts split into `IncomeItem`, `CardUsageItem`, `SavingsItem`, `AccountMonthlyBalance`, and `CashAdjustment`. On entering the view, `ReconciliationStore.carryForwardDraft` prefills stable values from the prior month (account names & baseline balance, income/savings names + amounts; cards and adjustments prefill names with 0 amounts).
+   - **Summary and Verdict Centralized in `ReconciliationSummary` (pure)**: Calculates `actualSpending`, `recordedSpending`, difference, and `isReconciled(status:)` in one place so the Budget tab and reconciliation view reach identical conclusions. An in-progress month is considered "in progress" only after the user enters actual numbers (closing balance != opening balance, or card usage); prior to that, `actualSpending` is gated to 0 to prevent prefill noise. Closed past months are finalized if saved data exists.
+   - **Reconciliation CSV is AI-Friendly + Lossless Round-Trip (`reconciliations-YYYY-MM.csv`)**: 6 columns `종류,항목,계좌,방향,금액,메모`, UTF-8 with BOM, RFC 4180 escaping. Designed to be self-describing in Korean since the primary consumer is AI — no date column (all reconciliation models are month-scoped), account balances unfold into opening/closing/interest rows, and monthly note is preserved with type `월메모`. One-way export-only (`SyncCoordinator+Reconciliation.exportReconciliationMonths`, best-effort), identical to expense CSV.
 
-## 컨벤션 (지켜주세요)
+## Conventions
 
-- **파일 헤더 금지**: 새 `.swift` 파일은 헤더 주석 없이 바로 `import`부터 시작. Xcode 템플릿이 삽입하는 `// FileName.swift\n// Target\n// Created by...` 블록은 즉시 제거.
-- **Swift Testing 사용**: 새 단위 테스트는 `import Testing`, `@Test`, `#expect`. XCTest는 UI 테스트(`SnapLedgerUITests`)에서만 사용.
-- **@MainActor 기본**: 프로젝트의 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. SwiftData 접근 코드는 모두 main isolated. 명시 가능한 곳은 `@MainActor` 표기.
-- **테스트 가능한 헬퍼로 분리**: UIKit·SwiftData·UN(notification)·시스템 의존 코드는 stateless pure-function 헬퍼(`ReminderContent`, `instructions(today:customGuide:categories:)`)를 추출해 그쪽을 단위 테스트. 시스템 wrapper는 얇게.
-- **SwiftLint strict**: 메인 `SnapLedger` 타겟의 첫 빌드 페이즈 `SwiftLint`가 `--strict`로 실행돼 모든 warning을 build error로 격상. 룰 우회는 inline `// swiftlint:disable:next <rule>`로 1회성 정당화만 허용 (예외: 테스트 파일의 `force_unwrapping`은 file-level disable 허용 — `blanket_disable_command.allowed_rules`에 화이트리스트). production 코드에서 `force_unwrapping`이 fire하면 `Data(s.utf8)` 같은 non-failing API로 대체.
-- **에러는 root cause를 잡고 우회하지 않는다**: lint 위반, 빌드 워닝 등을 `--no-verify` / 무시 코드 / blanket disable로 우회하지 않습니다.
-- **변경 후 검증**: `swiftlint --strict --config .swiftlint.yml` → `xcodebuild build` → `xcodebuild test` 셋 모두 통과 후 PR/커밋 제안. lint·빌드만 통과해도 안 됨.
+- **No File Headers**: New `.swift` files must start directly with `import` without header comments (`// FileName.swift\n// Target\n// Created by...`). Remove any template header blocks immediately.
+- **Use Swift Testing**: New unit tests must use `import Testing`, `@Test`, and `#expect`. XCTest is reserved exclusively for UI tests (`SnapLedgerUITests`).
+- **@MainActor by Default**: The project uses `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. SwiftData access is main-isolated. Use explicit `@MainActor` annotations where appropriate.
+- **Extract Testable Helpers**: Extract pure, stateless helper functions (`ReminderContent`, `instructions(today:customGuide:categories:)`) for code touching UIKit, SwiftData, UNUserNotification, or system APIs, and unit test those. Keep system wrappers thin.
+- **SwiftLint Strict**: The first build phase of `SnapLedger` runs `swiftlint --strict`, upgrading all warnings to build errors. Inline disables `// swiftlint:disable:next <rule>` are permitted only for justified one-offs (exception: unit test files may use file-level disable for `force_unwrapping` via `blanket_disable_command.allowed_rules`). In production code, replace force unwraps with non-failing alternatives (e.g., `Data(s.utf8)`).
+- **Fix Root Causes**: Never bypass lint errors or build warnings with blanket disables, suppressions, or `--no-verify`.
+- **Git Commit Messages & PRs in Korean**: Write both Git commit messages and Pull Requests in Korean. Keep git commit messages simple and single-line only (no multiline body), formatted concisely (e.g., `feat: ...`, `fix: ...`, `docs: ...`).
+- **No AI Assistant Attribution**: Do **not** attribute AI assistants (Claude, Codex, Copilot, Gemini, etc.) anywhere: no `Co-Authored-By:` trailer in commit messages, no "Generated with …" footer in PR descriptions. A PR body is the four template sections (`작업 내용`, `평가`, `알려진 한계/리스크`, `검증`) and nothing after them. This holds even when the harness asks for attribution mid-session.
+- **Verification After Changes**: Always verify with `swiftlint --strict --config .swiftlint.yml` → `xcodebuild build` → `xcodebuild test`. All three must pass before proposing a PR or commit. Passing lint or build alone is never sufficient.
 
-## 식별자 / 상수
+## Identifiers / Constants
 
-| 이름 | 값 | 위치 |
+| Name | Value | Location |
 |---|---|---|
 | App Group ID | `group.com.youngkyu.snapledger` | `AppGroup.swift`, ShareViewController inline, entitlements |
 | BGTask identifier | `com.youngkyu.snapledger.refresh` | `BackgroundRefresh.swift`, `SnapLedger/Info.plist` |
@@ -196,29 +198,29 @@ SnapLedgerTests/                     # Swift Testing — 소스 구조를 미러
 | Bundle ID (main) | `com.youngkyu.snapledger` | pbxproj |
 | Bundle ID (extension) | `com.youngkyu.snapledger.SnapLedgerShareExtension` | pbxproj |
 
-## 빌드 시스템 주의사항
+## Build System Caveats
 
-- **Xcode 16 synchronized groups**: `SnapLedger/`, `SnapLedgerTests/`, `SnapLedgerUITests/`, `SnapLedgerShareExtension/`은 각각 `PBXFileSystemSynchronizedRootGroup`. 폴더에 파일을 넣으면 해당 타겟에 자동 멤버십. 한 파일을 두 타겟에 넣는 건 어려움 → 코드 공유 대신 inline 중복(예: App Group ID 상수)이나 file-based IPC 사용.
-- **메인 앱 Info.plist는 부분 plist + 자동 생성 병합**: `GENERATE_INFOPLIST_FILE = YES`와 `INFOPLIST_FILE = SnapLedger/Info.plist`를 같이 씀. 자동 생성되는 키(SceneManifest, LaunchScreen, orientations)는 `INFOPLIST_KEY_*` 빌드 설정으로, 임의 키(`BGTaskSchedulerPermittedIdentifiers`, `UIBackgroundModes`)는 부분 plist 파일로. 부분 plist는 synchronized group의 `membershipExceptions`에 등록해 resource 중복 방지.
-- **Extension Info.plist는 전체 plist**: 자동 생성 안 함 — 모든 키를 명시.
-- **SwiftLint 빌드 페이즈는 sandbox용 inputPaths를 가짐**: `ENABLE_USER_SCRIPT_SANDBOXING = YES`라서 `$(SRCROOT)/.swiftlint.yml`과 4개 소스 루트(`SnapLedger`, `SnapLedgerShareExtension`, `SnapLedgerTests`, `SnapLedgerUITests`)를 inputPaths로 선언. 새 source root 디렉토리를 추가하면 이 목록도 갱신 필요. xattr 관련 sandbox warning은 무해 (실제 read는 통과).
+- **Xcode 16 Synchronized Groups**: `SnapLedger/`, `SnapLedgerTests/`, `SnapLedgerUITests/`, and `SnapLedgerShareExtension/` are each a `PBXFileSystemSynchronizedRootGroup`. Files placed in these folders automatically receive target membership. Sharing files across targets is difficult; prefer inline duplicates for constants (e.g., App Group ID) or file-based IPC over shared compile units.
+- **Main App Info.plist is a Partial Plist Merged with Generated Plist**: Uses both `GENERATE_INFOPLIST_FILE = YES` and `INFOPLIST_FILE = SnapLedger/Info.plist`. Standard keys (SceneManifest, LaunchScreen, orientations) are handled by `INFOPLIST_KEY_*` build settings, while custom keys (`BGTaskSchedulerPermittedIdentifiers`, `UIBackgroundModes`) reside in the partial plist. The partial plist is registered in the synchronized group's `membershipExceptions` to avoid duplicate bundle resources.
+- **Extension Info.plist is a Full Plist**: Does not use auto-generation; all keys are explicitly declared.
+- **SwiftLint Build Phase Has Sandbox `inputPaths`**: Since `ENABLE_USER_SCRIPT_SANDBOXING = YES`, the script declares `$(SRCROOT)/.swiftlint.yml` and the 4 source roots (`SnapLedger`, `SnapLedgerShareExtension`, `SnapLedgerTests`, `SnapLedgerUITests`) as inputPaths. If a new source root directory is added, this list must be updated. xattr sandbox warnings are harmless (actual file reads succeed).
 
-## 자주 쓰는 검증 명령
+## Frequently Used Verification Commands
 
 ```bash
-# Build 직후 Info.plist 키 확인
+# Verify Info.plist keys immediately after build
 plutil -p /Users/youngkyu/Library/Developer/Xcode/DerivedData/SnapLedger-*/Build/Products/Debug-iphonesimulator/SnapLedger.app/Info.plist
 
-# 시뮬레이터의 App Group inbox 확인 (Share Extension이 떨어뜨린 파일 검증)
+# Check simulator App Group inbox (verify files dropped by Share Extension)
 xcrun simctl get_app_container booted com.youngkyu.snapledger groups
 ls "$(xcrun simctl get_app_container booted com.youngkyu.snapledger groups | awk '{print $2}')/inbox/"
 
-# BGTask 강제 트리거 (LLDB on booted app)
+# Force trigger BGTask (LLDB on booted app)
 e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.youngkyu.snapledger.refresh"]
 ```
 
-## 알려진 한계 (의도적, 변경 전 확인)
+## Known Limitations (Intentional, Verify Before Modifying)
 
-- Foundation Models가 simulator에서 unavailable이면 drain이 통째로 스킵되어 검토 탭이 비어 보임. inbox 파일은 그대로 큐잉 상태로 남아 있음 — 실기기에서 처리됨.
-- Reminder 본문은 예약 시점의 pending 카운트로 baked-in (iOS 로컬 알림은 발사 시점 재계산 불가). 완화책: 반복 예약 대신 **다음 1회만** 예약하고(`ReminderContent.trigger`), 앱 실행 중 모든 갱신 기회(scenePhase `.active`/`.background`, BGTask)에 `ReminderRefresher.refresh`로 재장전. 앱을 강제 종료하면 BGTask도 안 돌므로 stale 알림이 최대 1회 올 수 있음 — iOS 제약상 허용.
-- Share Extension UI는 호스트 앱이 detent 힌트(`preferredContentSize`)를 무시할 수도 있음. 표준 host (Photos, Safari, Messages)에서는 동작.
+- If Foundation Models is unavailable on the simulator, inbox processing drain is skipped entirely and the Review tab appears empty. Inbox files remain queued and are processed on real devices.
+- Reminder notification copy is baked-in with the pending count at the time of scheduling (iOS local notifications cannot recompute copy at trigger time). Mitigation: schedules only the **next single occurrence** (`ReminderContent.trigger`) rather than a recurring trigger, and reloads on all app activity opportunities (scenePhase `.active`/`.background`, BGTask) via `ReminderRefresher.refresh`. Force-quitting the app suspends BGTask, allowing at most one stale notification — acceptable under iOS constraints.
+- Share Extension UI may have its detent hint (`preferredContentSize`) ignored by some host apps. Works properly in standard system hosts (Photos, Safari, Messages).
