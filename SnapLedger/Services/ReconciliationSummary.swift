@@ -39,7 +39,7 @@ struct ReconciliationSummary: Equatable {
     let recordedSpending: Int
     let difference: Int
     let hasReconciliationData: Bool
-    /// Whether user entered non-zero reconciliation figures.
+    /// Whether the user entered real figures: any balance with opening != closing, or any non-zero card amount.
     let hasStartedReconciliation: Bool
 
     var isBalanced: Bool { difference == 0 }

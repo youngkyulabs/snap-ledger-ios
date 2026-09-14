@@ -56,14 +56,14 @@ private extension SnapLedgerApp {
 
     /// Creates a two-store ModelContainer with CloudKit sync, falling back to local storage.
     static func makeContainer() -> ModelContainer {
-        // Configure local App Group store.
+        // Local store stays unnamed so existing users' default.store is reused (naming it orphans their data).
         let local = ModelConfiguration(
             schema: Schema(AppSchema.localModels),
             groupContainer: .identifier(AppGroup.identifier),
             cloudKitDatabase: .none
         )
 
-        // Configure CloudKit-backed store in App Group directory.
+        // Cloud store must stay at this App Group location in both primary and fallback, or migrated data is stranded.
         let cloud = ModelConfiguration(
             "cloud",
             schema: Schema(AppSchema.cloudModels),

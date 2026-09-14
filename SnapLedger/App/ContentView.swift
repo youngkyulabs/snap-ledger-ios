@@ -66,7 +66,7 @@ struct ContentView: View {
         .onChange(of: pendingReviewCount, initial: true) { _, newCount in
             Task { await NotificationScheduler().syncIconBadge(count: newCount) }
         }
-        // Handle app lifecycle state transitions.
+        // `initial: true` covers launch too — do not add a separate `.task` for the same work.
         .onChange(of: scenePhase, initial: true) { _, newPhase in
             switch newPhase {
             case .active:

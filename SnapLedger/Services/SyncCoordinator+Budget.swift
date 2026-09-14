@@ -3,7 +3,7 @@ import SwiftData
 
 @MainActor
 extension SyncCoordinator {
-    /// Rewrites budget CSV files for specified months.
+    /// Rewrites budget CSV files for the given months, removing a file when that month has no effective limit.
     func exportBudgetMonths(_ keys: [String], folderURL: URL, in context: ModelContext) throws {
         let writer = BudgetCSVWriter(folder: folderURL)
         let budgets = (try? context.fetch(FetchDescriptor<CategoryBudget>())) ?? []

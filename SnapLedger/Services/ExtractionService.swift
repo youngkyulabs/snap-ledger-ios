@@ -174,7 +174,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         return false
     }
 
-    /// Payment provider aliases normalized to standard names.
+    /// Payment provider aliases normalized to standard names. Keys must be upper-cased — lookup uses `uppercased()`.
     static let paymentProviderNormalization: [String: String] = [
         "NAVER FINANCIAL": "네이버페이",
         "NAVER PAY": "네이버페이",
@@ -200,7 +200,11 @@ struct FoundationModelsExtractionService: ExtractionService {
         return re.firstMatch(in: text, range: range) != nil
     }
 
-    /// Normalizes parsed year relative to reference date.
+    /// Corrects a hallucinated year using the "payment time ≈ extraction time" invariant — given a
+    /// partial `M/D`, models often fill in a training-distribution year instead of today's. The window is
+    /// asymmetric: a future date is almost always a wrong year, so only 2 days of timezone slack are
+    /// allowed before year - 1, while a past date stays plausible for months, so year + 1 applies only
+    /// beyond 330 days back. Unparseable or out-of-range input is returned unchanged.
     static func normalizeYear(
         _ raw: String,
         today: Date,

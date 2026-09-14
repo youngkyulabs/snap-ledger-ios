@@ -12,9 +12,9 @@ enum CandidateAutoFill {
         current == 0 && candidates.count == 1 ? candidates[0] : current
     }
 
-    /// Resolves category preferring learned over extracted, restricted to presets.
+    /// Prefers the learned category when it is in `presets`, otherwise falls back to `extracted` as-is (may be off-list).
     static func category(learned: String?, extracted: String?, presets: [String]) -> String? {
-        // Validate whether trimmed label exists in preset list.
+        // Trim once so the preset check and the returned value use the same string.
         if let learned {
             let trimmed = learned.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty, !CategoryValidation.isOffPreset(trimmed, presets: presets) {

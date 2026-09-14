@@ -26,7 +26,7 @@ struct AddExpenseFromImageIntent: AppIntent {
         let destination = inboxURL.appendingPathComponent(filename)
         try image.data.write(to: destination, options: .atomic)
 
-        // Configure local-only ModelContainer for App Group.
+        // Unnamed and schema-matched to the main app's local config so both open the same default.store.
         let schema = Schema(AppSchema.localModels)
         let configuration = ModelConfiguration(
             schema: schema,

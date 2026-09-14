@@ -1,8 +1,8 @@
 import SwiftData
 
-/// SwiftData schema definitions for the application.
+/// SwiftData schema definitions. Register every new @Model here.
 enum AppSchema {
-    /// Models synchronized via CloudKit.
+    /// Models synchronized via CloudKit: every non-optional attribute needs a default, and no relationships or unique constraints are allowed.
     static let cloudModels: [any PersistentModel.Type] = [
         CategoryBudget.self,
         CategoryPreset.self,

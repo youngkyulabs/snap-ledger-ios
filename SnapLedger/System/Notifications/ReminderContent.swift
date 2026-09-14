@@ -5,7 +5,7 @@ enum ReminderContent {
     static let identifier = "com.youngkyu.snapledger.nightly-reminder"
     static let title = "찰칵가계부"
 
-    /// Creates a one-shot notification trigger.
+    /// Creates a one-shot trigger. Never use `repeats: true` — the baked-in pending count would go stale.
     static func trigger(hour: Int, minute: Int) -> UNCalendarNotificationTrigger {
         var components = DateComponents()
         components.hour = hour

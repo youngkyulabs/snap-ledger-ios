@@ -29,7 +29,7 @@ final class CashAdjustment {
     var title = ""
     var direction = CashAdjustmentDirection.withdrawal
     var amount = 0
-    /// Sort order index.
+    /// Sort order index. Default required so lightweight migration backfills pre-existing rows with 0.
     var sortOrder = 0
     var note: String?
 
