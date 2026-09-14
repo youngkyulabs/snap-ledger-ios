@@ -50,7 +50,7 @@
 
 /* Begin PBXFileReference section */
 		7E1100AC2FB99A9A004B6FB0 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
-		DDBCF3392FBCAD4C0016FDE9 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		DDBCF3392FBCAD4C0016FDE9 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
 		DDBCF3442FBCAD4C0016FDE9 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		DDC067AD2FB9676D004B6FB0 /* SnapLedger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapLedger.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDC067BC2FB9676E004B6FB0 /* SnapLedgerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapLedgerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -141,7 +141,7 @@
 		DDC067A42FB9676D004B6FB0 = {
 			isa = PBXGroup;
 			children = (
-				DDBCF3392FBCAD4C0016FDE9 /* CLAUDE.md */,
+				DDBCF3392FBCAD4C0016FDE9 /* AGENTS.md */,
 				DDBCF3442FBCAD4C0016FDE9 /* README.md */,
 				DDC067AF2FB9676D004B6FB0 /* SnapLedger */,
 				DDC067BF2FB9676E004B6FB0 /* SnapLedgerTests */,

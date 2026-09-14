@@ -272,7 +272,12 @@ enum CloudStoreMigration {
     @MainActor
     static func snapshotSavings(from source: ModelContext) -> [LineItemSnapshot] {
         let rows = (try? source.fetch(FetchDescriptor<SavingsItem>())) ?? []
-        return rows.map { LineItemSnapshot(id: $0.id, monthKey: $0.monthKey, title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder, updatedAt: $0.updatedAt) }
+        return rows.map {
+            LineItemSnapshot(
+                id: $0.id, monthKey: $0.monthKey, title: $0.title,
+                amount: $0.amount, sortOrder: $0.sortOrder, updatedAt: $0.updatedAt
+            )
+        }
     }
 
     @MainActor
@@ -297,7 +302,12 @@ enum CloudStoreMigration {
     @MainActor
     static func snapshotCardUsage(from source: ModelContext) -> [LineItemSnapshot] {
         let rows = (try? source.fetch(FetchDescriptor<CardUsageItem>())) ?? []
-        return rows.map { LineItemSnapshot(id: $0.id, monthKey: $0.monthKey, title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder, updatedAt: $0.updatedAt) }
+        return rows.map {
+            LineItemSnapshot(
+                id: $0.id, monthKey: $0.monthKey, title: $0.title,
+                amount: $0.amount, sortOrder: $0.sortOrder, updatedAt: $0.updatedAt
+            )
+        }
     }
 
     @MainActor
@@ -322,7 +332,12 @@ enum CloudStoreMigration {
     @MainActor
     static func snapshotIncome(from source: ModelContext) -> [LineItemSnapshot] {
         let rows = (try? source.fetch(FetchDescriptor<IncomeItem>())) ?? []
-        return rows.map { LineItemSnapshot(id: $0.id, monthKey: $0.monthKey, title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder, updatedAt: $0.updatedAt) }
+        return rows.map {
+            LineItemSnapshot(
+                id: $0.id, monthKey: $0.monthKey, title: $0.title,
+                amount: $0.amount, sortOrder: $0.sortOrder, updatedAt: $0.updatedAt
+            )
+        }
     }
 
     @MainActor
