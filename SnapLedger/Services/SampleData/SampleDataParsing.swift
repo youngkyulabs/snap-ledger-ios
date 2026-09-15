@@ -84,8 +84,9 @@ enum SampleDataParsing {
             draft.incomes.append(IncomeItemDraft(title: row.title ?? "", amount: row.amount ?? 0,
                                                  sortOrder: draft.incomes.count))
         case .creditCard:
-            draft.cards.append(CardUsageItemDraft(title: row.title ?? "", amount: row.amount ?? 0,
-                                                  sortOrder: draft.cards.count))
+            upsertCard(title: row.title ?? "", into: &draft) { $0.amount = row.amount ?? 0 }
+        case .previousCreditCard:
+            upsertCard(title: row.title ?? "", into: &draft) { $0.previousAmount = row.amount ?? 0 }
         case .savings:
             draft.savings.append(SavingsItemDraft(title: row.title ?? "", amount: row.amount ?? 0,
                                                   sortOrder: draft.savings.count))
@@ -101,6 +102,21 @@ enum SampleDataParsing {
         case .openingBalance, .closingBalance, .interest:
             applyBalanceRow(row, balanceOrder: &balanceOrder, balanceByName: &balanceByName)
         }
+    }
+
+    /// Merges a card row onto the existing item with the same title, appending when absent.
+    private static func upsertCard(
+        title: String,
+        into draft: inout ReconciliationDraft,
+        apply: (inout CardUsageItemDraft) -> Void
+    ) {
+        if let index = draft.cards.firstIndex(where: { $0.title == title }) {
+            apply(&draft.cards[index])
+            return
+        }
+        var card = CardUsageItemDraft(title: title, amount: 0, sortOrder: draft.cards.count)
+        apply(&card)
+        draft.cards.append(card)
     }
 
     private static func applyBalanceRow(

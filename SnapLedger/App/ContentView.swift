@@ -10,7 +10,6 @@ struct ContentView: View {
     @State private var selectedTab: AppTab = .review
     @State private var settingsPath: [SettingsRoute] = []
     /// Identifier used to reset view to the current month on tab re-selection.
-    @State private var statsResetNonce = 0
     @State private var budgetResetNonce = 0
 
     private var pendingReviewCount: Int {
@@ -22,12 +21,8 @@ struct ContentView: View {
         Binding(
             get: { selectedTab },
             set: { newValue in
-                if newValue == selectedTab {
-                    switch newValue {
-                    case .statistics: statsResetNonce += 1
-                    case .budget: budgetResetNonce += 1
-                    default: break
-                    }
+                if newValue == selectedTab, newValue == .budget {
+                    budgetResetNonce += 1
                 }
                 selectedTab = newValue
             }
@@ -43,11 +38,8 @@ struct ContentView: View {
             Tab("최근 기록", systemImage: "list.bullet.rectangle", value: AppTab.history) {
                 HistoryView()
             }
-            Tab("통계", systemImage: "chart.pie", value: AppTab.statistics) {
-                StatisticsView(resetNonce: statsResetNonce)
-            }
-            Tab("예산", systemImage: "wonsign.circle", value: AppTab.budget) {
-                BudgetView(resetNonce: budgetResetNonce)
+            Tab("가계부", systemImage: "wonsign.circle", value: AppTab.budget) {
+                LedgerTabView(resetNonce: budgetResetNonce)
             }
             Tab("설정", systemImage: "gear", value: AppTab.settings) {
                 SettingsView(path: $settingsPath)
@@ -129,7 +121,7 @@ struct ContentView: View {
 
 /// Tab menu item identifier.
 private enum AppTab: Hashable {
-    case review, history, statistics, budget, settings
+    case review, history, budget, settings
 }
 
 #Preview {

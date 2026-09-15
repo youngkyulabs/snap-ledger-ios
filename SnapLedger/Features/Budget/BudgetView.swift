@@ -1,9 +1,16 @@
 import SwiftUI
 import SwiftData
 
+/// Destination screens on the ledger navigation stack.
+enum BudgetRoute: Hashable {
+    case reconciliation(month: Int)
+    case limitEdit(month: Int, focus: String?)
+}
+
 struct BudgetView: View {
-    /// Signal from ContentView to reset selection back to current month.
-    var resetNonce: Int = 0
+    /// Month shown, supplied by the shared selector above the pane.
+    let month: Int
+    @Binding var path: [BudgetRoute]
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -17,49 +24,30 @@ struct BudgetView: View {
     @Query private var cardUsageItems: [CardUsageItem]
     @Query private var incomeItems: [IncomeItem]
 
-    @State private var selectedMonthKey: Int?
     @State private var categoryDetail: CategoryEntriesDetail?
-    /// Navigation path for reconciliation and budget limit editors.
-    @State private var path: [Route] = []
-
-    /// Destination screens on Budget navigation stack.
-    private enum Route: Hashable {
-        case reconciliation(month: Int)
-        case limitEdit(month: Int, focus: String?)
-    }
 
     private var currentMonthKey: Int { CategoryBudgetStore.monthKey(from: Date()) }
-    private var effectiveMonthKey: Int { selectedMonthKey ?? currentMonthKey }
 
     private var presets: [String] {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
 
-    private var availableMonthKeys: [Int] {
-        var keys: Set<Int> = [currentMonthKey]
-        let cal = Calendar.current
-        for entry in entries { keys.insert(CategoryBudgetStore.monthKey(from: entry.date, calendar: cal)) }
-        for budget in budgets where budget.monthlyLimit > 0 { keys.insert(budget.effectiveFrom) }
-        // Restrict navigation to current month and earlier.
-        return keys.filter { $0 <= currentMonthKey }.sorted(by: >)
-    }
-
     private var summary: BudgetProgress.Summary {
-        BudgetProgress.compute(entries: entries, budgets: budgets, targetMonth: effectiveMonthKey)
+        BudgetProgress.compute(entries: entries, budgets: budgets, targetMonth: month)
     }
 
     private var reconciliationSummary: ReconciliationSummary {
         ReconciliationSummary.compute(
             entries: entries,
             input: ReconciliationSummaryInput(
-                reconciliation: reconciliations.first { $0.monthKey == effectiveMonthKey },
+                reconciliation: reconciliations.first { $0.monthKey == month },
                 balances: accountBalances,
                 adjustments: cashAdjustments,
                 savingsItems: savingsItems,
                 cardItems: cardUsageItems,
                 incomeItems: incomeItems
             ),
-            targetMonth: effectiveMonthKey
+            targetMonth: month
         )
     }
 
@@ -67,46 +55,13 @@ struct BudgetView: View {
         // Compute progress once per render.
         let summary = self.summary
         let reconciliation = self.reconciliationSummary
-        NavigationStack(path: $path) {
-            progressList(summary: summary, reconciliation: reconciliation)
-                .navigationTitle("예산")
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            path.append(.limitEdit(month: effectiveMonthKey, focus: nil))
-                        } label: {
-                            Label("한도 편집", systemImage: "square.and.pencil")
-                        }
-                    }
-                }
-                .navigationDestination(for: Route.self) { route in
-                    switch route {
-                    case .reconciliation(let month):
-                        MonthlyReconciliationView(month: month)
-                    case .limitEdit(let month, let focus):
-                        BudgetLimitEditView(
-                            month: month,
-                            currentMonthKey: currentMonthKey,
-                            focusCategory: focus
-                        )
-                    }
-                }
-        }
-        // Handle tab re-selection: pop to root or reset to current month.
-        .onChange(of: resetNonce) { _, _ in
-            if path.isEmpty {
-                selectedMonthKey = nil
-            } else {
-                path.removeAll()
-            }
-        }
+        progressList(summary: summary, reconciliation: reconciliation)
     }
 
     // MARK: Display
 
     private func progressList(summary: BudgetProgress.Summary, reconciliation: ReconciliationSummary) -> some View {
         List {
-            monthPickerSection
             reconciliationSection(reconciliation)
             if summary.lines.isEmpty && summary.unbudgeted.isEmpty {
                 emptyBudgetSection
@@ -117,34 +72,19 @@ struct BudgetView: View {
             if !summary.unbudgeted.isEmpty { unbudgetedSection(summary) }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
-        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: effectiveMonthKey)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: month)
         .sheet(item: $categoryDetail) { detail in
             CategoryEntriesSheet(detail: detail)
                 .presentationDetents([.medium, .large])
         }
     }
 
-    // Calendar month navigation bounded by current month.
-    private var monthPickerSection: some View {
-        Section {
-            MonthNavigationRow(
-                title: Self.monthLabel(effectiveMonthKey),
-                options: availableMonthKeys.map { .init(key: $0, title: Self.monthLabel($0)) },
-                canStepBackward: effectiveMonthKey > (availableMonthKeys.min() ?? currentMonthKey),
-                canStepForward: effectiveMonthKey < currentMonthKey,
-                stepBackward: { selectedMonthKey = CategoryBudgetStore.previousMonthKey(effectiveMonthKey) },
-                stepForward: { selectedMonthKey = CategoryBudgetStore.nextMonthKey(effectiveMonthKey) },
-                select: { selectedMonthKey = $0 }
-            )
-        }
-    }
-
     private func reconciliationSection(_ summary: ReconciliationSummary) -> some View {
         // Reconciliation verdict matching reconciliation screen.
-        let status = ReconciliationSummary.periodStatus(month: effectiveMonthKey, today: Date())
+        let status = ReconciliationSummary.periodStatus(month: month, today: Date())
         let isReconciled = summary.isReconciled(status: status)
         return Section {
-            NavigationLink(value: Route.reconciliation(month: effectiveMonthKey)) {
+            NavigationLink(value: BudgetRoute.reconciliation(month: month)) {
                 ReconciliationSummaryRow(
                     summary: summary,
                     verdict: summary.displayVerdict(status: status, isReconciled: isReconciled),
@@ -199,7 +139,7 @@ struct BudgetView: View {
         Section {
             ForEach(summary.lines) { line in
                 Button {
-                    categoryDetail = CategoryEntriesDetail(category: line.category, monthKey: effectiveMonthKey)
+                    categoryDetail = CategoryEntriesDetail(category: line.category, monthKey: month)
                 } label: {
                     LineRow(line: line, presets: presets)
                 }
@@ -216,7 +156,7 @@ struct BudgetView: View {
         Section {
             ForEach(summary.unbudgeted) { item in
                 Button {
-                    categoryDetail = CategoryEntriesDetail(category: item.category, monthKey: effectiveMonthKey)
+                    categoryDetail = CategoryEntriesDetail(category: item.category, monthKey: month)
                 } label: {
                     unbudgetedRow(item)
                         .contentShape(.rect)
@@ -226,7 +166,7 @@ struct BudgetView: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     if presets.contains(item.category) {
                         Button {
-                            path.append(.limitEdit(month: effectiveMonthKey, focus: item.category))
+                            path.append(.limitEdit(month: month, focus: item.category))
                         } label: {
                             Label("한도 설정", systemImage: "wonsign.circle")
                         }
@@ -255,7 +195,7 @@ struct BudgetView: View {
     private var emptyBudgetSection: some View {
         Section {
             Button {
-                path.append(.limitEdit(month: effectiveMonthKey, focus: nil))
+                path.append(.limitEdit(month: month, focus: nil))
             } label: {
                 Label("카테고리별 한도 정하기", systemImage: "wonsign.circle")
             }
@@ -266,7 +206,6 @@ struct BudgetView: View {
 
     // MARK: Helpers
 
-    private static func monthLabel(_ key: Int) -> String { monthLabelText(key) }
 }
 
 // MARK: - File-private helpers
@@ -424,7 +363,7 @@ private struct ReconciliationSummaryRow: View {
 
 // MARK: - Edit Screen (Budget Limits)
 
-private struct BudgetLimitEditView: View {
+struct BudgetLimitEditView: View {
     let month: Int
     let currentMonthKey: Int
     var focusCategory: String?
@@ -528,7 +467,7 @@ private struct BudgetLimitEditView: View {
 }
 
 #Preview {
-    BudgetView()
+    BudgetView(month: CategoryBudgetStore.monthKey(from: Date()), path: .constant([]))
         .modelContainer(
             for: [
                 SavedEntry.self,

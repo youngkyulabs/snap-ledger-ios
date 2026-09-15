@@ -188,8 +188,9 @@ struct MonthSections: View {
 private struct HistoryRow: View {
     let entry: SavedEntry
 
-    private var hasNote: Bool {
-        !(entry.note?.isEmpty ?? true)
+    private var note: String? {
+        guard let note = entry.note, !note.isEmpty else { return nil }
+        return note
     }
 
     var body: some View {
@@ -199,14 +200,14 @@ private struct HistoryRow: View {
                 if let category = entry.category {
                     Text(category).font(.caption).foregroundStyle(.secondary)
                 }
+                if let note {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
-            if hasNote {
-                Image(systemName: "text.bubble")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("메모 있음")
-            }
             Text("\(entry.amount.formatted(.number))원")
                 .font(.body.monospacedDigit())
         }

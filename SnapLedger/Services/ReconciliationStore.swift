@@ -39,6 +39,8 @@ struct CardUsageItemDraft: Identifiable, Equatable {
     var id = UUID()
     var title: String
     var amount: Int
+    /// Prior month's bill withdrawn during this month.
+    var previousAmount: Int = 0
     var sortOrder: Int = 0
 }
 
@@ -114,8 +116,11 @@ struct ReconciliationStore {
         var draft = ReconciliationDraft()
         draft.incomes = incomeDrafts(items: fetchIncomes(previous, in: context))
         // Carry forward card item titles with 0 amounts
+        // Last month's usage becomes this month's expected bill; the user corrects it if it differs.
         draft.cards = fetchCards(previous, in: context).map {
-            CardUsageItemDraft(title: $0.title, amount: 0, sortOrder: $0.sortOrder)
+            CardUsageItemDraft(
+                title: $0.title, amount: 0, previousAmount: $0.amount, sortOrder: $0.sortOrder
+            )
         }
         // Carry forward adjustment titles with 0 amounts
         draft.adjustments = fetchAdjustments(previous, in: context).map {
@@ -144,7 +149,14 @@ struct ReconciliationStore {
 
     /// Maps CardUsageItem models to drafts.
     private func cardDrafts(items: [CardUsageItem]) -> [CardUsageItemDraft] {
-        items.map { CardUsageItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder) }
+        items.map {
+            CardUsageItemDraft(
+                title: $0.title,
+                amount: $0.amount,
+                previousAmount: $0.previousAmount,
+                sortOrder: $0.sortOrder
+            )
+        }
     }
 
     /// Maps IncomeItem models to drafts.
@@ -204,6 +216,14 @@ struct ReconciliationStore {
             rows.append(
                 ReconciliationCSVRow(kind: .creditCard, title: card.title, amount: card.amount)
             )
+            // Emit the prior bill as its own row so the 6-column shape stays intact.
+            if card.previousAmount != 0 {
+                rows.append(
+                    ReconciliationCSVRow(
+                        kind: .previousCreditCard, title: card.title, amount: card.previousAmount
+                    )
+                )
+            }
         }
         for item in savingsItems {
             rows.append(
@@ -308,6 +328,7 @@ struct ReconciliationStore {
                     monthKey: month,
                     title: item.title,
                     amount: item.amount,
+                    previousAmount: item.previousAmount,
                     sortOrder: index
                 )
             )
@@ -352,6 +373,18 @@ struct ReconciliationStore {
 // MARK: - Fetch Helpers
 
 extension ReconciliationStore {
+    /// Collects the month's reconciliation rows for summary computation.
+    func summaryInput(for month: Int, in context: ModelContext) -> ReconciliationSummaryInput {
+        ReconciliationSummaryInput(
+            reconciliation: fetchReconciliation(month, in: context),
+            balances: fetchBalances(month, in: context),
+            adjustments: fetchAdjustments(month, in: context),
+            savingsItems: fetchSavings(month, in: context),
+            cardItems: fetchCards(month, in: context),
+            incomeItems: fetchIncomes(month, in: context)
+        )
+    }
+
     private func fetchReconciliation(_ month: Int, in context: ModelContext) -> MonthlyReconciliation? {
         fetchAllReconciliations(in: context).first { $0.monthKey == month }
     }
@@ -453,7 +486,13 @@ extension ReconciliationDraft {
                 SavingsItem(monthKey: month, title: item.title, amount: item.amount, sortOrder: index)
             },
             cardItems: cards.enumerated().map { index, item in
-                CardUsageItem(monthKey: month, title: item.title, amount: item.amount, sortOrder: index)
+                CardUsageItem(
+                    monthKey: month,
+                    title: item.title,
+                    amount: item.amount,
+                    previousAmount: item.previousAmount,
+                    sortOrder: index
+                )
             },
             incomeItems: incomes.enumerated().map { index, item in
                 IncomeItem(monthKey: month, title: item.title, amount: item.amount, sortOrder: index)

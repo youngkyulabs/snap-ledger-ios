@@ -3,14 +3,13 @@ import SwiftData
 import Charts
 
 struct StatisticsView: View {
-    /// Signal from ContentView to reset selection back to the current month.
-    var resetNonce: Int = 0
+    /// Month shown, supplied by the shared selector above the pane.
+    let monthKey: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
     @Query private var settingsList: [AppSettings]
 
-    @State private var selectedMonthID: DateComponents?
     @State private var categoryDetail: CategoryEntriesDetail?
     /// Trend filter selection; nil displays stacked categories.
     @State private var trendCategory: String?
@@ -24,10 +23,7 @@ struct StatisticsView: View {
     }
 
     private var selectedMonth: StatisticsAggregation.MonthlyStats? {
-        if let id = selectedMonthID, let match = months.first(where: { $0.id == id }) {
-            return match
-        }
-        return months.first
+        months.first { ($0.id.year ?? 0) * 100 + ($0.id.month ?? 0) == monthKey }
     }
 
     /// Whether trend section remains visible when filter yields empty rows.
@@ -53,37 +49,28 @@ struct StatisticsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if months.isEmpty {
-                    ContentUnavailableView(
-                        "통계 없음",
-                        systemImage: "chart.pie",
-                        description: Text("저장한 항목이 쌓이면 여기 보여요.")
-                    )
-                } else {
-                    statsContent
-                }
+        Group {
+            if months.isEmpty {
+                ContentUnavailableView(
+                    "통계 없음",
+                    systemImage: "chart.pie",
+                    description: Text("저장한 항목이 쌓이면 여기 보여요.")
+                )
+            } else {
+                statsContent
             }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
-            .navigationTitle("통계")
         }
-        // Tab re-selection resets to latest month.
-        .onChange(of: resetNonce) { _, _ in
-            selectedMonthID = nil
-        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
     }
 
     private var statsContent: some View {
         List {
-            if !months.isEmpty {
-                monthPickerSection
-            }
-
             if let month = selectedMonth {
                 summarySection(month: month)
                 donutSection(month: month)
                 breakdownSection(month: month)
+            } else {
+                emptyMonthSection
             }
 
             if !overallTrendPoints.isEmpty {
@@ -91,37 +78,23 @@ struct StatisticsView: View {
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
-        .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: selectedMonth?.id)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: monthKey)
         .sheet(item: $categoryDetail) { detail in
             CategoryEntriesSheet(detail: detail)
                 .presentationDetents([.medium, .large])
         }
     }
 
-    // Step only between months with recorded entries.
-    private var monthPickerSection: some View {
+    /// Shown when the shared month selector points at a month without entries.
+    private var emptyMonthSection: some View {
         Section {
-            MonthNavigationRow(
-                title: selectedMonth?.title ?? "",
-                options: months.map { .init(key: $0.id, title: $0.title) },
-                canStepBackward: selectedIndex.map { $0 + 1 < months.count } ?? false,
-                canStepForward: selectedIndex.map { $0 > 0 } ?? false,
-                stepBackward: { step(by: 1) },
-                stepForward: { step(by: -1) },
-                select: { selectedMonthID = $0 }
-            )
+            Text("이 달에는 기록이 없어요.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
         }
-    }
-
-    /// Sorted months descending, index 0 being the latest.
-    private var selectedIndex: Int? {
-        guard let id = selectedMonth?.id else { return nil }
-        return months.firstIndex { $0.id == id }
-    }
-
-    private func step(by offset: Int) {
-        guard let index = selectedIndex, months.indices.contains(index + offset) else { return }
-        selectedMonthID = months[index + offset].id
     }
 
     private func summarySection(month: StatisticsAggregation.MonthlyStats) -> some View {
@@ -374,6 +347,6 @@ private struct TrendRow: View {
 }
 
 #Preview {
-    StatisticsView()
+    StatisticsView(monthKey: CategoryBudgetStore.monthKey(from: Date()))
         .modelContainer(for: SavedEntry.self, inMemory: true)
 }
