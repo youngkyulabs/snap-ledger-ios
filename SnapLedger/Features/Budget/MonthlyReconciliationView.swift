@@ -10,8 +10,6 @@ struct MonthlyReconciliationView: View {
     @State private var draft = ReconciliationDraft()
     @State private var didLoad = false
     @State private var activeSheet: ActiveSheet?
-    /// Masks financial amounts (opening/closing balances, salary, savings, cards, adjustments).
-    @State private var amountsHidden = true
     @State private var resultMessage: String?
 
     /// Active sheet destination for editing reconciliation items.
@@ -54,18 +52,6 @@ struct MonthlyReconciliationView: View {
         .navigationTitle("월 정산")
         .navigationSubtitle(reconciliationMonthLabel(month))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    amountsHidden.toggle()
-                } label: {
-                    Label(
-                        amountsHidden ? "금액 보기" : "금액 가리기",
-                        systemImage: amountsHidden ? "eye.slash" : "eye"
-                    )
-                }
-            }
-        }
         .task {
             guard !didLoad else { return }
             draft = ReconciliationStore().loadDraft(for: month, in: modelContext)
@@ -119,13 +105,10 @@ struct MonthlyReconciliationView: View {
                 saveSavings(existing: existing, title: title, amount: amount)
             }
         case .card(let existing):
-            ReconciliationItemEditor(
-                navTitle: existing == nil ? "카드 추가" : "카드 수정",
-                titlePlaceholder: "카드명",
-                initialTitle: existing?.title ?? "",
-                initialAmount: existing?.amount ?? 0
-            ) { title, amount in
-                saveCard(existing: existing, title: title, amount: amount)
+            ReconciliationCardEditor(initial: existing) { title, amount, previousAmount in
+                saveCard(
+                    existing: existing, title: title, amount: amount, previousAmount: previousAmount
+                )
             }
         case .adjustment(let existing):
             ReconciliationAdjustmentEditor(initial: existing) { title, direction, amount in
@@ -254,7 +237,7 @@ struct MonthlyReconciliationView: View {
                 Button {
                     activeSheet = .card(item)
                 } label: {
-                    itemRow(title: item.title, amount: item.amount)
+                    cardRow(item)
                 }
                 .buttonStyle(.plain)
             }
@@ -270,7 +253,7 @@ struct MonthlyReconciliationView: View {
         } header: {
             Text("카드 사용액").textCase(nil)
         } footer: {
-            Text("카드별 이번 달 사용액을 항목으로 입력하세요.")
+            Text("카드별 이번 달 사용액과, 이번 달에 빠져나간 전월 사용액을 입력하세요.")
         }
     }
 
@@ -296,7 +279,7 @@ struct MonthlyReconciliationView: View {
         } header: {
             Text("자금변동").textCase(nil)
         } footer: {
-            Text("환급, 가족 송금, 전월 카드대금 출금처럼 이번 달 지출 기록과 직접 맞추면 안 되는 잔액 변화를 입력하세요.")
+            Text("환급이나 가족 송금처럼 이번 달 지출 기록과 직접 맞추면 안 되는 잔액 변화를 입력하세요. 전월 카드대금은 카드 항목에 입력하세요.")
         }
     }
 
@@ -309,7 +292,7 @@ struct MonthlyReconciliationView: View {
                     .font(.headline)
                 Spacer(minLength: 8)
                 if balance.interest != 0 {
-                    Text("이자 \(maskedAmount(balance.interest))")
+                    Text("이자 \(wonAmount(balance.interest))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -328,7 +311,7 @@ struct MonthlyReconciliationView: View {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(maskedAmount(amount))
+            Text(wonAmount(amount))
                 .font(.callout.weight(.medium).monospacedDigit())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -338,9 +321,32 @@ struct MonthlyReconciliationView: View {
         HStack {
             Text(title.isEmpty ? "항목" : title)
             Spacer()
-            Text(maskedAmount(amount))
+            Text(wonAmount(amount))
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(.secondary)
+        }
+        .contentShape(.rect)
+    }
+
+    private func cardRow(_ item: CardUsageItemDraft) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(item.title.isEmpty ? "카드" : item.title)
+                Spacer()
+                Text(wonAmount(item.amount))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            if item.previousAmount != 0 {
+                HStack {
+                    Text("전월 사용액")
+                    Spacer()
+                    Text(wonAmount(item.previousAmount))
+                        .monospacedDigit()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
         }
         .contentShape(.rect)
     }
@@ -349,7 +355,7 @@ struct MonthlyReconciliationView: View {
         HStack {
             Text(adjustment.title.isEmpty ? "자금변동" : adjustment.title)
             Spacer()
-            Text("\(adjustment.direction.label) \(maskedAmount(adjustment.amount))")
+            Text("\(adjustment.direction.label) \(wonAmount(adjustment.amount))")
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(adjustment.direction == .deposit ? .green : .secondary)
         }
@@ -362,8 +368,8 @@ struct MonthlyReconciliationView: View {
         }
     }
 
-    private func maskedAmount(_ value: Int) -> String {
-        amountsHidden ? "••••" : "\(value.formatted(.number))원"
+    private func wonAmount(_ value: Int) -> String {
+        "\(value.formatted(.number))원"
     }
 }
 
@@ -383,7 +389,6 @@ extension MonthlyReconciliationView {
             )
         }
         // Unmask amounts when editing items.
-        amountsHidden = false
         save()
     }
 
@@ -395,7 +400,6 @@ extension MonthlyReconciliationView {
             let nextOrder = (draft.incomes.map(\.sortOrder).max() ?? -1) + 1
             draft.incomes.append(IncomeItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
-        amountsHidden = false
         save()
     }
 
@@ -407,19 +411,30 @@ extension MonthlyReconciliationView {
             let nextOrder = (draft.savings.map(\.sortOrder).max() ?? -1) + 1
             draft.savings.append(SavingsItemDraft(title: title, amount: amount, sortOrder: nextOrder))
         }
-        amountsHidden = false
         save()
     }
 
-    private func saveCard(existing: CardUsageItemDraft?, title: String, amount: Int) {
+    private func saveCard(
+        existing: CardUsageItemDraft?,
+        title: String,
+        amount: Int,
+        previousAmount: Int
+    ) {
         if let existing, let index = draft.cards.firstIndex(where: { $0.id == existing.id }) {
             draft.cards[index].title = title
             draft.cards[index].amount = amount
+            draft.cards[index].previousAmount = previousAmount
         } else {
             let nextOrder = (draft.cards.map(\.sortOrder).max() ?? -1) + 1
-            draft.cards.append(CardUsageItemDraft(title: title, amount: amount, sortOrder: nextOrder))
+            draft.cards.append(
+                CardUsageItemDraft(
+                    title: title,
+                    amount: amount,
+                    previousAmount: previousAmount,
+                    sortOrder: nextOrder
+                )
+            )
         }
-        amountsHidden = false
         save()
     }
 
@@ -446,7 +461,6 @@ extension MonthlyReconciliationView {
                 )
             )
         }
-        amountsHidden = false
         save()
     }
 
