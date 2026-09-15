@@ -26,9 +26,7 @@ struct AddExpenseFromImageIntent: AppIntent {
         let destination = inboxURL.appendingPathComponent(filename)
         try image.data.write(to: destination, options: .atomic)
 
-        // PendingImage는 로컬 모델이므로 로컬 스토어만 연다.
-        // 메인 앱의 로컬 config와 동일하게 이름 없이 열어 같은 default.store를
-        // (스키마·CloudKit 설정 모두 동일하게) 충돌 없이 공유한다.
+        // Unnamed and schema-matched to the main app's local config so both open the same default.store.
         let schema = Schema(AppSchema.localModels)
         let configuration = ModelConfiguration(
             schema: schema,

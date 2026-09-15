@@ -2,23 +2,19 @@ import Foundation
 import Testing
 @testable import SnapLedger
 
-/// `FoundationModelsExtractionService.sanitizeCategoryLabel` 와 prompt에서의
-/// 사용을 검증한다. 사용자가 카테고리 라벨에 따옴표·줄바꿈을 넣어도 prompt의
-/// `"label1", "label2"` 구조가 깨지지 않아야 한다.
+/// Verifies category label sanitization in prompts.
 @MainActor
 struct ExtractionServiceCategorySanitizationTests {
-    // MARK: - sanitizeCategoryLabel 단위
+    // MARK: - sanitizeCategoryLabel Unit Tests
 
     @Test func stripsEmbeddedDoubleQuote() {
-        // 라벨 안의 `"`는 prompt의 `"label1", "label2"` 구조를 깨뜨려
-        // 모델이 라벨 경계를 헷갈리게 한다.
+        // Quotes in label break prompt structure.
         let cleaned = FoundationModelsExtractionService.sanitizeCategoryLabel("식비\"잘못")
         #expect(cleaned == "식비잘못")
     }
 
     @Test func replacesNewlinesWithSpace() {
-        // 라벨에 줄바꿈이 들어가면 prompt 본문의 다음 줄을 흉내내
-        // 모델이 새 규칙으로 오인할 수 있다.
+        // Newlines in label can mimic prompt rules.
         let cleaned = FoundationModelsExtractionService.sanitizeCategoryLabel("식비\n- amount: 0")
         #expect(!cleaned.contains("\n"))
         #expect(cleaned == "식비 - amount: 0")
@@ -35,12 +31,12 @@ struct ExtractionServiceCategorySanitizationTests {
     }
 
     @Test func cleanLabelPassesThroughUnchanged() {
-        // 위험 문자가 없는 라벨은 그대로.
+        // Labels without reserved characters remain unchanged.
         let cleaned = FoundationModelsExtractionService.sanitizeCategoryLabel("4. 생활・쇼핑")
         #expect(cleaned == "4. 생활・쇼핑")
     }
 
-    // MARK: - prompt 통합
+    // MARK: - Prompt Integration
 
     @Test func promptSanitizesEmbeddedDoubleQuote() {
         let prompt = FoundationModelsExtractionService.instructions(
@@ -49,7 +45,7 @@ struct ExtractionServiceCategorySanitizationTests {
             categories: ["식비\"잘못", "교통"]
         )
         #expect(prompt.contains("\"식비잘못\", \"교통\""))
-        // sanitize 전 형태(`"식비"잘못"`)는 prompt에 노출되면 안 됨.
+        // Raw unsanitized label must not appear in prompt.
         #expect(!prompt.contains("\"식비\"잘못\""))
     }
 
@@ -64,20 +60,19 @@ struct ExtractionServiceCategorySanitizationTests {
     }
 
     @Test func promptFiltersOutBlankLabelsAfterSanitize() {
-        // sanitize 후 빈 문자열이 되는 라벨(공백만/따옴표만)은 list에서 제외.
+        // Labels that become empty after sanitization are excluded.
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now,
             customGuide: "",
             categories: ["   ", "\"\"", "식비"]
         )
         #expect(prompt.contains("\"식비\""))
-        // 빈 라벨이 그대로 들어가서 `""` 두 개가 prompt에 나타나면 안 됨.
+        // Empty labels must not appear as empty quotes in prompt.
         #expect(!prompt.contains("\"\", \"식비\""))
     }
 
     @Test func allBlankCategoriesAfterSanitizeFallBackToEmpty() {
-        // 입력 자체는 비어있지 않지만 sanitize 후 모두 빈 문자열이면
-        // 빈 카테고리 목록과 같은 경로로 fallback 해야 한다.
+        // Fallback to empty prompt branch if all labels become empty.
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now,
             customGuide: "",

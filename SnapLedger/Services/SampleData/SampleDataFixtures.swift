@@ -1,21 +1,21 @@
 #if DEBUG
 import Foundation
 
-/// 스크린샷용 샘플 데이터가 쓰는 두 달.
+/// Reference months used by sample data fixtures.
 enum SampleMonths {
-    /// 스크린샷 hero month (마감된 5월).
+    /// Closed hero sample month.
     static let hero = 202605
-    /// 진행 중인 현재 월(6월).
+    /// In-progress current sample month.
     static let current = 202606
 }
 
-/// 카테고리 한도 시드 한 줄. effectiveFrom은 시딩 시 `SampleMonths.hero`로 고정한다.
+/// Category budget limit seed fixture.
 struct BudgetSeed: Equatable {
     let category: String
     let monthlyLimit: Int
 }
 
-/// 검토(추출 대기) 탭 시드 한 줄.
+/// Pending review item seed fixture.
 struct ReviewSeed: Equatable {
     let id: String
     let merchant: String
@@ -26,9 +26,7 @@ struct ReviewSeed: Equatable {
     let note: String?
 }
 
-/// `internal/sample-data/`의 CSV·예산표를 그대로 임베드한 값.
-/// 사람이 보는 기준 문서는 `internal/sample-data/`이고, 여기 임베드본의 정합성은
-/// `SampleDataFixturesTests`·`SampleDataParsingTests`가 README 표의 불변식으로 검증한다.
+/// Embedded sample data fixtures.
 enum SampleDataFixtures {
     static let expenses202605 = """
     날짜,설명,카테고리,금액,메모
@@ -125,8 +123,8 @@ enum SampleDataFixtures {
     월메모,,,,,상반기 마무리. 휴가 대비 비상금은 그대로 유지.
     """
 
-    /// 검토(추출 대기) 탭용 시드 — review-input-samples.md에서 뽑은 "이미 추출된" 값.
-    /// id는 고정 UUID 문자열이라 재시딩/클리어가 정확히 이 행들만 다룬다.
+    /// Seed items for review tab fixtures.
+    /// Stable UUID strings ensure idempotent seeding and clearing.
     static let reviewSeeds: [ReviewSeed] = [
         ReviewSeed(id: "11111111-1111-1111-1111-111111111101", merchant: "메가커피 선릉",
                    amount: 2_500, category: "카페", dateString: "2026-06-20", confidence: 1.0, note: nil),
@@ -144,7 +142,7 @@ enum SampleDataFixtures {
                    amount: 13_500, category: "구독", dateString: "2026-06-18", confidence: 1.0, note: "정기결제"),
     ]
 
-    /// README 예산 한도표(기타 제외 9종). effectiveFrom은 시딩 시 hero month로 적용.
+    /// Standard category budget limits for sample seeding.
     static let budgetLimits: [BudgetSeed] = [
         BudgetSeed(category: "교통", monthlyLimit: 100_000),
         BudgetSeed(category: "구독", monthlyLimit: 30_000),

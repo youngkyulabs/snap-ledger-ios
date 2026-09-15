@@ -32,7 +32,7 @@ struct FeedbackMailTests {
             systemVersion: "26.0",
             deviceModel: "iPhone"
         )
-        // 사용자가 위에서부터 바로 쓸 수 있도록 빈 줄 + 구분선 우선.
+        // Blank line and divider placed at top for user convenience.
         #expect(body.hasPrefix("\n\n---\n"))
     }
 

@@ -43,12 +43,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         return categories.first ?? ""
     }
 
-    /// 카테고리 라벨을 prompt에 끼워넣기 전에 정제합니다.
-    /// - 따옴표(`"`)는 prompt 안에서 `"label1", "label2"` 구조를 만들기 때문에
-    ///   라벨 내부의 따옴표가 그대로 들어가면 짝이 깨져 모델이 라벨 경계를 오인합니다.
-    /// - 줄바꿈은 prompt 본문의 다음 줄을 흉내내 모델이 새 규칙으로 오해할 수
-    ///   있으므로 공백으로 치환합니다.
-    /// - 양옆 공백은 trim합니다.
+    /// Sanitizes category labels included in the prompt.
     static func sanitizeCategoryLabel(_ label: String) -> String {
         label
             .replacingOccurrences(of: "\"", with: "")
@@ -153,7 +148,7 @@ struct FoundationModelsExtractionService: ExtractionService {
 
     // MARK: - Post-processing
 
-    /// Prefix-matched so brand variants (현대카드Z, 현대카드M, 신한카드 The Mileage 등)도 잡힙니다.
+    /// Known card issuer prefixes for filtering merchant field.
     static let cardIssuerPrefixes: [String] = [
         "현대카드", "신한카드", "삼성카드", "BC카드", "비씨카드",
         "롯데카드", "국민카드", "KB카드", "KB국민카드",
@@ -165,9 +160,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         cardIssuerPrefixes.contains { name.hasPrefix($0) }
     }
 
-    /// instructions의 예시 블록에서 쓰는 placeholder 토큰. 모델이 이걸 그대로 베껴
-    /// 출력하면 환각이므로 normalize에서 transaction을 통째로 drop한다.
-    /// 토큰 접두사가 "예시상호"/"예시품목"으로 시작하는 모든 변형을 잡는다.
+    /// Placeholder prefixes used in prompt examples to detect hallucination.
     static let exampleMerchantPrefix = "예시상호"
     static let exampleItemPrefix = "예시품목"
 
@@ -181,7 +174,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         return false
     }
 
-    /// Lookup keys are upper-cased; Korean keys are unaffected by `uppercased()`.
+    /// Payment provider aliases normalized to standard names. Keys must be upper-cased — lookup uses `uppercased()`.
     static let paymentProviderNormalization: [String: String] = [
         "NAVER FINANCIAL": "네이버페이",
         "NAVER PAY": "네이버페이",
@@ -195,35 +188,23 @@ struct FoundationModelsExtractionService: ExtractionService {
         "TOSS PAYMENTS": "토스페이",
     ]
 
-    /// OCR 원문에 날짜 표기가 하나라도 있는지. 지원 형식:
-    /// - 완전 날짜: `YYYY-MM-DD` / `YYYY.MM.DD` / `YYYY/MM/DD`
-    /// - 부분 `M/D`·`M.D`: 월 1–12·일 1–31 범위일 때만 — 소수·비율(`10.0%`, `13.5`)이
-    ///   날짜로 오탐돼 환각 가드를 무력화하지 않도록 범위를 제약한다.
-    /// - 한국식: `2026년 5월 17일`·`5월 17일`(연도 유무 무관) — 영수증에 흔한 표기.
-    /// 시간(`HH:mm`)은 날짜가 아니므로 제외한다. `1/2`·`4.5`처럼 실제 날짜(1월2일·4월5일)와
-    /// 구분 불가능한 값은 여전히 "날짜 있음"으로 잡히지만, 이 오탐은 가드 미발동(=기존
-    /// normalizeYear만 적용)이라 안전한 방향이다.
-    /// 원문에 날짜가 없는데 모델이 date를 지어내는 환각을 걸러내는 결정적 근거로 쓴다.
+    /// Regex for detecting presence of date tokens in OCR text.
     private static let datePresence: NSRegularExpression? = try? NSRegularExpression(
         pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b(0?[1-9]|1[0-2])[-./](0?[1-9]|[12]\d|3[01])\b|\d{1,2}\s*월\s*\d{1,2}\s*일"#
     )
 
     static func hasDateToken(_ text: String) -> Bool {
-        // 정규식 컴파일 실패 시 보수적으로 "있음" 취급 — 가드가 잘못 비우지 않도록.
+        // Conservative fallback on regex compilation failure
         guard let re = datePresence else { return true }
         let range = NSRange(text.startIndex..., in: text)
         return re.firstMatch(in: text, range: range) != nil
     }
 
-    /// 모델이 `M/D` 같은 부분 날짜를 만나면 instructions에 명시한 "오늘의 연도" 규칙을
-    /// 무시하고 학습 분포의 이전 연도(2024/2025 등)로 채우는 환각이 자주 나온다.
-    /// 카드 알림·영수증은 "결제 시점 ≈ 추출 시점"이라는 강한 invariant가 있으므로
-    /// 후처리에서 그 invariant로 연도를 보정한다.
-    ///
-    /// - today + 2일보다 미래 → 연도 -1 (timezone 슬랙 2일)
-    /// - today - 330일보다 과거 → 연도 +1 (한 해 전 알림은 거의 없음, 다음 해 같은 M/D였을 가능성)
-    /// - 그 외(파싱 실패·범위 밖)는 원본 그대로 (안전망: 모델이 빈 문자열이나 비표준 형식을
-    ///   줘도 보정하지 않음).
+    /// Corrects a hallucinated year using the "payment time ≈ extraction time" invariant — given a
+    /// partial `M/D`, models often fill in a training-distribution year instead of today's. The window is
+    /// asymmetric: a future date is almost always a wrong year, so only 2 days of timezone slack are
+    /// allowed before year - 1, while a past date stays plausible for months, so year + 1 applies only
+    /// beyond 330 days back. Unparseable or out-of-range input is returned unchanged.
     static func normalizeYear(
         _ raw: String,
         today: Date,
@@ -270,10 +251,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         calendar: Calendar = .current,
         ocrText: String? = nil
     ) -> PaymentExtraction {
-        // ocrText가 주어졌고 그 안에 날짜 토큰이 하나도 없으면, 모델이 지어낸 date를
-        // 통째로 버린다(→ 다운스트림 오늘 폴백). normalizeYear는 연도만 보정할 뿐
-        // 환각한 월·일은 못 걸러내므로, "원문에 날짜 없음"이라는 결정적 근거로 차단.
-        // (ocrText 미제공인 기존 호출부는 가드를 건너뛰고 normalizeYear만 적용.)
+        // Drop hallucinated dates if OCR text has no date token
         let dropDates = ocrText.map { !hasDateToken($0) } ?? false
         let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
             if looksLikeExampleLeak(trans) { return nil }

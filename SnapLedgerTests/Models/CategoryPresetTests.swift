@@ -3,7 +3,7 @@ import Testing
 @testable import SnapLedger
 
 struct CategoryPresetTests {
-    /// CloudKit 제약: 인자 없이 생성 가능(모든 속성 기본값)해야 한다.
+    /// Verifies zero-argument initializer requirement for CloudKit.
     @Test func defaultInitializerHasDefaults() {
         let preset = CategoryPreset()
         #expect(preset.name.isEmpty)

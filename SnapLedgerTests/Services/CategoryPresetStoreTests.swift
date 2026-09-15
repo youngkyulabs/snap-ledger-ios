@@ -26,7 +26,7 @@ struct CategoryPresetStoreTests {
         let store = CategoryPresetStore()
         store.add("식비", in: cloud)
         store.add("카페", in: cloud)
-        store.add("식비", in: cloud) // 중복 무시
+        store.add("식비", in: cloud) // Duplicate ignored
         #expect(store.currentNames(in: cloud) == ["식비", "카페"])
     }
 

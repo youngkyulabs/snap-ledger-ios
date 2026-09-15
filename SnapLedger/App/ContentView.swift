@@ -9,7 +9,7 @@ struct ContentView: View {
     @Query private var allSettings: [AppSettings]
     @State private var selectedTab: AppTab = .review
     @State private var settingsPath: [SettingsRoute] = []
-    /// 이미 선택된 통계·예산 탭을 한 번 더 탭하면 그 탭을 현재 월로 되돌리기 위한 신호(카운터).
+    /// Identifier used to reset view to the current month on tab re-selection.
     @State private var statsResetNonce = 0
     @State private var budgetResetNonce = 0
 
@@ -17,8 +17,7 @@ struct ContentView: View {
         allParsedEntries.filter { $0.status == .pending }.count
     }
 
-    /// 탭 선택 바인딩. 이미 선택된 탭을 다시 탭하면 같은 값으로 set이 호출되는데,
-    /// 그때 통계·예산이면 리셋 신호를 올려 해당 화면을 현재 월로 되돌린다.
+    /// Handles tab selection and updates the reset nonce on re-selection.
     private var tabSelection: Binding<AppTab> {
         Binding(
             get: { selectedTab },
@@ -58,7 +57,7 @@ struct ContentView: View {
         .sheet(isPresented: shouldShowOnboardingBinding) {
             if let settings = currentSettingsIfExists() {
                 OnboardingView(settings: settings) {
-                    // 온보딩 동안 미뤄둔 시작 작업을 완료 시점에 한 번 실행한다.
+                    // Drain pending images after onboarding completion.
                     Task { await drainPending() }
                 }
                 .interactiveDismissDisabled()
@@ -67,18 +66,15 @@ struct ContentView: View {
         .onChange(of: pendingReviewCount, initial: true) { _, newCount in
             Task { await NotificationScheduler().syncIconBadge(count: newCount) }
         }
-        // `initial: true`로 런치 시에도 정확히 한 번 실행된다 — 별도 `.task`와
-        // scenePhase 핸들러가 같은 작업을 거의 동시에 두 번 돌리던 것을 단일화.
+        // `initial: true` covers launch too — do not add a separate `.task` for the same work.
         .onChange(of: scenePhase, initial: true) { _, newPhase in
             switch newPhase {
             case .active:
-                // 온보딩이 끝나기 전에는 inbox 처리·변경 감지를 시작하지 않는다.
-                // (완료 시점에 OnboardingView의 onComplete가 한 번 실행.)
+                // Drain pending tasks only after onboarding is completed.
                 guard hasCompletedOnboarding else { break }
                 Task {
                     await drainPending()
-                    // 1회성 알림이 소비됐거나 검토를 끝낸 직후일 수 있으니
-                    // 포그라운드 진입 시에도 최신 카운트로 재장전한다.
+                    // Refresh reminder notifications.
                     await refreshReminder()
                 }
             case .background:
@@ -88,7 +84,7 @@ struct ContentView: View {
                 break
             }
         }
-        // 앱 진입(콜드 스타트·포그라운드 복귀) 시 원격 기기 변경을 로컬 캐시에 반영.
+        // Refresh cached category presets.
         .task { CategoryPresetStore().refreshCache(cloud: modelContext, local: modelContext) }
     }
 
@@ -131,7 +127,7 @@ struct ContentView: View {
     }
 }
 
-/// TabView 선택 식별자 (재선택 감지를 위해 값 기반 Tab으로 둔다).
+/// Tab menu item identifier.
 private enum AppTab: Hashable {
     case review, history, statistics, budget, settings
 }

@@ -123,12 +123,12 @@ struct CandidateHeuristicsTests {
     }
 
     @Test func paymentSignalDetectedFromKeywordOnly() {
-        // 푸시 알림에서 OCR이 금액을 놓치고 키워드만 남는 corner case
+        // Push notification with keyword but missing amount
         #expect(CandidateHeuristics.hasPaymentSignal("결제 승인 일시불"))
     }
 
     @Test func noPaymentSignalInLandscapeOCRText() {
-        // 풍경/문서 사진의 OCR 결과 — 금액·통화·결제 키워드 없음
+        // Scenery photo with no payment signals
         #expect(!CandidateHeuristics.hasPaymentSignal("바다와 노을 풍경 사진"))
         #expect(!CandidateHeuristics.hasPaymentSignal("Welcome to the conference"))
         #expect(!CandidateHeuristics.hasPaymentSignal(""))
@@ -136,7 +136,7 @@ struct CandidateHeuristicsTests {
     }
 
     @Test func loneDigitsWithoutCurrencyAreNotPaymentSignal() {
-        // 사진 메타데이터에 흔한 "2026 05 18", "12:34" 같은 노이즈는 신호로 잡지 않음
+        // Timestamp metadata is not considered payment signal
         #expect(!CandidateHeuristics.hasPaymentSignal("2026 05 18 12:34"))
     }
 }

@@ -1,7 +1,7 @@
 #if DEBUG
 import Foundation
 
-/// 임베드 지출 한 행을 도메인 값으로.
+/// Parsed expense seed DTO.
 struct ExpenseSeed: Equatable {
     let date: Date
     let merchant: String
@@ -10,11 +10,9 @@ struct ExpenseSeed: Equatable {
     let note: String?
 }
 
-/// 임베드 CSV 텍스트를 도메인 seed로 바꾸는 pure 변환. SwiftData·시스템 의존 없음.
+/// Pure parser converting sample CSV text to seed DTOs.
 enum SampleDataParsing {
-    /// `yyyy-MM-dd`를 현재 캘린더의 정오 Date로 만든다. 앱은 지출을 `.current` 캘린더로 월/일
-    /// 버킷팅하므로(통계·기록·정산 요약), 시드 날짜도 `.current` 기준으로 만들어야 러너·기기
-    /// 타임존과 무관하게 의도한 날짜에 떨어진다. 정오로 고정해 일 경계 흔들림을 없앤다.
+    /// Parses yyyy-MM-dd into noon Date in current calendar.
     static func parseDate(_ raw: String) -> Date? {
         let parts = raw.split(separator: "-")
         guard parts.count == 3,
@@ -29,7 +27,7 @@ enum SampleDataParsing {
         return Calendar.current.date(from: components)
     }
 
-    /// 지출 CSV(`날짜,설명,카테고리,금액,메모`) → ExpenseSeed 목록. 헤더·파싱 불가 행은 스킵.
+    /// Parses expense CSV text into ExpenseSeed array.
     static func parseExpenses(_ csv: String) -> [ExpenseSeed] {
         let rows = CSVParser.parse(csv)
         guard !rows.isEmpty else { return [] }
@@ -53,8 +51,7 @@ enum SampleDataParsing {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// 정산 CSV(`종류,항목,계좌,방향,금액,메모`) → ReconciliationDraft.
-    /// 잔액(기초/기말/이자)은 accountName=항목(별칭)으로 그룹화하고, 기말 행이 없으면 기말=기초.
+    /// Parses reconciliation CSV text into ReconciliationDraft.
     static func parseReconciliationDraft(_ csv: String) -> ReconciliationDraft {
         let rows = ReconciliationCSVParser.parse(csv).rows
         var draft = ReconciliationDraft()
@@ -67,7 +64,7 @@ enum SampleDataParsing {
 
         draft.balances = balanceOrder.map { name in
             var balance = balanceByName[name] ?? BalanceDraft(accountName: name)
-            // 기말 행이 없던(=0으로 남은) 진행 중 달은 기말=기초로 중립 처리.
+            // Default closing balance to opening balance if omitted
             if !hasClosingRow(rows, accountName: name) {
                 balance.closing = balance.opening
             }

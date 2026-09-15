@@ -1,9 +1,7 @@
 import Foundation
 import SwiftUI
 
-/// 검토 탭에서 자동 처리에 실패한 이미지를 썸네일과 함께 보여주는 섹션.
-/// 시트·얼럿 같은 프레젠테이션은 부모(ReviewListView)의 안정적인 레벨에서 처리하고,
-/// 이 뷰는 표시와 사용자 의도(탭/삭제/재시도/모두 정리) 전달만 담당한다.
+/// Section displaying images that failed automated processing.
 struct FailedImagesSection: View {
     let failed: [PendingImage]
     var onSelect: (PendingImage) -> Void
@@ -71,7 +69,7 @@ struct FailedImagesSection: View {
     }
 }
 
-/// 실패 이미지에서 수동 입력 시트를 띄울 때 원본 PendingImage 와 새 항목을 함께 들고 다닌다.
+/// Context DTO for manual entry from a failed image.
 struct FailedManualContext: Identifiable {
     let pending: PendingImage
     let entry: ParsedEntry

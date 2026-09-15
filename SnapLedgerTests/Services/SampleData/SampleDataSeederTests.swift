@@ -14,7 +14,7 @@ struct SampleDataSeederTests {
     @Test func seedInsertsExpectedCounts() throws {
         let context = try makeContext()
         let counts = try SampleDataSeeder().seed(into: context)
-        #expect(counts.expenses == 56) // 5월 37 + 6월 19
+        #expect(counts.expenses == 56) // May (37) + June (19)
         #expect(counts.reconciliationMonths == 2)
         #expect(counts.budgets == 9)
         #expect(counts.reviewItems == 7)
@@ -24,7 +24,7 @@ struct SampleDataSeederTests {
         let budgets = try context.fetch(FetchDescriptor<CategoryBudget>())
         #expect(budgets.count == 9)
         let incomes = try context.fetch(FetchDescriptor<IncomeItem>())
-        #expect(incomes.count == 3) // 5월 2 + 6월 1
+        #expect(incomes.count == 3) // May (2) + June (1)
     }
 
     @Test func seedIsIdempotent() throws {

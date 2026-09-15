@@ -1,8 +1,7 @@
 import SwiftData
 import SwiftUI
 
-/// 저장 폴더 화면 (설정 → 저장 폴더에서 진입). CloudKit이 진실원이므로 폴더는
-/// 월별 CSV 백업(한 방향 내보내기) 대상이다. 전체 내보내기와 폴더 변경만 제공한다.
+/// Storage folder view providing export-all and folder change actions.
 struct FileSyncView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var settingsList: [AppSettings]
@@ -107,7 +106,7 @@ struct FileSyncView: View {
             try FolderBookmarkHelper.apply(url: url, to: settings, context: modelContext)
             folderError = nil
             folderReachable = true
-            // 새 폴더에 현재 앱 데이터를 백필한다(best-effort).
+            // Backfill existing data to newly selected folder.
             try? SyncCoordinator().exportAll(in: modelContext)
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
@@ -116,7 +115,7 @@ struct FileSyncView: View {
 
     private func exportAll() {
         isExporting = true
-        // yield로 버튼 비활성 상태를 먼저 렌더한 뒤 내보내기를 돌려 중복 탭을 막는다.
+        // Yield to allow UI to update disabled state before running export.
         Task {
             defer { isExporting = false }
             await Task.yield()

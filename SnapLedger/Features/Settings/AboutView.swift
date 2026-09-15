@@ -58,8 +58,7 @@ struct AboutView: View {
         }
     }
 
-    // 앱 아이콘과 같은 모양을 재현: 브랜드 배경 타일(LaunchBackground = 아이콘 배경색) 위에
-    // 코랄 글리프(LaunchLogo)를 얹는다. 글리프 원본은 캔버스의 ~26%(세로)뿐이라 확대해 채운다.
+    // App icon recreation with background tile and scaled logo glyph.
     private var brandIcon: some View {
         ZStack {
             Color("LaunchBackground")
@@ -84,13 +83,13 @@ struct AboutView: View {
         return "?"
     }
 
-    // 개인정보·지원처럼 앱 컨텍스트를 유지해야 하는 웹 링크는 인앱 Safari로 연다.
+    // Open web links in SFSafariViewController to retain app context.
     private func openInApp(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
         safariLink = SafariLink(url: url)
     }
 
-    // App Store는 itms-apps 스킴으로 App Store 앱을 직접 띄운다 (Safari 경유 없이).
+    // Open App Store directly via itms-apps URL scheme.
     private func openAppStore() {
         guard let url = URL(string: Self.appStoreURL) else { return }
         UIApplication.shared.open(url)
@@ -106,8 +105,7 @@ private struct SafariView: UIViewControllerRepresentable {
     let url: URL
 
     func makeUIViewController(context: Context) -> SFSafariViewController {
-        // iOS 26부터 컨트롤 색상은 시스템(Liquid Glass)이 관리한다.
-        // preferredControlTintColor는 deprecated이고 1:1 대체 API가 없어 커스터마이징을 두지 않는다.
+        // iOS 26 manages control tinting via Liquid Glass system style.
         SFSafariViewController(url: url)
     }
 

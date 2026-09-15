@@ -4,7 +4,7 @@ import SwiftData
 
 enum BackgroundRefresh {
     static let taskIdentifier = "com.youngkyu.snapledger.refresh"
-    static let nextRunInterval: TimeInterval = 60 * 60 // 1시간
+    static let nextRunInterval: TimeInterval = 60 * 60 // 1 hour
 
     @MainActor
     static func register(modelContainer: ModelContainer) {
@@ -37,8 +37,7 @@ enum BackgroundRefresh {
                 .filter { $0.status == .pending }
                 .count
             await NotificationScheduler().syncIconBadge(count: pendingCount)
-            // drain으로 pending 카운트가 바뀌었을 수 있고, 1회성 알림은 발사 후
-            // 소비되므로 백그라운드 주기마다 최신 카운트로 재장전한다.
+            // Refresh reminder notifications.
             await ReminderRefresher.refresh(in: context)
         }
 

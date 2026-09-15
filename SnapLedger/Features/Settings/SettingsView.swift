@@ -3,7 +3,7 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-/// 설정 화면에서 프로그래매틱하게 푸시할 수 있는 하위 화면.
+/// Sub-screens that can be pushed programmatically from Settings.
 enum SettingsRoute: Hashable {
     case fileSync
 }
@@ -308,7 +308,7 @@ struct SettingsView: View {
         do {
             try FolderBookmarkHelper.apply(url: url, to: settings, context: modelContext)
             folderError = nil
-            // 새 폴더에 현재 앱 데이터를 백필한다(best-effort).
+            // Backfill existing data to newly selected folder.
             try? SyncCoordinator().exportAll(in: modelContext)
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"

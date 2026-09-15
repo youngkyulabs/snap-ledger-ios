@@ -1,10 +1,7 @@
 import Foundation
 import SwiftData
 
-/// CSV 저장 폴더 접근 공통 로직: settings 조회 → bookmark resolve →
-/// security scope 시작 → 폴더 도달성 확인 → body 실행 → stale bookmark 갱신.
-/// `SaveCoordinator`·`SyncCoordinator`가 공유한다. 실패는 중립 `AccessError`로 던지고
-/// 각 호출자가 자신의 사용자 노출 에러 타입(`CoordinatorError`/`SyncError`)으로 매핑한다.
+/// Helper for safely accessing security-scoped CSV storage folder.
 @MainActor
 enum CSVFolderAccess {
     enum AccessError: Error {
@@ -35,13 +32,13 @@ enum CSVFolderAccess {
         return result
     }
 
-    /// resolve된 폴더 URL과 stale 갱신에 필요한 컨텍스트(settings·isStale)를 함께 묶는다.
+    /// Validated folder URL and security-scope context.
     private struct ResolvedFolder {
         let url: URL
         let settings: AppSettings
         let isStale: Bool
 
-        /// bookmark가 stale이면 새 bookmark를 만들어 저장한다.
+        /// Renews and persists a stale security-scoped bookmark.
         func refreshStaleBookmarkIfNeeded(in context: ModelContext) {
             guard isStale, let refreshed = try? BookmarkStore.makeBookmark(for: url) else { return }
             settings.csvFolderBookmark = refreshed

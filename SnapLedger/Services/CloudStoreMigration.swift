@@ -1,8 +1,7 @@
 import Foundation
 import SwiftData
 
-/// 예산 행의 값 스냅샷. 구 스토어(App Group)를 줄어든 스키마로 다시 열기 전에
-/// 값으로 떠놓기 위한 구조체(모델 인스턴스가 아님).
+/// Snapshot of CategoryBudget values.
 struct BudgetSnapshot: Equatable {
     let category: String
     let monthlyLimit: Int
@@ -10,7 +9,7 @@ struct BudgetSnapshot: Equatable {
     let updatedAt: Date
 }
 
-/// SavedEntry 값 스냅샷. 구 스토어를 줄어든 스키마로 다시 열기 전에 값으로 떠둔다.
+/// Snapshot of SavedEntry values.
 struct EntrySnapshot: Equatable {
     let id: UUID
     let date: Date
@@ -22,7 +21,7 @@ struct EntrySnapshot: Equatable {
     let csvFile: String
 }
 
-/// 정산 헤더 값 스냅샷.
+/// Snapshot of MonthlyReconciliation values.
 struct ReconciliationSnapshot: Equatable {
     let id: UUID
     let monthKey: Int
@@ -30,7 +29,7 @@ struct ReconciliationSnapshot: Equatable {
     let updatedAt: Date
 }
 
-/// 계좌 월별 잔액 값 스냅샷.
+/// Snapshot of AccountMonthlyBalance values.
 struct AccountBalanceSnapshot: Equatable {
     let id: UUID
     let monthKey: Int
@@ -41,7 +40,7 @@ struct AccountBalanceSnapshot: Equatable {
     let interestAmount: Int
 }
 
-/// 자금 변동 값 스냅샷.
+/// Snapshot of CashAdjustment values.
 struct CashAdjustmentSnapshot: Equatable {
     let id: UUID
     let monthKey: Int
@@ -52,7 +51,7 @@ struct CashAdjustmentSnapshot: Equatable {
     let note: String?
 }
 
-/// 수입·카드사용·저축 공용 라인 항목 값 스냅샷(세 모델의 필드 형태가 동일).
+/// Snapshot of reconciliation line item values.
 struct LineItemSnapshot: Equatable {
     let id: UUID
     let monthKey: Int
@@ -62,17 +61,16 @@ struct LineItemSnapshot: Equatable {
     let updatedAt: Date
 }
 
-/// 가맹점→카테고리 학습 값 스냅샷.
+/// Snapshot of MerchantCategory learning values.
 struct MerchantSnapshot: Equatable {
     let merchantNormalized: String
     let category: String
     let updatedAt: Date
 }
 
-/// 기존 사용자의 예산·카테고리를 App Group 로컬 스토어 → CloudKit 스토어로 1회성 이전.
-/// 모든 단계는 멱등(키 기준 upsert)이라 중간에 끊겨 재실행돼도 중복을 만들지 않는다.
+/// Migration helper for copying legacy unmigrated data to CloudKit store.
 enum CloudStoreMigration {
-    /// 구 스토어의 모든 예산을 값 스냅샷으로 읽는다.
+    /// Reads legacy budget data into snapshots.
     @MainActor
     static func snapshotBudgets(from source: ModelContext) -> [BudgetSnapshot] {
         let rows = (try? source.fetch(FetchDescriptor<CategoryBudget>())) ?? []
@@ -86,7 +84,7 @@ enum CloudStoreMigration {
         }
     }
 
-    /// 스냅샷을 CloudKit 스토어로 복사. `(category, effectiveFrom)` 키로 upsert.
+    /// Migrates budget snapshots to CloudKit store.
     @MainActor
     static func copyBudgets(_ snapshots: [BudgetSnapshot], into cloud: ModelContext) {
         let existing = (try? cloud.fetch(FetchDescriptor<CategoryBudget>())) ?? []
@@ -112,7 +110,7 @@ enum CloudStoreMigration {
         try? cloud.save()
     }
 
-    /// 카테고리 이름 배열을 `CategoryPreset` 레코드로 시드. 이름 키로 upsert, 인덱스를 `sortOrder`로.
+    /// Inserts category preset records into CloudKit store.
     @MainActor
     static func seedPresets(_ names: [String], into cloud: ModelContext) {
         let existing = (try? cloud.fetch(FetchDescriptor<CategoryPreset>())) ?? []
@@ -127,7 +125,7 @@ enum CloudStoreMigration {
         try? cloud.save()
     }
 
-    /// 구 스토어의 모든 지출을 값 스냅샷으로 읽는다.
+    /// Reads legacy saved entries into snapshots.
     @MainActor
     static func snapshotEntries(from source: ModelContext) -> [EntrySnapshot] {
         let rows = (try? source.fetch(FetchDescriptor<SavedEntry>())) ?? []
@@ -140,7 +138,7 @@ enum CloudStoreMigration {
         }
     }
 
-    /// 스냅샷을 CloudKit 스토어로 복사. `id` 키로 upsert(재실행 멱등).
+    /// Migrates saved entry snapshots to CloudKit store.
     @MainActor
     static func copyEntries(_ snapshots: [EntrySnapshot], into cloud: ModelContext) {
         let existing = (try? cloud.fetch(FetchDescriptor<SavedEntry>())) ?? []
@@ -167,7 +165,7 @@ enum CloudStoreMigration {
         try? cloud.save()
     }
 
-    // MARK: - 정산 헤더
+    // MARK: - Reconciliation Header
 
     @MainActor
     static func snapshotReconciliations(from source: ModelContext) -> [ReconciliationSnapshot] {
@@ -193,7 +191,7 @@ enum CloudStoreMigration {
         try? cloud.save()
     }
 
-    // MARK: - 계좌 월별 잔액
+    // MARK: - Account Monthly Balances
 
     @MainActor
     static func snapshotAccountBalances(from source: ModelContext) -> [AccountBalanceSnapshot] {
@@ -230,7 +228,7 @@ enum CloudStoreMigration {
         try? cloud.save()
     }
 
-    // MARK: - 자금 변동
+    // MARK: - Cash Adjustments
 
     @MainActor
     static func snapshotCashAdjustments(from source: ModelContext) -> [CashAdjustmentSnapshot] {
@@ -267,7 +265,7 @@ enum CloudStoreMigration {
         try? cloud.save()
     }
 
-    // MARK: - 라인 항목(저축·카드사용·수입)
+    // MARK: - Line Items (Savings, Cards, Income)
 
     @MainActor
     static func snapshotSavings(from source: ModelContext) -> [LineItemSnapshot] {
@@ -359,7 +357,7 @@ enum CloudStoreMigration {
         try? cloud.save()
     }
 
-    // MARK: - 가맹점 카테고리 학습
+    // MARK: - Merchant Category Learning
 
     @MainActor
     static func snapshotMerchants(from source: ModelContext) -> [MerchantSnapshot] {

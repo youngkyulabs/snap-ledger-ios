@@ -28,8 +28,7 @@ struct PendingProcessorRequeueTests {
     }
 
     @Test func drainRequeuesAndProcessesStuckProcessing() async throws {
-        // 이전 실행이 처리 도중 중단(크래시·BGTask 타임아웃)돼 .processing 상태로 남은 항목은
-        // 검토 탭에 "처리 중"으로 영구 표시된다. drain 이 이를 .queued 로 되돌려 재처리해야 한다.
+        // Requeues stale processing images to queued state.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("stuck.jpg", in: inbox)
@@ -59,11 +58,10 @@ struct PendingProcessorRequeueTests {
     }
 
     @Test func drainRequeuesStuckProcessingWithMissingFileToFailed() async throws {
-        // .processing 으로 남았는데 원본 파일이 사라진 경우: 재처리 중 OCR 단계에서 실패해
-        // .failed 로 전이되어야 한다 (영구 "처리 중"에 갇히지 않고 사용자가 정리 가능).
+        // Missing file transitions to failed during OCR step.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
-        // 파일을 만들지 않음 — 처리 중 사라진 상황
+        // File omitted to simulate missing inbox file
 
         let pending = PendingImage(filename: "gone.jpg", state: .processing)
         ctx.insert(pending)

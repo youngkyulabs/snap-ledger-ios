@@ -55,7 +55,7 @@ struct PendingProcessorCleanupTests {
         let inbox = try makeInbox()
         let filename = try writeFakeImage("gone.jpg", in: inbox)
         ctx.insert(PendingImage(filename: filename, state: .done))
-        // 저장/삭제되어 dismissed 가 된 항목은 더는 이미지를 참조하지 않는다.
+        // Dismissed entries no longer hold image references.
         ctx.insert(ParsedEntry(
             date: .now, amount: 1000, merchant: "X",
             sourceImagePath: filename, status: .dismissed
@@ -69,7 +69,7 @@ struct PendingProcessorCleanupTests {
     }
 
     @Test func multiEntryImageKeptUntilLastResolved() async throws {
-        // 한 이미지가 여러 거래로 쪼개진 경우: 하나라도 pending 이면 보관.
+        // Retain image if at least one split entry is pending.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
         let filename = try writeFakeImage("receipt.jpg", in: inbox)

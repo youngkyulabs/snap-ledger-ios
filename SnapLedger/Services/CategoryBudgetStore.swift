@@ -5,28 +5,27 @@ import SwiftData
 private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "budget")
 
 struct CategoryBudgetStore {
-    /// YYYYMM 정수 키 (year*100 + month). StatisticsAggregation의 Int 월 키 관례와 동일.
+    /// Converts Date to integer month key (YYYYMM).
     static func monthKey(from date: Date, calendar: Calendar = .current) -> Int {
         let comps = calendar.dateComponents([.year, .month], from: date)
         return (comps.year ?? 0) * 100 + (comps.month ?? 0)
     }
 
-    /// YYYYMM 키의 다음 달 키 (12월 → 다음 해 1월).
+    /// Calculates next month integer key.
     static func nextMonthKey(_ key: Int) -> Int {
         let year = key / 100
         let month = key % 100
         return month >= 12 ? (year + 1) * 100 + 1 : key + 1
     }
 
-    /// YYYYMM 키의 이전 달 키 (1월 → 전 해 12월).
+    /// Calculates previous month integer key.
     static func previousMonthKey(_ key: Int) -> Int {
         let year = key / 100
         let month = key % 100
         return month <= 1 ? (year - 1) * 100 + 12 : key - 1
     }
 
-    /// (카테고리, 월)에 유효한 한도. effectiveFrom <= month 중 가장 최근 레코드의 monthlyLimit.
-    /// 레코드가 없거나 tombstone(0)이면 nil(= 한도 없음).
+    /// Resolves effective limit for a category in the specified month.
     static func resolveLimit(in budgets: [CategoryBudget], category: String, asOf month: Int) -> Int? {
         let effective = budgets
             .filter { $0.category == category && $0.effectiveFrom <= month }
@@ -35,8 +34,7 @@ struct CategoryBudgetStore {
         return limit
     }
 
-    /// 그 달 유효 한도가 있는 카테고리의 CSV 행. preset 순서 → preset 밖(off-list)은 가나다순으로 뒤에 붙인다.
-    /// tombstone(0)·미설정 카테고리는 제외(`resolveLimit`이 nil).
+    /// Resolves all effective budget items as of the specified month.
     static func resolveAll(in budgets: [CategoryBudget], asOf month: Int, presets: [String]) -> [BudgetCSVRow] {
         let offList = Set(budgets.map { $0.category }).subtracting(presets).sorted()
         return (presets + offList).compactMap { category in
@@ -45,7 +43,7 @@ struct CategoryBudgetStore {
         }
     }
 
-    /// (카테고리, 월) 레코드를 upsert. limit 0은 tombstone(이 달부터 한도 해제).
+    /// Sets category limit starting from the specified month.
     @MainActor
     func setLimit(_ limit: Int, for category: String, effectiveFrom month: Int, in context: ModelContext) throws {
         let descriptor = FetchDescriptor<CategoryBudget>(
@@ -60,10 +58,7 @@ struct CategoryBudgetStore {
         try context.save()
     }
 
-    /// 과거 달 단일 편집: month에만 새 한도를 적용하고 그 이후 달(특히 이번 달)에는 영향을 주지 않는다.
-    /// effectiveFrom 모델은 한 레코드를 다음 변경 전까지 매월 전파하므로, month 레코드를 upsert한 뒤
-    /// 다음 달(month+1)에 명시 레코드가 없고 전파가 실제로 바뀌는 경우 편집 전 유효 한도를 경계 레코드로
-    /// 박아 전파를 차단한다. (이번 달/미래 편집은 forward 의미를 유지해야 하므로 setLimit을 그대로 쓴다.)
+    /// Sets category limit for a single month, bounding subsequent carryover.
     @MainActor
     func setLimitForSingleMonth(_ limit: Int, for category: String, month: Int, in context: ModelContext) throws {
         let records = try context.fetch(FetchDescriptor<CategoryBudget>(
@@ -71,18 +66,18 @@ struct CategoryBudgetStore {
         ))
         let nextMonth = CategoryBudgetStore.nextMonthKey(month)
         let hasExplicitNext = records.contains { $0.effectiveFrom == nextMonth }
-        // 편집 전, 다음 달에 유효하던 한도(없으면 0 = 한도 없음 → tombstone으로 복원).
+        // Look up effective limit for next month prior to edit.
         let carry = CategoryBudgetStore.resolveLimit(in: records, category: category, asOf: nextMonth) ?? 0
 
         try setLimit(limit, for: category, effectiveFrom: month, in: context)
 
-        // 다음 달에 사용자 레코드가 없고, 새 값이 기존 전파값과 다를 때만 경계 레코드를 남긴다.
+        // Create boundary record for next month if needed to preserve carryover.
         if !hasExplicitNext && limit != carry {
             try setLimit(carry, for: category, effectiveFrom: nextMonth, in: context)
         }
     }
 
-    /// 이번 달부터 한도 해제(과거 보존). 현재 유효 한도가 있을 때만 tombstone을 남긴다.
+    /// Clears category limit starting from the specified month via tombstone.
     @MainActor
     func endBudget(for category: String, asOf month: Int, in context: ModelContext) throws {
         let descriptor = FetchDescriptor<CategoryBudget>(
@@ -93,8 +88,7 @@ struct CategoryBudgetStore {
         try setLimit(0, for: category, effectiveFrom: month, in: context)
     }
 
-    /// 그 달 예산 CSV를 앱 내용으로 다시 쓴다(없으면 제거). CSV는 한 방향 추출물이므로
-    /// 폴더가 없거나 쓰기에 실패해도 (이미 커밋된) 한도 저장은 성공으로 둔다.
+    /// Exports budget CSV file for the affected month.
     @MainActor
     func exportBestEffort(month: Int, in context: ModelContext) {
         let key = SyncCoordinator.monthKeyString(from: month)
@@ -103,7 +97,7 @@ struct CategoryBudgetStore {
                 try SyncCoordinator().exportBudgetMonths([key], folderURL: folderURL, in: context)
             }
         } catch CSVFolderAccess.AccessError.noCSVFolder {
-            // 폴더 미설정은 정상 상태(옵션) — 조용히 건너뛴다.
+            // Skip silently if no folder is configured.
         } catch {
             log.error("예산 CSV export(best-effort) failed: \(String(describing: error))")
         }

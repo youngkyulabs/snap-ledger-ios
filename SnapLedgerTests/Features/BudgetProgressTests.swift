@@ -26,12 +26,11 @@ struct BudgetProgressTests {
     }
 
     @Test func usagePercentStaysBelow100UntilOver() {
-        // 한도를 넘기 전(ratio < 1)에는 99.5~99.99%가 100%로 반올림돼선 안 된다
-        // ("100% · N원 남음" 모순 표기 방지).
+        // Pre-limit ratios (ratio < 1) cap at 99% to avoid misleading 100%.
         #expect(BudgetProgress.usagePercent(ratio: 0.999) == 99)
         #expect(BudgetProgress.usagePercent(ratio: 0.995) == 99)
         #expect(BudgetProgress.usagePercent(ratio: 0.8) == 80)
-        // 한도 도달·초과는 그대로 100% 이상으로 보여준다.
+        // Ratios >= 1 display actual percentage.
         #expect(BudgetProgress.usagePercent(ratio: 1.0) == 100)
         #expect(BudgetProgress.usagePercent(ratio: 1.5) == 150)
     }

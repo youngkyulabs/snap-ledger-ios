@@ -3,8 +3,7 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-/// App Group inbox 에 보관된 원본 이미지를 다운샘플해 로드한다.
-/// 실패한 PendingImage 는 파일이 남아 있어 검토 탭에서 미리보기·수동 입력에 재사용된다.
+/// Downsampled image loader for App Group inbox files.
 @MainActor
 enum InboxImageLoader {
     static func load(filename: String, maxPixel: CGFloat) -> UIImage? {
@@ -25,7 +24,7 @@ enum InboxImageLoader {
     }
 }
 
-/// 리스트 행용 정사각 썸네일.
+/// Square thumbnail view for inbox images.
 struct InboxThumbnail: View {
     let filename: String
     var size: CGFloat = 52
@@ -54,7 +53,7 @@ struct InboxThumbnail: View {
     }
 }
 
-/// 편집 화면 상단의 원본 이미지 미리보기 (전체 비율 유지).
+/// Full-aspect preview view for inbox images.
 struct InboxImageView: View {
     let filename: String
     @State private var image: UIImage?

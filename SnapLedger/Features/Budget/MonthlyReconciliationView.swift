@@ -10,11 +10,11 @@ struct MonthlyReconciliationView: View {
     @State private var draft = ReconciliationDraft()
     @State private var didLoad = false
     @State private var activeSheet: ActiveSheet?
-    /// 정산 결과를 제외한 금액(계좌별 잔액·수입·저축·카드·자금변동)을 가린다. 기본 가림.
+    /// Masks financial amounts (opening/closing balances, salary, savings, cards, adjustments).
     @State private var amountsHidden = true
     @State private var resultMessage: String?
 
-    /// 어떤 항목을 어떤 시트로 편집 중인지. 연관 값이 nil이면 새 항목 추가.
+    /// Active sheet destination for editing reconciliation items.
     private enum ActiveSheet: Identifiable {
         case account(BalanceDraft?)
         case income(IncomeItemDraft?)
@@ -91,7 +91,7 @@ struct MonthlyReconciliationView: View {
         }
     }
 
-    // MARK: - 시트 라우팅
+    // MARK: - Sheet Routing
 
     @ViewBuilder
     private func editor(for sheet: ActiveSheet) -> some View {
@@ -134,18 +134,17 @@ struct MonthlyReconciliationView: View {
         }
     }
 
-    // MARK: - 섹션
+    // MARK: - Sections
 
     private var summarySection: some View {
-        // 진행 중인 달은 사용자가 실제 값을 입력해야, 마감된 달은 저장 데이터가 있어야 확정으로 본다.
-        // 빈 DB를 읽는 예산 탭과 결론이 어긋나지 않게 한다.
+        // Verdict status matching budget tab criteria.
         let isReconciled = summary.isReconciled(status: periodStatus)
         let verdict = summary.displayVerdict(
             status: periodStatus,
             isReconciled: isReconciled,
             revealInProgressDifference: true
         )
-        // 아직 정산 전이면 프리필 값으로 계산한 '실제 쓴 돈'을 0으로 가린다(예산 탭과 일치).
+        // Hide prefilled spending until reconciliation has started.
         let displayedActual = isReconciled ? summary.actualSpending : 0
         return Section {
             VStack(alignment: .leading, spacing: 12) {
@@ -301,7 +300,7 @@ struct MonthlyReconciliationView: View {
         }
     }
 
-    // MARK: - 행
+    // MARK: - Rows
 
     private func accountRow(_ balance: BalanceDraft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -368,7 +367,7 @@ struct MonthlyReconciliationView: View {
     }
 }
 
-// MARK: - 업서트 + 저장
+// MARK: - Upsert & Save
 
 extension MonthlyReconciliationView {
     private func saveAccount(existing: BalanceDraft?, name: String, opening: Int, closing: Int, interest: Int) {
@@ -383,7 +382,7 @@ extension MonthlyReconciliationView {
                 BalanceDraft(accountName: name, sortOrder: nextOrder, opening: opening, closing: closing, interest: interest)
             )
         }
-        // 추가·수정한 금액을 바로 확인할 수 있도록 가리기를 해제한다.
+        // Unmask amounts when editing items.
         amountsHidden = false
         save()
     }
@@ -453,7 +452,7 @@ extension MonthlyReconciliationView {
 
     private func save() {
         do {
-            // 편집할 때마다 조용히 자동 저장한다 (지출 기록과 동일). 성공 토스트는 띄우지 않는다.
+            // Auto-save draft silently on each edit.
             try ReconciliationStore().save(draft, month: month, in: modelContext)
         } catch {
             resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

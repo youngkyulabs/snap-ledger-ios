@@ -26,7 +26,7 @@ struct SaveCoordinatorBudgetExportTests {
         context.insert(AppSettings(csvFolderBookmark: try BookmarkStore.makeBookmark(for: dir)))
         try context.save()
 
-        // 2026-05-15 정오 (Calendar.current).
+        // 2026-05-15 noon (Calendar.current)
         var comps = DateComponents()
         comps.year = 2026; comps.month = 5; comps.day = 15; comps.hour = 12
         let date = Calendar.current.date(from: comps)!

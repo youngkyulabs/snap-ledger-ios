@@ -63,13 +63,13 @@ struct ExtractionServiceTests {
             customGuide: "",
             categories: ["식비", "구독", "통신"]
         )
-        // 따옴표로 감싸야 라벨 안의 점·구분 기호와 콤마가 헷갈리지 않음
+        // Quotes delimit labels containing dots or separators
         #expect(prompt.contains("\"식비\", \"구독\", \"통신\""))
         #expect(prompt.contains("목록 밖 단어 금지"))
     }
 
     @Test func customCategoriesUsedInExampleWhenShoppingMissing() {
-        // "쇼핑"/"생활" 키워드도 부분 일치하는 라벨이 없으면 첫 항목으로 폴백
+        // Fallback to first label if no keyword match
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now,
             customGuide: "",
@@ -80,9 +80,7 @@ struct ExtractionServiceTests {
     }
 
     @Test func prefixedCategoriesPickMatchByKeywordInsteadOfFirst() {
-        // 사용자가 정렬용 접두 번호("0. 고정비", "1. 교통" …)를 붙여도
-        // 예시 카테고리가 항상 첫 라벨("0. 고정비")로 떨어지지 않아야 함.
-        // 카페/식비 영수증 예시는 "3. 식비"로, 쇼핑/생활 알림 예시는 "4. 생활・쇼핑"으로.
+        // Category prompt preserves labels with numerical prefixes
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now,
             customGuide: "",
@@ -100,9 +98,9 @@ struct ExtractionServiceTests {
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
-        // 접두 번호를 라벨의 일부로 인식해 함께 복사
+        // Preserve numerical prefixes as part of label
         #expect(prompt.contains("접두 번호"))
-        // 잘 모르겠다고 첫 번째 라벨을 기본값으로 쓰지 않도록 경고
+        // Warn against defaulting to first category label
         #expect(prompt.contains("첫 번째 라벨을 기본값으로 쓰지 마세요"))
     }
 
@@ -129,7 +127,7 @@ struct ExtractionServiceTests {
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
-        // 합산 라인 중복 시 한 번만 — 합산 금지
+        // Do not sum repeated total lines
         #expect(prompt.contains("절대 더하지 마세요"))
     }
 
@@ -137,7 +135,7 @@ struct ExtractionServiceTests {
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
-        // 현대카드 결제 내역 리스트의 "5,000원 · 일반승인" 패턴 인식
+        // Card payment notification approval pattern
         #expect(prompt.contains("일반승인"))
     }
 
@@ -145,8 +143,7 @@ struct ExtractionServiceTests {
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
-        // 캐셔/서명 이름·대괄호 결제수단 표기는 merchant 아님
-        // (구체적 PG·카드사 strip은 normalize() 책임, 별도 테스트로 검증)
+        // Exclude cashier names and bracketed payment methods from merchant
         #expect(prompt.contains("캐셔"))
         #expect(prompt.contains("대괄호"))
     }
@@ -160,7 +157,7 @@ struct ExtractionServiceTests {
     }
 
     @Test func instructionsWarnAgainstCopyingExampleData() {
-        // FM이 예시의 "아메리카노 T 4,500" 같은 데이터를 응답에 복사하던 환각 방지
+        // Prevent copying example line items
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
@@ -169,10 +166,7 @@ struct ExtractionServiceTests {
     }
 
     @Test func instructionsUsePlaceholderTokensNotRealBrands() {
-        // 모델이 예시를 베껴 출력하던 케이스를 막기 위해, 예시 블록은
-        // 명백한 가짜 토큰('예시상호N', '예시품목N')만 사용해야 한다.
-        // 실제 상호명("스타벅스", "쿠팡", "Apple") 또는 실제 품목명("아메리카노",
-        // "카페라떼")이 prompt에 들어가면 환각 위험이 다시 생긴다.
+        // Prompt examples must only use explicit placeholder tokens
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
@@ -183,13 +177,12 @@ struct ExtractionServiceTests {
         #expect(!prompt.contains("아메리카노"))
         #expect(!prompt.contains("카페라떼"))
         #expect(!prompt.contains("쿠팡"))
-        // "Apple" 단어는 짧고 일반적이라 다른 룰에 들어갈 수 있으니
-        // 예시 머천트로는 안 쓴다는 의미로 정확한 매치만 확인.
+        // Ensure Apple is not used as an example merchant
         #expect(!prompt.contains("merchant=\"Apple\""))
     }
 
     @Test func instructionsForbidNonZeroAmountWhenPriceVisible() {
-        // 푸시 알림에서 amount=0으로 떨어지던 문제 방지
+        // Prevent zero amounts when payment amount is visible
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
@@ -197,7 +190,7 @@ struct ExtractionServiceTests {
     }
 
     @Test func instructionsEmphasizeOneTransactionPerReceipt() {
-        // 영수증을 품목별로 split하던 환각 방지
+        // Single transaction for receipt with items in array
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
@@ -205,8 +198,7 @@ struct ExtractionServiceTests {
     }
 
     @Test func instructionsBrieflyMentionCardIssuerHeaderIsNotMerchant() {
-        // prompt 단순화 후 — 카드사 prefix·PG 정규화는 normalize() 책임,
-        // prompt는 짧게만 언급. 카드사명 헤더 = 별도 transaction 아님 안내만 유지.
+        // Header cards are not separate transactions
         let prompt = FoundationModelsExtractionService.instructions(
             today: .now, customGuide: "", categories: defaultCategories
         )
@@ -229,7 +221,7 @@ struct ExtractionServiceTests {
     }
 
     @Test func normalizeStripsCardIssuerBrandVariants() {
-        // 현대카드Z, 현대카드M, 현대카드 Z work 승인 등 prefix 매칭
+        // Prefix match for card issuer variants
         let variants = [
             "현대카드Z",
             "현대카드M",

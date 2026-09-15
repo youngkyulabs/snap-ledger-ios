@@ -29,12 +29,10 @@ struct ReviewListView: View {
     @State private var isDropTargeted = false
     @State private var pendingToDelete: ParsedEntry?
     @State private var swipeError: String?
-    // 실패 이미지 시트/얼럿은 안정적인 NavigationStack 레벨에서 띄운다.
-    // Section 에 직접 붙이면 첫 표시에서 바로 닫히는 문제가 있다.
+    // Present failed image sheets at NavigationStack level.
     @State private var failedManual: FailedManualContext?
     @State private var retryUnavailable = false
-    // 저장 직후 예산 임계(near/over)를 알리는 하단 플로팅 토스트(검토 탭 한정). 표시·자동닫기는
-    // .budgetToast 모디파이어가 담당한다 — BudgetToastView.swift 참고.
+    // Budget threshold floating toast state.
     @State private var budgetToast: BudgetToastItem?
 
     private var pendingEntries: [ParsedEntry] {
@@ -94,10 +92,7 @@ struct ReviewListView: View {
                                     }
                                     .buttonStyle(.plain)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        // role: .destructive를 쓰면 SwiftUI가 자동으로
-                                        // ForEach row를 제거하려 하는데 @Query가 entry를
-                                        // 그대로 들고 있어 깜빡이며 다시 등장한다. tint로
-                                        // 색만 빨강으로 주고 role은 지정하지 않는다.
+                                        // Use red tint without destructive role to prevent SwiftUI query animation flicker.
                                         Button {
                                             pendingToDelete = entry
                                         } label: {
@@ -362,8 +357,7 @@ struct ReviewListView: View {
 }
 
 extension ReviewListView {
-    /// 저장 직후 임계 라인을 받아 토스트를 띄운다(nil이면 표시하지 않음).
-    /// 매번 새 id를 부여해 같은 카테고리를 연속 저장해도 자동닫기 타이머가 새로 시작된다.
+    /// Displays budget threshold toast for the given line.
     fileprivate func presentBudgetToast(_ line: BudgetProgress.Line?) {
         guard let line else { return }
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {

@@ -4,7 +4,7 @@ import SwiftData
 @Model
 final class MonthlyReconciliation {
     var id = UUID()
-    /// YYYYMM (예: 202606)
+    /// Target month key (YYYYMM).
     var monthKey = 0
     var note: String?
     var updatedAt = Date.now

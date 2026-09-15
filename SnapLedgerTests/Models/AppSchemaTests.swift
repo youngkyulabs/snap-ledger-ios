@@ -3,8 +3,7 @@ import Testing
 @testable import SnapLedger
 
 struct AppSchemaTests {
-    /// 메인 앱과 AppIntent가 같은 App Group 스토어를 여는데 스키마가 다르면
-    /// 마이그레이션 충돌·데이터 유실 위험이 있다. 전체 모델 목록을 고정한다.
+    /// Verifies complete schema model registrations.
     @Test func includesEveryModelType() {
         let names = Set(Schema(AppSchema.models).entities.map(\.name))
         #expect(names == [
@@ -14,7 +13,7 @@ struct AppSchemaTests {
         ])
     }
 
-    /// CloudKit 스토어로 가는 모델: 예산·프리셋·지출 + 정산 6종 + 머천트(Phase 3). 나머지는 로컬.
+    /// Verifies CloudKit synced models.
     @Test func cloudAndLocalArePartition() {
         let cloud = Set(Schema(AppSchema.cloudModels).entities.map(\.name))
         let local = Set(Schema(AppSchema.localModels).entities.map(\.name))

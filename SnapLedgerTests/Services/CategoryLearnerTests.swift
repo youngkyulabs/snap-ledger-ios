@@ -83,9 +83,7 @@ struct CategoryLearnerTests {
         #expect(all.first?.category == "교통")
     }
 
-    /// 인텐트(AddExpenseFromImageIntent)는 localModels-only 컨테이너를 연다 —
-    /// Phase 3에서 MerchantCategory가 cloudModels로 옮겨가 그 스키마에는 없다.
-    /// 스키마에 엔티티가 없는 컨텍스트에서도 크래시 없이 nil/무동작이어야 한다.
+    /// Verifies safe degradation when entity is omitted from container schema.
     private func makeLocalOnlyContext() throws -> ModelContext {
         let container = try ModelContainer(
             for: Schema(AppSchema.localModels),
@@ -102,6 +100,6 @@ struct CategoryLearnerTests {
     @Test func learnIsNoOpWhenMerchantEntityAbsent() throws {
         let context = try makeLocalOnlyContext()
         try CategoryLearner().learn(merchant: "스타벅스", category: "카페", in: context)
-        // 크래시 없이 여기까지 도달하면 성공.
+        // Reaching here without crashing indicates success.
     }
 }

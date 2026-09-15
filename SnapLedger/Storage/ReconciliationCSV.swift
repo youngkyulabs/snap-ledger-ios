@@ -99,7 +99,7 @@ struct ReconciliationCSVParser {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// 금액 파싱 — 천 단위 구분자(콤마)를 제거하고 정수로.
+    /// Parses a formatted amount string into an integer.
     private static func parseAmount(_ raw: String) -> Int? {
         Int(raw.replacingOccurrences(of: ",", with: ""))
     }

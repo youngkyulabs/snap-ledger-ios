@@ -43,14 +43,14 @@ struct SyncCoordinatorBudgetTests {
         let context = try makeContext()
         let sync = SyncCoordinator()
 
-        // 먼저 파일을 만든다.
+        // Create initial file
         context.insert(CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_605))
         try context.save()
         try sync.exportBudgetMonths(["2026-05"], folderURL: dir, in: context)
         let file = dir.appendingPathComponent("budgets-2026-05.csv")
         #expect(FileManager.default.fileExists(atPath: file.path))
 
-        // 그 달부터 해제(tombstone) → 파일 제거. 실제 앱과 동일하게 upsert(setLimit) 사용.
+        // Tombstone limit clears and removes CSV file
         try CategoryBudgetStore().setLimit(0, for: "식비", effectiveFrom: 202_605, in: context)
         try sync.exportBudgetMonths(["2026-05"], folderURL: dir, in: context)
         #expect(!FileManager.default.fileExists(atPath: file.path))
@@ -63,7 +63,7 @@ struct SyncCoordinatorBudgetTests {
         context.insert(CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_603))
         try context.save()
 
-        // 2026-03부터 effectiveFrom, asOf 2026-06 → 03,04,05,06 (이월 포함).
+        // Effective from 2026-03 as of 2026-06 includes carried over months
         let keys = sync.budgetMonthKeys(asOf: 202_606, in: context)
         #expect(keys == ["2026-03", "2026-04", "2026-05", "2026-06"])
     }
@@ -96,7 +96,7 @@ struct SyncCoordinatorBudgetTests {
 
         try sync.exportAll(in: context)
 
-        // 이전 달·현재 달 모두 이월된 한도로 파일이 생긴다.
+        // Files generated for both previous and current carried over months
         let prevFile = dir.appendingPathComponent("budgets-\(SyncCoordinator.monthKeyString(from: prev)).csv")
         let currentFile = dir.appendingPathComponent("budgets-\(SyncCoordinator.monthKeyString(from: current)).csv")
         #expect(FileManager.default.fileExists(atPath: prevFile.path))

@@ -38,7 +38,7 @@ struct CloudStoreMigrationTests {
             BudgetSnapshot(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_606, updatedAt: .now),
         ]
         CloudStoreMigration.copyBudgets(snaps, into: cloud)
-        CloudStoreMigration.copyBudgets(snaps, into: cloud) // 재실행해도 중복 없음
+        CloudStoreMigration.copyBudgets(snaps, into: cloud) // Idempotent execution
         let all = try cloud.fetch(FetchDescriptor<CategoryBudget>())
         #expect(all.count == 1)
         #expect(all.first?.monthlyLimit == 300_000)
@@ -94,7 +94,7 @@ struct CloudStoreMigrationTests {
             category: nil, note: nil, savedAt: .now, csvFile: "expenses-2026-06.csv"
         )
         CloudStoreMigration.copyEntries([snap], into: cloud)
-        // 같은 id로 금액만 바꿔 재실행 → 중복 없이 업데이트.
+        // Re-running updates existing records without duplication.
         let updated = EntrySnapshot(
             id: id, date: snap.date, amount: 2000, merchant: "A",
             category: nil, note: nil, savedAt: snap.savedAt, csvFile: snap.csvFile

@@ -9,9 +9,7 @@ struct EntryEditorView: View {
 
     @Bindable var entry: ParsedEntry
     var insertOnSave: Bool = false
-    /// 저장이 성공한 직후(닫기 전) 호출. 인자는 그 항목이 그 달 예산 임계점(near/over)에
-    /// 닿았을 때의 라인(아니면 nil) — 검토 탭이 토스트를 띄우는 데 쓴다. 실패 이미지에서
-    /// 수동 입력으로 들어온 경우 원본 PendingImage·inbox 파일 정리도 이 콜백에서 함께 한다.
+    /// Callback invoked after entry is successfully saved.
     var onSaved: ((BudgetProgress.Line?) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -159,8 +157,7 @@ struct EntryEditorView: View {
         }
     }
 
-    /// 원본 이미지가 inbox 에 아직 남아 있을 때만 미리보기를 띄운다.
-    /// 정상 추출된 항목은 성공 시 파일이 삭제되므로 자연히 표시되지 않는다.
+    /// Source image filename if still present in inbox.
     private var sourceImageFilename: String? {
         guard let name = entry.sourceImagePath else { return nil }
         let url = AppGroup.inboxURL.appendingPathComponent(name)
@@ -357,16 +354,14 @@ struct EntryEditorView: View {
     }
 }
 
-// MARK: - 날짜 경고 (검토 팝업 전용)
+// MARK: - Date Warning (Review Popup)
 private extension EntryEditorView {
-    /// 선택된 날짜가 정상 범위(어제·오늘)를 벗어났는지 판정 — tooOld/future면 경고.
-    /// 비교 기준은 '지금'이 아니라 항목이 검토 목록에 들어온 시각(`entry.createdAt`)이다.
-    /// 며칠 지나서 검토해도 캡처 당시엔 오늘·어제였던 날짜가 오탐으로 경고되지 않는다.
+    /// Review date status classification.
     var dateStatus: ReviewDateStatus {
         ReviewDateCheck.status(for: entry.date, now: entry.createdAt)
     }
 
-    /// 경고 상태일 때 VoiceOver로 읽어줄 문구 (화면엔 아이콘만 노출).
+    /// Accessibility label for date warning icon.
     var dateWarningLabel: String? {
         switch dateStatus {
         case .tooOld: return "날짜가 예상보다 오래됐어요 — 확인해 주세요."
@@ -375,12 +370,10 @@ private extension EntryEditorView {
         }
     }
 
-    /// 날짜 행. 정상 범위(오늘·어제)를 벗어나면 날짜 컨트롤 왼쪽에 노란 경고
-    /// 아이콘만 붙인다 (문구 없음, 접근성 라벨로 의미 보존).
+    /// Date picker row view.
     var dateRow: some View {
         HStack {
-            // 라벨은 아래 DatePicker가 접근성으로 소유 — 여기 Text는 시각 표기용이라
-            // VoiceOver 중복 낭독('날짜'를 두 번)을 막기 위해 접근성에서 숨긴다.
+            // Visual label (accessibility handled by DatePicker)
             Text("날짜")
                 .accessibilityHidden(true)
             Spacer()

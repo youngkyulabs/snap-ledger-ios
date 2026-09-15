@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct BudgetView: View {
-    /// ContentView가 예산 탭 재선택 시 올리는 신호. 바뀌면 선택 월을 비워 현재 월로 되돌린다.
+    /// Signal from ContentView to reset selection back to current month.
     var resetNonce: Int = 0
 
     @Environment(\.modelContext) private var modelContext
@@ -19,10 +19,10 @@ struct BudgetView: View {
 
     @State private var selectedMonthKey: Int?
     @State private var categoryDetail: CategoryEntriesDetail?
-    /// 정산·한도편집 푸시 경로. 탭 재선택 시 루트 여부(path.isEmpty) 판단에도 쓴다.
+    /// Navigation path for reconciliation and budget limit editors.
     @State private var path: [Route] = []
 
-    /// 예산 탭 NavigationStack에 쌓이는 화면. (정산 상세 / 한도 편집)
+    /// Destination screens on Budget navigation stack.
     private enum Route: Hashable {
         case reconciliation(month: Int)
         case limitEdit(month: Int, focus: String?)
@@ -40,7 +40,7 @@ struct BudgetView: View {
         let cal = Calendar.current
         for entry in entries { keys.insert(CategoryBudgetStore.monthKey(from: entry.date, calendar: cal)) }
         for budget in budgets where budget.monthlyLimit > 0 { keys.insert(budget.effectiveFrom) }
-        // 다음 달 미리보기 제거: 현재 달 이후는 노출하지 않는다(레거시 미래 effectiveFrom 포함).
+        // Restrict navigation to current month and earlier.
         return keys.filter { $0 <= currentMonthKey }.sorted(by: >)
     }
 
@@ -64,7 +64,7 @@ struct BudgetView: View {
     }
 
     var body: some View {
-        // 집계는 전체 entries 순회라 비싸다 — 렌더링당 1회만 계산해 섹션에 넘긴다.
+        // Compute progress once per render.
         let summary = self.summary
         let reconciliation = self.reconciliationSummary
         NavigationStack(path: $path) {
@@ -92,7 +92,7 @@ struct BudgetView: View {
                     }
                 }
         }
-        // 탭 재선택: 푸시된 화면이 있으면 루트로 닫기만(월 유지), 루트면 현재 달로 복귀.
+        // Handle tab re-selection: pop to root or reset to current month.
         .onChange(of: resetNonce) { _, _ in
             if path.isEmpty {
                 selectedMonthKey = nil
@@ -124,8 +124,7 @@ struct BudgetView: View {
         }
     }
 
-    // 화살표는 달력 인접 이동 (한도는 매달 이어지므로 기록 없는 달도 의미가 있다).
-    // 앞으로는 현재 달까지만 허용 (다음 달 미리보기 제거 — 한도는 자동 이월됨).
+    // Calendar month navigation bounded by current month.
     private var monthPickerSection: some View {
         Section {
             MonthNavigationRow(
@@ -141,8 +140,7 @@ struct BudgetView: View {
     }
 
     private func reconciliationSection(_ summary: ReconciliationSummary) -> some View {
-        // 상세 화면과 같은 판정을 재사용한다. 진행 중인 달은 사용자가 실제 값을 입력해야,
-        // 마감된 달은 저장 데이터가 있어야 확정으로 본다(isReconciled). 정산 상세 화면과 일치한다.
+        // Reconciliation verdict matching reconciliation screen.
         let status = ReconciliationSummary.periodStatus(month: effectiveMonthKey, today: Date())
         let isReconciled = summary.isReconciled(status: status)
         return Section {
@@ -161,12 +159,12 @@ struct BudgetView: View {
     private func summarySection(_ summary: BudgetProgress.Summary) -> some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
-                // 1줄: 사용액(실지출) — 헤드라인 숫자
+                // Headline: actual spending
                 Text("\(summary.totalSpent.formatted(.number))원")
                     .font(.title3.weight(.semibold).monospacedDigit())
                     .contentTransition(.numericText())
                 if summary.totalLimit > 0 {
-                    // 2줄: 예산(라벨) + 사용률·차액
+                    // Subtitle: limit, usage percent, difference
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("예산 \(summary.totalLimit.formatted(.number))원")
                             .font(.subheadline.monospacedDigit())
@@ -181,7 +179,7 @@ struct BudgetView: View {
                         )
                         .font(.subheadline.monospacedDigit())
                     }
-                    // 3줄: 진행 바
+                    // Progress bar
                     ProgressView(
                         value: Double(min(summary.totalSpent, summary.totalLimit)),
                         total: Double(max(summary.totalLimit, 1))
@@ -224,7 +222,7 @@ struct BudgetView: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-                // 프리셋 카테고리만 한도 편집 진입 제공 (미분류 등은 한도 설정 대상이 아님).
+                // Only preset categories are eligible for limit editing.
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     if presets.contains(item.category) {
                         Button {
@@ -278,7 +276,7 @@ private func monthLabelText(_ key: Int) -> String {
 }
 
 extension BudgetProgress.State {
-    /// 예산 탭 진행률 막대(전체·카테고리별)에 쓰는 상태색.
+    /// Status tint color for budget progress bars.
     var tintColor: Color {
         switch self {
         case .under: return .accentColor
@@ -343,7 +341,7 @@ private struct LineRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            // 1줄: 카테고리 이름 + 실지출(강조)
+            // Row header: category name and spending
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Circle().fill(CategoryColor.color(for: line.category, presets: presets))
                     .frame(width: 8, height: 8)
@@ -355,7 +353,7 @@ private struct LineRow: View {
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .contentTransition(.numericText())
             }
-            // 2줄: 예산(라벨) + 사용률·차액(상태색)
+            // Subtitle: limit, usage percent, difference
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("예산 \(line.limit.formatted(.number))원")
                     .font(.caption.monospacedDigit())
@@ -365,7 +363,7 @@ private struct LineRow: View {
                 budgetRemainingLabel(remaining: line.remaining, ratio: line.ratio, state: line.state)
                     .font(.caption.monospacedDigit())
             }
-            // 3줄: 상태색 진행 바
+            // Row progress bar
             ProgressView(
                 value: Double(min(line.spent, line.limit)),
                 total: Double(max(line.limit, 1))
@@ -424,7 +422,7 @@ private struct ReconciliationSummaryRow: View {
     }
 }
 
-// MARK: - Edit screen (예산 한도 전용)
+// MARK: - Edit Screen (Budget Limits)
 
 private struct BudgetLimitEditView: View {
     let month: Int
@@ -503,7 +501,7 @@ private struct BudgetLimitEditView: View {
         }
     }
 
-    // 값 기반 TextField는 포커스가 떠날 때만 set을 호출하므로 저장은 편집당 1회.
+    // Value-based TextField commits on focus loss.
     private func limitValue(for category: String) -> Binding<Int?> {
         Binding(
             get: { CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: month) },
@@ -514,10 +512,10 @@ private struct BudgetLimitEditView: View {
                 let store = CategoryBudgetStore()
                 do {
                     if month < currentMonthKey {
-                        // 과거 달: 그 달에만 적용 (이번 달·다른 달은 보존).
+                        // Past months apply single-month edit.
                         try store.setLimitForSingleMonth(amount, for: category, month: month, in: modelContext)
                     } else {
-                        // 이번 달 이후: 이 달부터 자동 반복.
+                        // Current/future months carry forward.
                         try store.setLimit(amount, for: category, effectiveFrom: month, in: modelContext)
                     }
                     store.exportBestEffort(month: month, in: modelContext)

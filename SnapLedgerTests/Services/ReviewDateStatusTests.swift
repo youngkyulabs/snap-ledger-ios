@@ -4,10 +4,9 @@ import Foundation
 import Testing
 @testable import SnapLedger
 
-/// `ReviewDateCheck.status` — 검토 화면 날짜가 오늘/어제/그저께 이하/미래 중 무엇인지.
-/// 정상 범위는 오늘·어제, 그 밖(tooOld·future)은 경고(isWarning) 대상이다.
+/// Verifies review date classification.
 struct ReviewDateStatusTests {
-    // 시드/테스트 관례: .current 캘린더 정오 기준 (고정 타임존이면 CI(UTC)만 실패).
+    // Reference dates use noon in current calendar.
     private let calendar = Calendar.current
     private let now = Calendar.current.date(
         from: DateComponents(year: 2026, month: 7, day: 17, hour: 12)
@@ -42,7 +41,7 @@ struct ReviewDateStatusTests {
         #expect(ReviewDateCheck.status(for: day(7), now: now, calendar: calendar) == .future)
     }
 
-    /// 시각은 무시하고 '일' 단위로만 비교한다 — 같은 날 늦은 시각도 오늘.
+    /// Day comparison ignores time component.
     @Test func lateHourSameDayStillToday() {
         let late = day(0, hour: 23)
         let early = calendar.date(bySettingHour: 1, minute: 0, second: 0, of: now)!
