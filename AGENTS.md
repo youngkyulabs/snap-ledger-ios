@@ -52,8 +52,8 @@ Folder names dictate roles. Refer to this table when deciding where code belongs
 SnapLedger/                          # Main app target (synchronized root group)
   App/                               # App entry point
     SnapLedgerApp.swift              # @main, ModelContainer (groupContainer), BGTask register
-    ContentView.swift                # TabView shell (Review/History/Statistics/Budget/Settings) + scenePhase observer + onboarding gate
-                                     #            + Return to current month on Statistics/Budget tab reselection (resetNonce)
+    ContentView.swift                # TabView shell (Review/History/Ledger/Settings) + scenePhase observer + onboarding gate
+                                     #            + Return to current month on Ledger tab reselection (resetNonce)
     AppGroup.swift                   # group.com.youngkyu.snapledger container / inbox URL
   Info.plist                         # Partial plist: BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes
                                      #            + ITSAppUsesNonExemptEncryption
@@ -67,7 +67,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     CategoryBudget.swift             # Per-category monthly limit (auto-carries forward from effectiveFrom, monthlyLimit=0 is cancellation tombstone)
     MonthlyReconciliation.swift      # Monthly reconciliation header (monthKey + note). Amount items are split into separate models below
     IncomeItem.swift                 # Monthly income item (name + amount, sortOrder)
-    CardUsageItem.swift              # Monthly card usage item (name + amount)
+    CardUsageItem.swift              # Monthly card usage item (name + this month's amount + previousAmount = prior bill paid this month)
     SavingsItem.swift                # Monthly savings item (name + amount)
     AccountMonthlyBalance.swift      # Per-account starting/ending balance + interest
     CashAdjustment.swift             # Cash flow adjustments (inflow/outflow, name + amount + note) — co-located with CashAdjustmentDirection enum
@@ -87,6 +87,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     EntryReorder.swift               # Drag-and-drop item reordering → sortOrder recalculation (pure, shared with reconciliation items)
     EntrySaveValidation.swift        # Required field validation before saving review entry (pure)
     ReviewDateStatus.swift           # Flags dates outside normal range (today/yesterday) → tooOld/future warnings (pure, relative to entry.createdAt)
+    ReconciledMonthWarning.swift     # Warns before adding an entry to a closed, already-reconciled month (pure) + ReconciledMonthGuard (fetches that month's rows at save time)
     SyncCoordinator.swift            # CSV one-way export orchestration (expenses + reconciliation + budget) + folder reachability check (isFolderReachable)
     SyncCoordinator+Files.swift      # Filename ↔ monthKey boundary helpers
     SyncCoordinator+Reconciliation.swift # Reconciliation CSV export & monthKeys (domain → ReconciliationCSV)
@@ -108,16 +109,17 @@ SnapLedger/                          # Main app target (synchronized root group)
     BudgetCSV.swift                  # Monthly budget CSV (budgets-YYYY-MM.csv) writer (category, limit) — AI-friendly export
 
   Features/                          # UI views
-    MonthNavigationRow.swift         # ◀ Current Month (menu) ▶ month selection row (shared across Budget & Statistics tabs)
+    MonthNavigationRow.swift         # ◀ Current Month (menu) ▶ month selection row (owned by LedgerTabView)
     Review/                          # ReviewListView (+ menu, drop zone, badge, processing indicator), EntryEditorView (chip row + ReviewDateStatus date warning icon),
                                      #            BudgetToastView (bottom floating toast on budget threshold during review save), FailedImagesSection, InboxImage
     History/                         # HistoryView (@Query SavedEntry, daily sections + .searchable), SavedEntryEditorView,
                                      # CSVFileView (monthly table viewer + multi-select copy/share), HistoryGrouping, EntrySearch (pure — partial match for merchant/category/note + exact match for amount)
-    Statistics/                      # StatisticsView (category donut chart + month-over-month trend), StatisticsAggregation (pure),
-                                     # CategoryColor (pure), CategoryEntriesSheet (donut slice tap → category entries list)
-    Budget/                          # BudgetView (month selector → reconciliation entry + category limit progress), BudgetProgress (pure: usage vs. limit),
-                                     # MonthlyReconciliationView (inputs for income/cards/savings/balances/cash flow + salary masking),
-                                     # ReconciliationEditors (account/item editor rows), ReconciliationVerdict+Color (status/discrepancy colors)
+    Statistics/                      # StatisticsView (content pane — takes an injected monthKey; category donut chart + month-over-month trend),
+                                     # StatisticsAggregation (pure), CategoryColor (pure), CategoryEntriesSheet (donut slice tap → category entries list)
+    Budget/                          # LedgerTabView (tab shell: NavigationStack + shared month selector + [예산|통계] segment; owns BudgetRoute destinations),
+                                     # BudgetView (content pane — takes an injected month; reconciliation entry + category limit progress), BudgetProgress (pure: usage vs. limit),
+                                     # MonthlyReconciliationView (inputs for income/cards/savings/balances/cash flow),
+                                     # ReconciliationEditors (account/item/card editor rows), ReconciliationVerdict+Color (status/discrepancy colors)
     Settings/                        # SettingsView (storage folder row = folder name → storage folder view / reminder / FM status),
                                      # AdvancedSettingsView (categories / extraction guide), CategoryEditorView (preset add/delete/reorder),
                                      # AboutView, FolderPicker, FeedbackMail (pure), MailComposeSheet
@@ -154,6 +156,7 @@ SnapLedgerTests/                     # Swift Testing — mirrors source structur
 
 4. **Extraction Accuracy via Prompt + User Guide**
    `FoundationModelsExtractionService.instructions(today:customGuide:categories:)` is the single source of truth. Explicitly defines payment notification patterns (`<amount>원 일시불`) and forbidden secondary amounts (`누적`, `잔액`, `한도`, `포인트`, etc.). `@Guide` delegates to instructions (no hardcoding). When users specify custom guides in Settings, they are appended to the end of the prompt under "User Guide (takes precedence over rules above)".
+   - **Year Resolution Depends on Whether the Source Text States One (`normalize`)**: `hasExplicitYear` requires a date separator (`2026-09-13`, `2026년`) so amounts, times, and card numbers are not read as years. When the text states no year the model's year carries no information and is discarded — `snapYearToNearest` rebuilds the date from month/day on today's year, stepping back one year only if that lands more than 2 days in the future (timezone slack). When the text does state a year it may legitimately be old (a scanned receipt), so `normalizeYear`'s ±1 year correction applies instead. Snapping replaced a single-step correction that left dates two or more years off uncorrected.
 
 5. **Dynamic Category List**
    `AppSettings.categoryPresets` (user-editable) is injected directly into the prompt. The model is soft-constrained to pick from this list.
@@ -174,7 +177,7 @@ SnapLedgerTests/                     # Swift Testing — mirrors source structur
 9. **Monthly Reconciliation Splits Header + Item Models, Round-Trips to CSV (`MonthlyReconciliation` + 5 item models / `ReconciliationStore` / `ReconciliationCSV`)**
    A monthly reconciliation uses `MonthlyReconciliation` (monthKey + monthly note) as the header, with amounts split into `IncomeItem`, `CardUsageItem`, `SavingsItem`, `AccountMonthlyBalance`, and `CashAdjustment`. On entering the view, `ReconciliationStore.carryForwardDraft` prefills stable values from the prior month (account names & baseline balance, income/savings names + amounts; cards and adjustments prefill names with 0 amounts).
    - **Summary and Verdict Centralized in `ReconciliationSummary` (pure)**: Calculates `actualSpending`, `recordedSpending`, difference, and `isReconciled(status:)` in one place so the Budget tab and reconciliation view reach identical conclusions. An in-progress month is considered "in progress" only after the user enters actual numbers (closing balance != opening balance, or card usage); prior to that, `actualSpending` is gated to 0 to prevent prefill noise. Closed past months are finalized if saved data exists.
-   - **Reconciliation CSV is AI-Friendly + Lossless Round-Trip (`reconciliations-YYYY-MM.csv`)**: 6 columns `종류,항목,계좌,방향,금액,메모`, UTF-8 with BOM, RFC 4180 escaping. Designed to be self-describing in Korean since the primary consumer is AI — no date column (all reconciliation models are month-scoped), account balances unfold into opening/closing/interest rows, and monthly note is preserved with type `월메모`. One-way export-only (`SyncCoordinator+Reconciliation.exportReconciliationMonths`, best-effort), identical to expense CSV.
+   - **Reconciliation CSV is AI-Friendly + Lossless Round-Trip (`reconciliations-YYYY-MM.csv`)**: 6 columns `종류,항목,계좌,방향,금액,메모`, UTF-8 with BOM, RFC 4180 escaping. Designed to be self-describing in Korean since the primary consumer is AI — no date column (all reconciliation models are month-scoped), account balances unfold into opening/closing/interest rows, a card's prior bill unfolds into its own `전월카드대금` row merged back by card name on import, and monthly note is preserved with type `월메모`. One-way export-only (`SyncCoordinator+Reconciliation.exportReconciliationMonths`, best-effort), identical to expense CSV.
 
 ## Conventions
 

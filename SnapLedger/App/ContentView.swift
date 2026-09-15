@@ -38,7 +38,7 @@ struct ContentView: View {
             Tab("최근 기록", systemImage: "list.bullet.rectangle", value: AppTab.history) {
                 HistoryView()
             }
-            Tab("예산", systemImage: "wonsign.circle", value: AppTab.budget) {
+            Tab("가계부", systemImage: "wonsign.circle", value: AppTab.budget) {
                 LedgerTabView(resetNonce: budgetResetNonce)
             }
             Tab("설정", systemImage: "gear", value: AppTab.settings) {

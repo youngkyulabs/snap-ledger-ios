@@ -42,10 +42,3 @@ struct EntryRow: View {
         .contentShape(.rect)
     }
 }
-
-/// Pairs a swipe-saved entry with its reconciled-month warning text.
-struct ReconciledSwipeContext: Identifiable {
-    let entry: ParsedEntry
-    let message: String
-    var id: PersistentIdentifier { entry.persistentModelID }
-}

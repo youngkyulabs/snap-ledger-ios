@@ -8,6 +8,7 @@ struct LedgerTabView: View {
 
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
     @Query private var budgets: [CategoryBudget]
+    @Query private var reconciliations: [MonthlyReconciliation]
 
     @State private var selectedMonthKey: Int?
     @State private var pane: Pane = .budget
@@ -30,6 +31,8 @@ struct LedgerTabView: View {
             keys.insert(CategoryBudgetStore.monthKey(from: entry.date, calendar: calendar))
         }
         for budget in budgets where budget.monthlyLimit > 0 { keys.insert(budget.effectiveFrom) }
+        // A month may hold reconciliation data without any saved entry or limit.
+        for reconciliation in reconciliations { keys.insert(reconciliation.monthKey) }
         // Restrict navigation to current month and earlier.
         return keys.filter { $0 <= currentMonthKey }.sorted(by: >)
     }
@@ -46,7 +49,7 @@ struct LedgerTabView: View {
                     StatisticsView(monthKey: effectiveMonthKey)
                 }
             }
-            .navigationTitle("예산")
+            .navigationTitle(pane.rawValue)
             .toolbar {
                 if pane == .budget {
                     ToolbarItem(placement: .primaryAction) {

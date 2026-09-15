@@ -15,6 +15,13 @@ private struct DroppedImage: Transferable, Sendable {
     }
 }
 
+/// Pairs a swipe-saved entry with its reconciled-month warning text.
+struct ReconciledSwipeContext: Identifiable {
+    let entry: ParsedEntry
+    let message: String
+    var id: PersistentIdentifier { entry.persistentModelID }
+}
+
 struct ReviewListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
