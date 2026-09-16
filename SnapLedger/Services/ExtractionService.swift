@@ -200,18 +200,32 @@ struct FoundationModelsExtractionService: ExtractionService {
         return re.firstMatch(in: text, range: range) != nil
     }
 
-    /// Corrects a hallucinated year using the "payment time ≈ extraction time" invariant — given a
-    /// partial `M/D`, models often fill in a training-distribution year instead of today's. The window is
-    /// asymmetric: a future date is almost always a wrong year, so only 2 days of timezone slack are
-    /// allowed before year - 1, while a past date stays plausible for months, so year + 1 applies only
-    /// beyond 330 days back. Unparseable or out-of-range input is returned unchanged.
-    static func normalizeYear(
-        _ raw: String,
-        today: Date,
-        calendar: Calendar = .current
-    ) -> String {
+    /// Regex for a year stated by the source text. Requires a date separator so that bare four-digit
+    /// runs (amounts, times, card numbers) are not mistaken for years.
+    private static let explicitYearPresence: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{4}\s*년"#
+    )
+
+    /// Whether the source text states a year. When it does not, a model-supplied year carries no
+    /// information and only the month/day may be trusted.
+    static func hasExplicitYear(_ text: String) -> Bool {
+        // Conservative fallback on regex compilation failure
+        guard let re = explicitYearPresence else { return true }
+        let range = NSRange(text.startIndex..., in: text)
+        return re.firstMatch(in: text, range: range) != nil
+    }
+
+    /// Year/month/day split out of a raw date string.
+    private struct DateParts {
+        let year: Int
+        let month: Int
+        let day: Int
+    }
+
+    /// Splits a date string into components, accepting `-`, `/`, and `.` separators.
+    private static func dateParts(_ raw: String) -> DateParts? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return raw }
+        guard !trimmed.isEmpty else { return nil }
 
         let parts = trimmed
             .replacingOccurrences(of: "/", with: "-")
@@ -223,7 +237,60 @@ struct FoundationModelsExtractionService: ExtractionService {
               let day = Int(parts[2]),
               (1...12).contains(month),
               (1...31).contains(day)
+        else { return nil }
+        return DateParts(year: year, month: month, day: day)
+    }
+
+    /// Rebuilds a date from its month/day by choosing the year that places it nearest to today.
+    /// Used when the source text states no year: the model's year is discarded rather than nudged
+    /// by a single step, which previously left dates two or more years off uncorrected. The same
+    /// 2-day future slack as `normalizeYear` absorbs timezone skew. Input that cannot be parsed, or
+    /// whose month/day does not exist in the snapped year, is returned unchanged.
+    static func snapYearToNearest(
+        _ raw: String,
+        today: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        guard let parts = dateParts(raw) else { return raw }
+
+        let todayYear = calendar.component(.year, from: today)
+        var comps = DateComponents()
+        comps.year = todayYear
+        comps.month = parts.month
+        comps.day = parts.day
+        guard let candidate = calendar.date(from: comps),
+              calendar.component(.month, from: candidate) == parts.month,
+              calendar.component(.day, from: candidate) == parts.day
         else { return raw }
+
+        let todayStart = calendar.startOfDay(for: today)
+        let days = calendar.dateComponents(
+            [.day], from: todayStart, to: calendar.startOfDay(for: candidate)
+        ).day ?? 0
+
+        let snappedYear = days > 2 ? todayYear - 1 : todayYear
+        // A leap day cannot move to a common year; leave such input alone.
+        comps.year = snappedYear
+        guard let snapped = calendar.date(from: comps),
+              calendar.component(.month, from: snapped) == parts.month,
+              calendar.component(.day, from: snapped) == parts.day
+        else { return raw }
+
+        return String(format: "%04d-%02d-%02d", snappedYear, parts.month, parts.day)
+    }
+
+    /// Corrects a hallucinated year using the "payment time ≈ extraction time" invariant — given a
+    /// partial `M/D`, models often fill in a training-distribution year instead of today's. The window is
+    /// asymmetric: a future date is almost always a wrong year, so only 2 days of timezone slack are
+    /// allowed before year - 1, while a past date stays plausible for months, so year + 1 applies only
+    /// beyond 330 days back. Unparseable or out-of-range input is returned unchanged.
+    static func normalizeYear(
+        _ raw: String,
+        today: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        guard let parts = dateParts(raw) else { return raw }
+        let (year, month, day) = (parts.year, parts.month, parts.day)
 
         var comps = DateComponents()
         comps.year = year
@@ -253,10 +320,18 @@ struct FoundationModelsExtractionService: ExtractionService {
     ) -> PaymentExtraction {
         // Drop hallucinated dates if OCR text has no date token
         let dropDates = ocrText.map { !hasDateToken($0) } ?? false
+        // Discard the model's year outright when the text never stated one.
+        let yearUnstated = ocrText.map { !hasExplicitYear($0) } ?? false
         let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
             if looksLikeExampleLeak(trans) { return nil }
             var t = trans
-            t.date = dropDates ? "" : normalizeYear(t.date, today: today, calendar: calendar)
+            if dropDates {
+                t.date = ""
+            } else if yearUnstated {
+                t.date = snapYearToNearest(t.date, today: today, calendar: calendar)
+            } else {
+                t.date = normalizeYear(t.date, today: today, calendar: calendar)
+            }
             let raw = t.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
             if isCardIssuerName(raw) {
                 t.merchant = ""
