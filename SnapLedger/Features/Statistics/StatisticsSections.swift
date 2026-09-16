@@ -2,17 +2,17 @@ import SwiftUI
 import SwiftData
 import Charts
 
-struct StatisticsView: View {
-    /// Signal from ContentView to reset selection back to the current month.
-    var resetNonce: Int = 0
+/// Category share and monthly trend sections of the ledger list.
+struct StatisticsSections: View {
+    /// Month shown, supplied by the shared selector above the list.
+    let month: Int
+    /// Opens the per-category totals sheet.
+    let openCategoryTotals: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \SavedEntry.date, order: .reverse) private var entries: [SavedEntry]
     @Query private var settingsList: [AppSettings]
 
-    @State private var selectedMonthID: DateComponents?
-    @State private var categoryDetail: CategoryEntriesDetail?
-    /// Trend filter selection; nil displays stacked categories.
+    /// Trend filter selection; nil displays every category combined.
     @State private var trendCategory: String?
 
     private var months: [StatisticsAggregation.MonthlyStats] {
@@ -24,10 +24,7 @@ struct StatisticsView: View {
     }
 
     private var selectedMonth: StatisticsAggregation.MonthlyStats? {
-        if let id = selectedMonthID, let match = months.first(where: { $0.id == id }) {
-            return match
-        }
-        return months.first
+        months.first { ($0.id.year ?? 0) * 100 + ($0.id.month ?? 0) == month }
     }
 
     /// Whether trend section remains visible when filter yields empty rows.
@@ -44,143 +41,43 @@ struct StatisticsView: View {
         StatisticsAggregation.trend(months: months, trimLeadingZeros: false, category: trendCategory)
     }
 
-    private var categoryChartPoints: [StatisticsAggregation.CategoryTrendPoint] {
-        StatisticsAggregation.categoryTrend(months: months)
-    }
-
     private var trendCategoryOptions: [String] {
-        StatisticsAggregation.trendCategories(in: categoryChartPoints)
+        StatisticsAggregation.trendCategories(in: StatisticsAggregation.categoryTrend(months: months))
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if months.isEmpty {
-                    ContentUnavailableView(
-                        "통계 없음",
-                        systemImage: "chart.pie",
-                        description: Text("저장한 항목이 쌓이면 여기 보여요.")
-                    )
-                } else {
-                    statsContent
-                }
-            }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
-            .navigationTitle("통계")
-        }
-        // Tab re-selection resets to latest month.
-        .onChange(of: resetNonce) { _, _ in
-            selectedMonthID = nil
-        }
-    }
-
-    private var statsContent: some View {
-        List {
-            if !months.isEmpty {
-                monthPickerSection
-            }
-
-            if let month = selectedMonth {
-                summarySection(month: month)
-                donutSection(month: month)
-                breakdownSection(month: month)
-            }
-
+        Group {
+            donutSection
             if !overallTrendPoints.isEmpty {
                 trendSection
             }
         }
-        .contentMargins(.bottom, 24, for: .scrollContent)
-        .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: selectedMonth?.id)
-        .sheet(item: $categoryDetail) { detail in
-            CategoryEntriesSheet(detail: detail)
-                .presentationDetents([.medium, .large])
-        }
     }
 
-    // Step only between months with recorded entries.
-    private var monthPickerSection: some View {
+    private var donutSection: some View {
         Section {
-            MonthNavigationRow(
-                title: selectedMonth?.title ?? "",
-                options: months.map { .init(key: $0.id, title: $0.title) },
-                canStepBackward: selectedIndex.map { $0 + 1 < months.count } ?? false,
-                canStepForward: selectedIndex.map { $0 > 0 } ?? false,
-                stepBackward: { step(by: 1) },
-                stepForward: { step(by: -1) },
-                select: { selectedMonthID = $0 }
-            )
-        }
-    }
-
-    /// Sorted months descending, index 0 being the latest.
-    private var selectedIndex: Int? {
-        guard let id = selectedMonth?.id else { return nil }
-        return months.firstIndex { $0.id == id }
-    }
-
-    private func step(by offset: Int) {
-        guard let index = selectedIndex, months.indices.contains(index + offset) else { return }
-        selectedMonthID = months[index + offset].id
-    }
-
-    private func summarySection(month: StatisticsAggregation.MonthlyStats) -> some View {
-        Section {
-            HStack {
-                Text("\(month.title) 합계")
-                    .font(.subheadline)
-                Spacer()
-                Text("\(month.total.formatted(.number))원")
-                    .font(.subheadline.monospacedDigit())
-                    .contentTransition(.numericText())
-            }
-            HStack {
-                Text("건수")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(month.entryCount)건")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-            }
-        }
-    }
-
-    private func donutSection(month: StatisticsAggregation.MonthlyStats) -> some View {
-        Section {
-            if month.slices.isEmpty {
-                Text("이번 달 기록이 없어요.")
-                    .foregroundStyle(.secondary)
-            } else {
-                CategoryDonutChart(slices: month.slices, total: month.total, presets: categoryPresets)
-                    .frame(height: 240)
-                    .padding(.vertical, 8)
-            }
-        } header: {
-            Text("카테고리 비중")
-                .textCase(nil)
-        }
-    }
-
-    private func breakdownSection(month: StatisticsAggregation.MonthlyStats) -> some View {
-        Section {
-            ForEach(month.slices) { slice in
-                Button {
-                    categoryDetail = CategoryEntriesDetail(
-                        category: slice.category,
-                        monthKey: (month.id.year ?? 0) * 100 + (month.id.month ?? 0)
-                    )
-                } label: {
-                    CategoryBreakdownRow(slice: slice)
+            if let stats = selectedMonth, !stats.slices.isEmpty {
+                Button(action: openCategoryTotals) {
+                    CategoryDonutChart(slices: stats.slices, total: stats.total, presets: categoryPresets)
+                        .frame(height: 240)
+                        .padding(.vertical, 8)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+            } else {
+                Text("이 달에는 기록이 없어요.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         } header: {
-            Text("카테고리별 합계")
-                .textCase(nil)
+            Text("카테고리 비중").textCase(nil)
         } footer: {
-            Text("카테고리를 누르면 항목을 볼 수 있어요.")
+            if let stats = selectedMonth, !stats.slices.isEmpty {
+                Text("누르면 카테고리별 합계를 볼 수 있어요.")
+            }
         }
     }
 
@@ -207,8 +104,7 @@ struct StatisticsView: View {
                 }
             }
         } header: {
-            Text("월별 추세")
-                .textCase(nil)
+            Text("월별 추세").textCase(nil)
         }
     }
 }
@@ -263,28 +159,6 @@ private struct CategoryDonutChart: View {
 
     private func color(for category: String) -> Color {
         CategoryColor.color(for: category, presets: presets)
-    }
-}
-
-private struct CategoryBreakdownRow: View {
-    let slice: StatisticsAggregation.CategorySlice
-
-    var body: some View {
-        HStack {
-            Text(slice.category)
-                .font(.body)
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(slice.total.formatted(.number))원")
-                    .font(.body.monospacedDigit())
-                    .contentTransition(.numericText())
-                Text(slice.share.formatted(.percent.precision(.fractionLength(0...1))))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-            }
-        }
-        .contentShape(.rect)
     }
 }
 
@@ -371,9 +245,4 @@ private struct TrendRow: View {
         if delta < 0 { return .green }
         return .secondary
     }
-}
-
-#Preview {
-    StatisticsView()
-        .modelContainer(for: SavedEntry.self, inMemory: true)
 }

@@ -23,6 +23,7 @@ enum BudgetProgress {
     struct Summary: Equatable {
         let month: Int
         let totalSpent: Int
+        let entryCount: Int
         let totalLimit: Int
         let budgetedSpent: Int
         let unbudgetedSpent: Int
@@ -47,6 +48,7 @@ enum BudgetProgress {
             spentByCategory[slice.category] = slice.total
         }
         let totalSpent = monthStats?.total ?? 0
+        let entryCount = monthStats?.entryCount ?? 0
 
         // 2. Categories with active budget limits.
         var lines: [Line] = []
@@ -84,6 +86,7 @@ enum BudgetProgress {
         return Summary(
             month: targetMonth,
             totalSpent: totalSpent,
+            entryCount: entryCount,
             totalLimit: totalLimit,
             budgetedSpent: budgetedSpent,
             unbudgetedSpent: totalSpent - budgetedSpent,
