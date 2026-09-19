@@ -5,8 +5,11 @@ final class ShareViewController: UIViewController {
     private static let appGroupIdentifier = "group.com.youngkyu.snapledger"
     private static let inboxFolderName = "inbox"
     private static let preferredHeight: CGFloat = 220
-    /// Guards against sharing an entire article into the extraction prompt.
-    private static let maxTextLength = 20_000
+    /// Guards against sharing an entire article into the extraction prompt: the on-device model's
+    /// context window also has to hold the instruction prompt, so a longer share would overflow it.
+    /// Kept in sync with `InboxPayload.extractionCharacterLimit` in the app target, which cannot be
+    /// imported from here.
+    private static let maxTextLength = 2_000
 
     private let spinner = UIActivityIndicatorView(style: .large)
     private let statusIcon = UIImageView()
@@ -73,18 +76,7 @@ final class ShareViewController: UIViewController {
 
         var savedCount = 0
         for item in items {
-            var savedForItem = 0
-            for provider in item.attachments ?? [] {
-                let saved = await save(provider: provider, to: inboxURL)
-                savedForItem += saved ? 1 : 0
-            }
-            // Some apps (Messages) share selected text as item text with no attachment.
-            if savedForItem == 0,
-               let text = item.attributedContentText?.string,
-               Self.saveText(text, to: inboxURL) {
-                savedForItem = 1
-            }
-            savedCount += savedForItem
+            savedCount += await save(item: item, to: inboxURL)
         }
 
         if savedCount > 0 {
@@ -94,12 +86,35 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private func save(provider: NSItemProvider, to inboxURL: URL) async -> Bool {
-        if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-            return await saveImage(provider: provider, to: inboxURL)
+    /// Saves one shared item, preferring its images: a post that carries both a screenshot and a
+    /// caption is one payment, so its text is only used when no image made it to the inbox.
+    private func save(item: NSExtensionItem, to inboxURL: URL) async -> Int {
+        var textProviders: [NSItemProvider] = []
+        var savedImages = 0
+        for provider in item.attachments ?? [] {
+            guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else {
+                textProviders.append(provider)
+                continue
+            }
+            if await saveImage(provider: provider, to: inboxURL) {
+                savedImages += 1
+            }
         }
-        guard let text = await loadText(from: provider) else { return false }
-        return Self.saveText(text, to: inboxURL)
+        if savedImages > 0 { return savedImages }
+
+        var savedTexts = 0
+        for provider in textProviders {
+            guard let text = await loadText(from: provider),
+                  Self.saveText(text, to: inboxURL) else { continue }
+            savedTexts += 1
+        }
+        if savedTexts > 0 { return savedTexts }
+
+        // Some apps (Messages) share selected text as item text with no attachment.
+        if let text = item.attributedContentText?.string, Self.saveText(text, to: inboxURL) {
+            return 1
+        }
+        return 0
     }
 
     private func saveImage(provider: NSItemProvider, to inboxURL: URL) async -> Bool {
@@ -135,6 +150,9 @@ final class ShareViewController: UIViewController {
                     continuation.resume(returning: attributed.string)
                 case let data as Data:
                     continuation.resume(returning: String(data: data, encoding: .utf8))
+                // Files (and any app vending a file representation) hand back a URL, not a string.
+                case let url as URL where url.isFileURL:
+                    continuation.resume(returning: try? String(contentsOf: url, encoding: .utf8))
                 default:
                     continuation.resume(returning: nil)
                 }

@@ -3,6 +3,22 @@ import Testing
 import SwiftData
 @testable import SnapLedger
 
+/// Box for the prompt text an extraction stub was handed.
+private final class CapturedPrompt: @unchecked Sendable {
+    var text: String?
+}
+
+private struct CapturingExtractionService: ExtractionService {
+    let captured: CapturedPrompt
+    let result: PaymentExtraction
+    var isAvailable: Bool { true }
+
+    func extract(from text: String) async throws -> PaymentExtraction {
+        captured.text = text
+        return result
+    }
+}
+
 @MainActor
 @Suite(.serialized)
 struct PendingProcessorTextPayloadTests {
@@ -170,6 +186,42 @@ struct PendingProcessorTextPayloadTests {
         #expect(pending.first?.state == .done)
         let parsed = try ctx.fetch(FetchDescriptor<ParsedEntry>())
         #expect(parsed.count == 1)
+    }
+
+    @Test func longSharedTextIsClampedBeforeExtraction() async throws {
+        // A long share must not be sent whole: it would overflow the model's context window.
+        let ctx = ModelContext(try makeContainer())
+        let inbox = try makeInbox()
+        let limit = InboxPayload.extractionCharacterLimit
+        let filename = try writeSharedText(
+            "신한카드 승인 5,000원 스타벅스\n" + String(repeating: "가", count: limit),
+            named: "long.txt", in: inbox
+        )
+
+        let pending = PendingImage(filename: filename)
+        ctx.insert(pending)
+        try ctx.save()
+
+        let captured = CapturedPrompt()
+        let processor = PendingProcessor(
+            inboxURL: inbox,
+            ocrService: StubOCRService(error: OCRError.invalidImage),
+            extractionService: CapturingExtractionService(
+                captured: captured,
+                result: PaymentExtraction(transactions: [
+                    PaymentTransaction(
+                        date: "2026-05-17", amount: 5000,
+                        merchant: "스타벅스", category: "카페", items: []
+                    ),
+                ])
+            ),
+            categoryLearner: CategoryLearner()
+        )
+        await processor.process(pending, in: ctx)
+
+        #expect(captured.text?.count == limit)
+        #expect(captured.text?.hasPrefix("신한카드 승인 5,000원 스타벅스") == true)
+        #expect(pending.state == .done)
     }
 
     @Test func textNoPaymentSignalFailureIsNotRetryable() {

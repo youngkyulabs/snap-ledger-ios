@@ -26,6 +26,22 @@ struct InboxPayloadTests {
         #expect(try InboxPayload.readText(at: url) == "신한카드 5,000원 일시불 스타벅스")
     }
 
+    @Test func shortTextIsNotClamped() {
+        let text = "신한카드 5,000원 일시불 스타벅스"
+
+        #expect(InboxPayload.clampForExtraction(text) == text)
+    }
+
+    @Test func longTextIsClampedToExtractionLimit() {
+        let limit = InboxPayload.extractionCharacterLimit
+        let text = String(repeating: "가", count: limit + 500)
+
+        let clamped = InboxPayload.clampForExtraction(text)
+
+        #expect(clamped.count == limit)
+        #expect(text.hasPrefix(clamped))
+    }
+
     @Test func readingMissingFileThrows() {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(UUID()).txt")

@@ -137,9 +137,11 @@ struct PendingProcessor {
         let sourceURL = inboxURL.appendingPathComponent(pending.filename)
         let isText = InboxPayload.isText(filename: pending.filename)
         do {
-            // Shared text is already text; only images need OCR.
+            // Shared text is already text; only images need OCR. Clamp it to what the
+            // extraction prompt can carry — a long share would otherwise overflow the
+            // model's context window and fail after the round trip.
             let sourceText = isText
-                ? try InboxPayload.readText(at: sourceURL)
+                ? InboxPayload.clampForExtraction(try InboxPayload.readText(at: sourceURL))
                 : try await ocrService.recognize(imageURL: sourceURL)
             // Skip extraction if no payment signals are detected in the source text
             let extraction: PaymentExtraction
