@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-/// Section displaying images that failed automated processing.
+/// Section displaying shared items that failed automated processing.
 struct FailedImagesSection: View {
     let failed: [PendingImage]
     var onSelect: (PendingImage) -> Void
@@ -19,7 +19,7 @@ struct FailedImagesSection: View {
         } header: {
             header
         } footer: {
-            Text("사진을 누르면 직접 입력할 수 있어요. 잘못 들어온 이미지는 옆으로 밀어 삭제하세요.")
+            Text("누르면 직접 입력할 수 있어요. 잘못 들어온 항목은 옆으로 밀어 삭제하세요.")
         }
     }
 
@@ -27,7 +27,7 @@ struct FailedImagesSection: View {
         HStack {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(.orange)
-            Text("자동 처리되지 않은 이미지 \(failed.count)건")
+            Text("자동 처리되지 않은 항목 \(failed.count)건")
                 .contentTransition(.numericText())
             Spacer()
             Button("모두 정리") {
@@ -102,8 +102,11 @@ private struct FailedImageRow: View {
     }
 
     private var hint: String {
-        retryable
-            ? "눌러서 직접 입력하거나, 옆으로 밀어 다시 시도할 수 있어요."
+        if retryable {
+            return "눌러서 직접 입력하거나, 옆으로 밀어 다시 시도할 수 있어요."
+        }
+        return InboxPayload.isText(filename: filename)
+            ? "결제 알림 문구가 맞는지 확인하세요. 눌러서 직접 입력할 수 있어요."
             : "결제 화면 스크린샷이 맞는지 확인하세요. 눌러서 직접 입력할 수 있어요."
     }
 }

@@ -5,6 +5,8 @@ final class ShareViewController: UIViewController {
     private static let appGroupIdentifier = "group.com.youngkyu.snapledger"
     private static let inboxFolderName = "inbox"
     private static let preferredHeight: CGFloat = 220
+    /// Guards against sharing an entire article into the extraction prompt.
+    private static let maxTextLength = 20_000
 
     private let spinner = UIActivityIndicatorView(style: .large)
     private let statusIcon = UIImageView()
@@ -67,30 +69,42 @@ final class ShareViewController: UIViewController {
             return
         }
 
-        let providers = (extensionContext?.inputItems ?? [])
-            .compactMap { $0 as? NSExtensionItem }
-            .flatMap { $0.attachments ?? [] }
+        let items = (extensionContext?.inputItems ?? []).compactMap { $0 as? NSExtensionItem }
 
         var savedCount = 0
-        for provider in providers {
-            if let saved = await save(provider: provider, to: inboxURL), saved {
-                savedCount += 1
+        for item in items {
+            var savedForItem = 0
+            for provider in item.attachments ?? [] {
+                let saved = await save(provider: provider, to: inboxURL)
+                savedForItem += saved ? 1 : 0
             }
+            // Some apps (Messages) share selected text as item text with no attachment.
+            if savedForItem == 0,
+               let text = item.attributedContentText?.string,
+               Self.saveText(text, to: inboxURL) {
+                savedForItem = 1
+            }
+            savedCount += savedForItem
         }
 
         if savedCount > 0 {
             await finish(.success(count: savedCount))
         } else {
-            await finish(.failure(message: "이미지를 찾을 수 없어요."))
+            await finish(.failure(message: "가져올 내용을 찾을 수 없어요."))
         }
     }
 
-    private func save(provider: NSItemProvider, to inboxURL: URL) async -> Bool? {
-        let imageType = UTType.image.identifier
-        guard provider.hasItemConformingToTypeIdentifier(imageType) else { return false }
+    private func save(provider: NSItemProvider, to inboxURL: URL) async -> Bool {
+        if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            return await saveImage(provider: provider, to: inboxURL)
+        }
+        guard let text = await loadText(from: provider) else { return false }
+        return Self.saveText(text, to: inboxURL)
+    }
 
-        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool?, Never>) in
-            provider.loadFileRepresentation(forTypeIdentifier: imageType) { sourceURL, error in
+    private func saveImage(provider: NSItemProvider, to inboxURL: URL) async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { sourceURL, error in
                 guard let sourceURL, error == nil else {
                     continuation.resume(returning: false)
                     return
@@ -104,6 +118,40 @@ final class ShareViewController: UIViewController {
                     continuation.resume(returning: false)
                 }
             }
+        }
+    }
+
+    /// Loads shared plain text, ignoring URLs and other non-text payloads.
+    private func loadText(from provider: NSItemProvider) async -> String? {
+        let textType = UTType.plainText.identifier
+        guard provider.hasItemConformingToTypeIdentifier(textType) else { return nil }
+
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            provider.loadItem(forTypeIdentifier: textType) { item, _ in
+                switch item {
+                case let string as String:
+                    continuation.resume(returning: string)
+                case let attributed as NSAttributedString:
+                    continuation.resume(returning: attributed.string)
+                case let data as Data:
+                    continuation.resume(returning: String(data: data, encoding: .utf8))
+                default:
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    private static func saveText(_ text: String, to inboxURL: URL) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let clipped = String(trimmed.prefix(maxTextLength))
+        let dest = inboxURL.appendingPathComponent("\(UUID().uuidString).txt")
+        do {
+            try clipped.write(to: dest, atomically: true, encoding: .utf8)
+            return true
+        } catch {
+            return false
         }
     }
 

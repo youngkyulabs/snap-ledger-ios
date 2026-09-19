@@ -27,7 +27,7 @@ struct EntryEditorView: View {
             ScrollViewReader { proxy in
             Form {
                 if let sourceImageFilename {
-                    Section("원본 이미지") {
+                    Section(InboxPayload.isText(filename: sourceImageFilename) ? "공유한 내용" : "원본 이미지") {
                         InboxImageView(filename: sourceImageFilename)
                             .frame(maxWidth: .infinity, maxHeight: 320)
                     }
