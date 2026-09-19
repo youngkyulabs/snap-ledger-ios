@@ -33,6 +33,9 @@ enum ReconciledMonthGuard {
         calendar: Calendar = .current
     ) -> String? {
         let month = CategoryBudgetStore.monthKey(from: date, calendar: calendar)
+        // Only a closed month can already be reconciled; skip the fetches for every other month.
+        let status = ReconciliationSummary.periodStatus(month: month, today: today, calendar: calendar)
+        guard status == .closed else { return nil }
         // `isReconciled` reads only reconciliation rows, so saved entries are not needed here.
         let summary = ReconciliationSummary.compute(
             entries: [],

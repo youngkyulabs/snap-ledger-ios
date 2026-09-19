@@ -36,6 +36,24 @@ struct ExtractionServiceYearSnapTests {
         #expect(!FoundationModelsExtractionService.hasExplicitYear("1234-5678-9012-3456"))
     }
 
+    @Test func explicitYearIgnoresAccountAndPhoneNumbers() {
+        // Hyphenated identifiers must not be read as YYYY-MM-DD.
+        #expect(!FoundationModelsExtractionService.hasExplicitYear("국민 123456-78-901234 입금"))
+        #expect(!FoundationModelsExtractionService.hasExplicitYear("우리 1002-123-456789"))
+        #expect(!FoundationModelsExtractionService.hasExplicitYear("031-1234-5678"))
+    }
+
+    @Test func normalizeSnapsYearWhenTextOnlyCarriesAnAccountNumber() {
+        // The account number must not suppress snapping for a text that states no year.
+        let today = makeDate(year: 2026, month: 9, day: 15)
+        let out = FoundationModelsExtractionService.normalize(
+            transaction(date: "2024-09-13"),
+            today: today,
+            ocrText: "국민 123456-78-901234 09/13 15:30 스타벅스 5,000원 승인"
+        )
+        #expect(out.transactions[0].date == "2026-09-13")
+    }
+
     // MARK: - snapYearToNearest
 
     @Test func snapUsesCurrentYearForRecentPast() {

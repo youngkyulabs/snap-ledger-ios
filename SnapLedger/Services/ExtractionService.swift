@@ -200,10 +200,11 @@ struct FoundationModelsExtractionService: ExtractionService {
         return re.firstMatch(in: text, range: range) != nil
     }
 
-    /// Regex for a year stated by the source text. Requires a date separator so that bare four-digit
-    /// runs (amounts, times, card numbers) are not mistaken for years.
+    /// Regex for a year stated by the source text. Requires a 19xx/20xx run that is not part of a
+    /// longer digit group and, for the separated form, a valid month and day — otherwise account
+    /// numbers such as `123456-78-901234` read as a date.
     private static let explicitYearPresence: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{4}\s*년"#
+        pattern: #"(?<!\d)(19|20)\d{2}(?:[-./](?:0?[1-9]|1[0-2])[-./](?:0?[1-9]|[12]\d|3[01])(?!\d)|\s*년)"#
     )
 
     /// Whether the source text states a year. When it does not, a model-supplied year carries no

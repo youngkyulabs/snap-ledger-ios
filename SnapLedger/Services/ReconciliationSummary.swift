@@ -86,8 +86,9 @@ struct ReconciliationSummary: Equatable {
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
             || !monthAdjustments.isEmpty || !monthSavings.isEmpty || !monthCards.isEmpty
             || !monthIncomes.isEmpty
+        // `previousAmount` is prefilled by carry-forward, so it cannot signal real input.
         let started = monthBalances.contains { $0.openingBalance != $0.closingBalance }
-            || monthCards.contains { $0.amount != 0 || $0.previousAmount != 0 }
+            || monthCards.contains { $0.amount != 0 }
 
         return ReconciliationSummary(
             month: targetMonth,

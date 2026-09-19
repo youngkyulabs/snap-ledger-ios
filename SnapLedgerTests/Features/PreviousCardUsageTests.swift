@@ -82,12 +82,21 @@ struct PreviousCardUsageTests {
         #expect(viaCard.actualSpending == viaAdjustment.actualSpending)
     }
 
-    @Test func previousCardAloneStartsReconciliation() {
-        // Entering only the prior bill still counts as real figures, not carry-forward noise.
+    @Test func previousCardAloneDoesNotStartReconciliation() {
+        // carryForwardDraft prefills previousAmount from last month, so it cannot mean real input.
         let result = summary(
             opening: 1_000_000,
             closing: 1_000_000,
             cards: [(amount: 0, previous: 200_000)]
+        )
+        #expect(!result.hasStartedReconciliation)
+    }
+
+    @Test func thisMonthCardUsageStartsReconciliation() {
+        let result = summary(
+            opening: 1_000_000,
+            closing: 1_000_000,
+            cards: [(amount: 300_000, previous: 200_000)]
         )
         #expect(result.hasStartedReconciliation)
     }

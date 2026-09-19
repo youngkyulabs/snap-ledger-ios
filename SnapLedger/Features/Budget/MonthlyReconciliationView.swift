@@ -50,7 +50,7 @@ struct MonthlyReconciliationView: View {
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .navigationTitle("월 정산")
-        .navigationSubtitle(reconciliationMonthLabel(month))
+        .navigationSubtitle(ledgerMonthLabel(month))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard !didLoad else { return }
@@ -472,19 +472,6 @@ extension MonthlyReconciliationView {
             resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
-}
-
-private func reconciliationMonthLabel(_ key: Int) -> String {
-    var comps = DateComponents()
-    comps.year = key / 100
-    comps.month = key % 100
-    let calendar = Calendar.current
-    let date = calendar.date(from: comps) ?? Date()
-    let formatter = DateFormatter()
-    formatter.calendar = calendar
-    formatter.locale = Locale(identifier: "ko_KR")
-    formatter.dateFormat = "yyyy년 M월"
-    return formatter.string(from: date)
 }
 
 #Preview {

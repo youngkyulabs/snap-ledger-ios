@@ -89,7 +89,7 @@ struct ReconciliationCardEditor: View {
             Section {
                 reconciliationMoneyField("전월 사용액", value: $previousAmount)
             } footer: {
-                Text("이번 달 계좌에서 빠져나간 지난달 카드대금이에요. 자금변동에 따로 넣지 않아도 돼요.")
+                Text("이번 달 계좌에서 빠져나간 지난달 카드대금이에요.")
             }
         }
         .navigationTitle(initial == nil ? "카드 추가" : "카드 수정")
