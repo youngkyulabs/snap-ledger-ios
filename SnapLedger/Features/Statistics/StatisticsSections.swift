@@ -6,6 +6,8 @@ import Charts
 struct StatisticsSections: View {
     /// Month shown, supplied by the shared selector above the list.
     let month: Int
+    /// Current calendar month, used to anchor the trend window.
+    let currentMonthKey: Int
     /// Opens the per-category totals sheet.
     let openCategoryTotals: () -> Void
 
@@ -27,22 +29,36 @@ struct StatisticsSections: View {
         months.first { ($0.id.year ?? 0) * 100 + ($0.id.month ?? 0) == month }
     }
 
+    /// Newest month of the trend window; follows the selected month rather than today.
+    private var trendAnchorDate: Date {
+        CategoryBudgetStore.date(
+            from: StatisticsAggregation.trendAnchorKey(selected: month, current: currentMonthKey)
+        )
+    }
+
     /// Whether trend section remains visible when filter yields empty rows.
     private var overallTrendPoints: [StatisticsAggregation.TrendPoint] {
-        StatisticsAggregation.trend(months: months)
+        StatisticsAggregation.trend(months: months, referenceDate: trendAnchorDate)
     }
 
     private var trendPoints: [StatisticsAggregation.TrendPoint] {
-        StatisticsAggregation.trend(months: months, category: trendCategory)
+        StatisticsAggregation.trend(months: months, referenceDate: trendAnchorDate, category: trendCategory)
     }
 
     // Chart retains 6-month window; list trims leading zero months.
     private var chartPoints: [StatisticsAggregation.TrendPoint] {
-        StatisticsAggregation.trend(months: months, trimLeadingZeros: false, category: trendCategory)
+        StatisticsAggregation.trend(
+            months: months,
+            referenceDate: trendAnchorDate,
+            trimLeadingZeros: false,
+            category: trendCategory
+        )
     }
 
     private var trendCategoryOptions: [String] {
-        StatisticsAggregation.trendCategories(in: StatisticsAggregation.categoryTrend(months: months))
+        StatisticsAggregation.trendCategories(
+            in: StatisticsAggregation.categoryTrend(months: months, referenceDate: trendAnchorDate)
+        )
     }
 
     var body: some View {
@@ -91,12 +107,12 @@ struct StatisticsSections: View {
             }
             .pickerStyle(.menu)
 
-            TrendChart(points: chartPoints)
+            TrendChart(points: chartPoints, selectedMonthKey: month)
                 .frame(height: 200)
                 .padding(.vertical, 8)
 
             if trendPoints.isEmpty {
-                Text("최근 6개월에 이 카테고리 기록이 없어요.")
+                Text("이 기간에 이 카테고리 기록이 없어요.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(trendPoints.reversed()) { point in
@@ -165,6 +181,8 @@ private struct CategoryDonutChart: View {
 private struct TrendChart: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let points: [StatisticsAggregation.TrendPoint]
+    /// Month currently selected above the list; drawn in full accent color.
+    let selectedMonthKey: Int
 
     var body: some View {
         Chart(points) { point in
@@ -172,7 +190,12 @@ private struct TrendChart: View {
                 x: .value("월", point.shortTitle),
                 y: .value("합계", point.total)
             )
-            .foregroundStyle(Color.accentColor.gradient)
+            // The selected month is no longer always last, so it carries the emphasis.
+            .foregroundStyle(
+                isSelected(point)
+                    ? AnyShapeStyle(Color.accentColor.gradient)
+                    : AnyShapeStyle(Color.accentColor.opacity(0.3))
+            )
             .cornerRadius(4)
         }
         .chartYAxis {
@@ -188,6 +211,10 @@ private struct TrendChart: View {
         }
         // Animate bar height changes on data updates.
         .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: points.map(\.total))
+    }
+
+    private func isSelected(_ point: StatisticsAggregation.TrendPoint) -> Bool {
+        (point.id.year ?? 0) * 100 + (point.id.month ?? 0) == selectedMonthKey
     }
 }
 

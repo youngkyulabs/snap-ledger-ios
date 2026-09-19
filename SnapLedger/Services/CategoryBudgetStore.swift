@@ -11,6 +11,15 @@ struct CategoryBudgetStore {
         return (comps.year ?? 0) * 100 + (comps.month ?? 0)
     }
 
+    /// Converts an integer month key (YYYYMM) back to the first instant of that month.
+    static func date(from key: Int, calendar: Calendar = .current) -> Date {
+        var comps = DateComponents()
+        comps.year = key / 100
+        comps.month = key % 100
+        comps.day = 1
+        return calendar.date(from: comps) ?? Date()
+    }
+
     /// Calculates next month integer key.
     static func nextMonthKey(_ key: Int) -> Int {
         let year = key / 100

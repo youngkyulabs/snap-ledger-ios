@@ -90,6 +90,14 @@ enum StatisticsAggregation {
         }
     }
 
+    /// Newest month of the trend window for a selected month.
+    /// The selected month sits last when it is the current month, and second to last
+    /// otherwise so that the month right after it stays visible for context.
+    static func trendAnchorKey(selected: Int, current: Int) -> Int {
+        guard selected < current else { return current }
+        return CategoryBudgetStore.nextMonthKey(selected)
+    }
+
     static func trend(
         months: [MonthlyStats],
         limit: Int = 6,

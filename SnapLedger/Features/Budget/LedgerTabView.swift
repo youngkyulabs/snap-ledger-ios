@@ -96,11 +96,15 @@ struct LedgerTabView: View {
                 BudgetSections(month: effectiveMonthKey, path: $path) {
                     sheet = .categoryProgress(month: effectiveMonthKey)
                 }
-                StatisticsSections(month: effectiveMonthKey) {
+                StatisticsSections(month: effectiveMonthKey, currentMonthKey: currentMonthKey) {
                     sheet = .categoryTotals(month: effectiveMonthKey)
                 }
-            } else {
-                emptyMonthSection
+            }
+        }
+        // Overlaying instead of using a list row keeps the notice centered on screen.
+        .overlay {
+            if !hasRecords {
+                emptyMonthNotice
             }
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
@@ -133,16 +137,14 @@ struct LedgerTabView: View {
     }
 
     /// Months without saved entries or reconciliation data show nothing but this notice.
-    private var emptyMonthSection: some View {
-        Section {
-            ContentUnavailableView(
-                "기록 없음",
-                systemImage: "list.bullet.rectangle",
-                description: Text("이 달에는 기록이 없어요.")
-            )
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-        }
+    private var emptyMonthNotice: some View {
+        ContentUnavailableView(
+            "기록 없음",
+            systemImage: "list.bullet.rectangle",
+            description: Text("이 달에는 기록이 없어요.")
+        )
+        // The month picker below stays tappable.
+        .allowsHitTesting(false)
     }
 }
 
