@@ -4,7 +4,7 @@ This file guides future AI assistant sessions through the SnapLedger codebase. I
 
 ## One-Line Project Summary
 
-A Korean personal finance app built on iOS 26 and Apple Intelligence. Receives card payment notification screenshots or receipt photos via the share sheet → VisionKit OCR → structured extraction via Foundation Models → user review → saved to CloudKit-backed SwiftData (single source of truth). If the user designates a storage folder, exports one-way monthly CSVs (optional, for backup & AI analysis).
+A Korean personal finance app built on iOS 26 and Apple Intelligence. Receives card payment notification screenshots, receipt photos, or shared payment-notification text via the share sheet → VisionKit OCR (images only) → structured extraction via Foundation Models → user review → saved to CloudKit-backed SwiftData (single source of truth). If the user designates a storage folder, exports one-way monthly CSVs (optional, for backup & AI analysis).
 
 ## Build / Test
 
@@ -78,11 +78,12 @@ SnapLedger/                          # Main app target (synchronized root group)
     ExtractionService.swift          # protocol + FoundationModelsExtractionService (dynamic prompt, multi-transaction)
     PaymentExtraction.swift          # @Generable PaymentExtraction(transactions:[Transaction])
     AppleIntelligenceStatus.swift    # FM availability → user-friendly copy (shared entry point for Settings/Onboarding/Review)
-    PendingProcessor.swift           # @MainActor pipeline: reconcile inbox → OCR → heuristic → extract → ParsedEntry
+    PendingProcessor.swift           # @MainActor pipeline: reconcile inbox → OCR (images) / read text (.txt) → heuristic → extract → ParsedEntry
     SaveCoordinator.swift            # Confirm review → CSV append + SavedEntry creation + category learning
     CategoryLearner.swift            # Merchant → category learning & lookup
     CategoryValidation.swift         # Determines if a category is off-list (warning only, pure)
     ImageImporter.swift              # Normalize imports from + menu (photos, clipboard, files, drop) → inbox
+    InboxPayload.swift               # Classifies an inbox file as image or shared text (.txt) + reads text (pure)
     CandidateAutoFill.swift          # Auto-fill category/amount by merchant on new review entry (pure)
     EntryReorder.swift               # Drag-and-drop item reordering → sortOrder recalculation (pure, shared with reconciliation items)
     EntrySaveValidation.swift        # Required field validation before saving review entry (pure)
@@ -139,8 +140,8 @@ SnapLedger/                          # Main app target (synchronized root group)
     Notifications/ReminderRefresher.swift       # Reschedules/clears notifications from settings & pending count (shared by ContentView & BGTask)
 
 SnapLedgerShareExtension/            # Share Extension target (synchronized root group, separate)
-  ShareViewController.swift          # Silent UIVC, copies NSItemProvider images to App Group inbox
-  Info.plist                         # Explicit plist: NSExtensionPrincipalClass, image-only activation
+  ShareViewController.swift          # Silent UIVC, copies NSItemProvider images and shared plain text (as UUID.txt) to App Group inbox
+  Info.plist                         # Explicit plist: NSExtensionPrincipalClass, image + text activation
   SnapLedgerShareExtension.entitlements   # App Group
 
 SnapLedgerTests/                     # Swift Testing — mirrors source structure
@@ -151,6 +152,7 @@ SnapLedgerTests/                     # Swift Testing — mirrors source structur
 
 1. **Share Sheet → Inbox File → Main App Reconcile**
    The Share Extension does not create `PendingImage` rows directly. It only writes files to `App Group container/inbox/` and dismisses. The main app reconciles the inbox on launch, foreground transition, or BGTask execution via `PendingProcessor.reconcileInbox`, creating `PendingImage` rows for any unmapped files. This design avoids sharing `.swift` files across target memberships under Xcode 16 `PBXFileSystemSynchronizedRootGroup` — the extension only needs an inline App Group identifier constant without depending on SwiftData.
+   - **Images and Text Share the Same Inbox**: The extension accepts images (`NSExtensionActivationSupportsImageWithMaxCount`) and plain text (`NSExtensionActivationSupportsText`; the dictionary keys are OR'd, so the extension appears in both share sheets). Shared text is written as `UUID.txt` (trimmed, capped at 2,000 characters — `ShareViewController.maxTextLength` and `InboxPayload.extractionCharacterLimit` must stay in sync, since a longer share overflows the model's context window). An item's text is used only when none of its images reached the inbox, so a post with a screenshot plus a caption stays one entry; `attributedContentText` is the last fallback for apps that attach no provider. `InboxPayload.isText` routes `.txt` files past OCR straight into the payment-signal gate; everything after that is the same pipeline, so the only text-specific pieces are the failure copy (`noPaymentSignalTextReason`) and the review preview (`InboxTextView` instead of the image).
 
 2. **Guard Foundation Models**
    Always check `FoundationModelsExtractionService.isAvailable`. If unavailable, processing drains are skipped entirely (`ContentView.drainPending`, `BackgroundRefresh.handle`), and `AddExpenseFromImageIntent` gracefully degrades with an "Added to queue" message. Note that Apple Intelligence may be unavailable in simulators, requiring on-device testing.

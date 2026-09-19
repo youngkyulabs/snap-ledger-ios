@@ -5,6 +5,11 @@ final class ShareViewController: UIViewController {
     private static let appGroupIdentifier = "group.com.youngkyu.snapledger"
     private static let inboxFolderName = "inbox"
     private static let preferredHeight: CGFloat = 220
+    /// Guards against sharing an entire article into the extraction prompt: the on-device model's
+    /// context window also has to hold the instruction prompt, so a longer share would overflow it.
+    /// Kept in sync with `InboxPayload.extractionCharacterLimit` in the app target, which cannot be
+    /// imported from here.
+    private static let maxTextLength = 2_000
 
     private let spinner = UIActivityIndicatorView(style: .large)
     private let statusIcon = UIImageView()
@@ -67,30 +72,54 @@ final class ShareViewController: UIViewController {
             return
         }
 
-        let providers = (extensionContext?.inputItems ?? [])
-            .compactMap { $0 as? NSExtensionItem }
-            .flatMap { $0.attachments ?? [] }
+        let items = (extensionContext?.inputItems ?? []).compactMap { $0 as? NSExtensionItem }
 
         var savedCount = 0
-        for provider in providers {
-            if let saved = await save(provider: provider, to: inboxURL), saved {
-                savedCount += 1
-            }
+        for item in items {
+            savedCount += await save(item: item, to: inboxURL)
         }
 
         if savedCount > 0 {
             await finish(.success(count: savedCount))
         } else {
-            await finish(.failure(message: "이미지를 찾을 수 없어요."))
+            await finish(.failure(message: "가져올 내용을 찾을 수 없어요."))
         }
     }
 
-    private func save(provider: NSItemProvider, to inboxURL: URL) async -> Bool? {
-        let imageType = UTType.image.identifier
-        guard provider.hasItemConformingToTypeIdentifier(imageType) else { return false }
+    /// Saves one shared item, preferring its images: a post that carries both a screenshot and a
+    /// caption is one payment, so its text is only used when no image made it to the inbox.
+    private func save(item: NSExtensionItem, to inboxURL: URL) async -> Int {
+        var textProviders: [NSItemProvider] = []
+        var savedImages = 0
+        for provider in item.attachments ?? [] {
+            guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else {
+                textProviders.append(provider)
+                continue
+            }
+            if await saveImage(provider: provider, to: inboxURL) {
+                savedImages += 1
+            }
+        }
+        if savedImages > 0 { return savedImages }
 
-        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool?, Never>) in
-            provider.loadFileRepresentation(forTypeIdentifier: imageType) { sourceURL, error in
+        var savedTexts = 0
+        for provider in textProviders {
+            guard let text = await loadText(from: provider),
+                  Self.saveText(text, to: inboxURL) else { continue }
+            savedTexts += 1
+        }
+        if savedTexts > 0 { return savedTexts }
+
+        // Some apps (Messages) share selected text as item text with no attachment.
+        if let text = item.attributedContentText?.string, Self.saveText(text, to: inboxURL) {
+            return 1
+        }
+        return 0
+    }
+
+    private func saveImage(provider: NSItemProvider, to inboxURL: URL) async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { sourceURL, error in
                 guard let sourceURL, error == nil else {
                     continuation.resume(returning: false)
                     return
@@ -104,6 +133,43 @@ final class ShareViewController: UIViewController {
                     continuation.resume(returning: false)
                 }
             }
+        }
+    }
+
+    /// Loads shared plain text, ignoring URLs and other non-text payloads.
+    private func loadText(from provider: NSItemProvider) async -> String? {
+        let textType = UTType.plainText.identifier
+        guard provider.hasItemConformingToTypeIdentifier(textType) else { return nil }
+
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            provider.loadItem(forTypeIdentifier: textType) { item, _ in
+                switch item {
+                case let string as String:
+                    continuation.resume(returning: string)
+                case let attributed as NSAttributedString:
+                    continuation.resume(returning: attributed.string)
+                case let data as Data:
+                    continuation.resume(returning: String(data: data, encoding: .utf8))
+                // Files (and any app vending a file representation) hand back a URL, not a string.
+                case let url as URL where url.isFileURL:
+                    continuation.resume(returning: try? String(contentsOf: url, encoding: .utf8))
+                default:
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    private static func saveText(_ text: String, to inboxURL: URL) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let clipped = String(trimmed.prefix(maxTextLength))
+        let dest = inboxURL.appendingPathComponent("\(UUID().uuidString).txt")
+        do {
+            try clipped.write(to: dest, atomically: true, encoding: .utf8)
+            return true
+        } catch {
+            return false
         }
     }
 

@@ -134,22 +134,30 @@ struct PendingProcessor {
         pending.state = .processing
         try? context.save()
 
-        let imageURL = inboxURL.appendingPathComponent(pending.filename)
+        let sourceURL = inboxURL.appendingPathComponent(pending.filename)
+        let isText = InboxPayload.isText(filename: pending.filename)
         do {
-            let ocrText = try await ocrService.recognize(imageURL: imageURL)
-            // Skip extraction if no payment signals are detected in OCR text
+            // Shared text is already text; only images need OCR. Clamp it to what the
+            // extraction prompt can carry — a long share would otherwise overflow the
+            // model's context window and fail after the round trip.
+            let sourceText = isText
+                ? InboxPayload.clampForExtraction(try InboxPayload.readText(at: sourceURL))
+                : try await ocrService.recognize(imageURL: sourceURL)
+            // Skip extraction if no payment signals are detected in the source text
             let extraction: PaymentExtraction
-            if CandidateHeuristics.hasPaymentSignal(ocrText) {
-                extraction = try await extractionService.extract(from: ocrText)
+            if CandidateHeuristics.hasPaymentSignal(sourceText) {
+                extraction = try await extractionService.extract(from: sourceText)
             } else {
-                log.info("skipping extraction: no payment signal in OCR text")
+                log.info("skipping extraction: no payment signal in source text")
                 extraction = PaymentExtraction(transactions: [])
             }
-            let enriched = CandidateHeuristics.enrich(extraction, ocrText: ocrText)
+            let enriched = CandidateHeuristics.enrich(extraction, ocrText: sourceText)
             if enriched.isEmpty {
                 // Mark as failed if no transactions were extracted
                 pending.state = .failed
-                pending.failureMessage = Self.noPaymentSignalReason
+                pending.failureMessage = isText
+                    ? Self.noPaymentSignalTextReason
+                    : Self.noPaymentSignalReason
                 try context.save()
                 return
             }
@@ -169,10 +177,13 @@ struct PendingProcessor {
     }
 
     nonisolated static let noPaymentSignalReason = "이미지에서 결제 정보를 찾지 못했어요."
+    nonisolated static let noPaymentSignalTextReason = "공유한 글에서 결제 정보를 찾지 못했어요."
 
-    /// Checks whether failed image is eligible for retry.
+    /// Checks whether failed item is eligible for retry.
     nonisolated static func isRetryable(failureMessage: String?) -> Bool {
-        failureMessage != noPaymentSignalReason
+        guard let failureMessage else { return true }
+        return failureMessage != noPaymentSignalReason
+            && failureMessage != noPaymentSignalTextReason
     }
 
     func makeEntries(

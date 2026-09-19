@@ -24,6 +24,15 @@ enum InboxImageLoader {
     }
 }
 
+/// Text loader for App Group inbox files shared as text.
+@MainActor
+enum InboxTextLoader {
+    static func load(filename: String) -> String? {
+        let url = AppGroup.inboxURL.appendingPathComponent(filename)
+        return try? InboxPayload.readText(at: url)
+    }
+}
+
 /// Square thumbnail view for inbox images.
 struct InboxThumbnail: View {
     let filename: String
@@ -34,7 +43,11 @@ struct InboxThumbnail: View {
         RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(.quaternary)
             .overlay {
-                if let image {
+                if InboxPayload.isText(filename: filename) {
+                    Image(systemName: "text.alignleft")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                } else if let image {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -47,18 +60,27 @@ struct InboxThumbnail: View {
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .task(id: filename) {
+                guard !InboxPayload.isText(filename: filename) else { return }
                 image = InboxImageLoader.load(filename: filename, maxPixel: size * 3)
             }
             .accessibilityHidden(true)
     }
 }
 
-/// Full-aspect preview view for inbox images.
+/// Full-aspect preview view for inbox images, or the shared text itself.
 struct InboxImageView: View {
     let filename: String
     @State private var image: UIImage?
 
     var body: some View {
+        if InboxPayload.isText(filename: filename) {
+            InboxTextView(filename: filename)
+        } else {
+            imageBody
+        }
+    }
+
+    private var imageBody: some View {
         Group {
             if let image {
                 Image(uiImage: image)
@@ -76,5 +98,27 @@ struct InboxImageView: View {
             image = InboxImageLoader.load(filename: filename, maxPixel: 1600)
         }
         .accessibilityLabel("원본 이미지")
+    }
+}
+
+/// Scrollable preview of text shared into the inbox.
+struct InboxTextView: View {
+    let filename: String
+    @State private var text: String?
+
+    var body: some View {
+        ScrollView {
+            Text(text ?? "공유한 내용을 찾을 수 없어요.")
+                .font(.callout)
+                .foregroundStyle(text == nil ? .secondary : .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .padding(12)
+        }
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .task(id: filename) {
+            text = InboxTextLoader.load(filename: filename)
+        }
+        .accessibilityLabel("공유한 내용")
     }
 }
