@@ -3,6 +3,7 @@ import Foundation
 enum ReconciliationCSVKind: String, CaseIterable, Sendable {
     case income = "수입"
     case creditCard = "카드사용액"
+    case previousCreditCard = "전월카드대금"
     case savings = "저축액"
     case openingBalance = "기초잔액"
     case closingBalance = "기말잔액"

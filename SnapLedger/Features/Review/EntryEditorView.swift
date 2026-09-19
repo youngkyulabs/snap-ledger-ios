@@ -18,6 +18,8 @@ struct EntryEditorView: View {
 
     @State private var saveError: String?
     @State private var confirmDelete = false
+    /// Warning text shown when the entry lands in an already-reconciled month.
+    @State private var reconciledWarning: String?
     @FocusState private var focusedField: Field?
 
     var body: some View {
@@ -135,6 +137,22 @@ struct EntryEditorView: View {
                 presenting: saveError
             ) { _ in
                 Button("확인", role: .cancel) { saveError = nil }
+            } message: { message in
+                Text(message)
+            }
+            .alert(
+                "정산이 끝난 달이에요",
+                isPresented: Binding(
+                    get: { reconciledWarning != nil },
+                    set: { if !$0 { reconciledWarning = nil } }
+                ),
+                presenting: reconciledWarning
+            ) { _ in
+                Button("추가") {
+                    reconciledWarning = nil
+                    performSave()
+                }
+                Button("취소", role: .cancel) { reconciledWarning = nil }
             } message: { message in
                 Text(message)
             }
@@ -327,13 +345,19 @@ struct EntryEditorView: View {
 
     private func save() {
         NotificationScheduler().clearDelivered()
-        if insertOnSave {
-            modelContext.insert(entry)
+        // Confirm before altering a month the user already reconciled. Insertion is deferred to
+        // `performSave` so that cancelling leaves no stray row behind.
+        if let warning = ReconciledMonthGuard.warningMessage(for: entry.date, in: modelContext) {
+            reconciledWarning = warning
+            return
         }
         performSave()
     }
 
     private func performSave() {
+        if insertOnSave {
+            modelContext.insert(entry)
+        }
         do {
             try SaveCoordinator(categoryLearner: CategoryLearner())
                 .save(entry, in: modelContext)

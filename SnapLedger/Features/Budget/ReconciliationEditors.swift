@@ -53,6 +53,62 @@ struct ReconciliationItemEditor: View {
     }
 }
 
+// MARK: - Card Usage Editor Sheet
+
+struct ReconciliationCardEditor: View {
+    let initial: CardUsageItemDraft?
+    let onSave: (String, Int, Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var amount: Int
+    @State private var previousAmount: Int
+
+    init(initial: CardUsageItemDraft?, onSave: @escaping (String, Int, Int) -> Void) {
+        self.initial = initial
+        self.onSave = onSave
+        _title = State(initialValue: initial?.title ?? "")
+        _amount = State(initialValue: initial?.amount ?? 0)
+        _previousAmount = State(initialValue: initial?.previousAmount ?? 0)
+    }
+
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                TextField("카드명", text: $title)
+            }
+            Section {
+                reconciliationMoneyField("이번 달 사용액", value: $amount)
+            } footer: {
+                Text("이번 달에 이 카드로 결제한 금액이에요.")
+            }
+            Section {
+                reconciliationMoneyField("전월 사용액", value: $previousAmount)
+            } footer: {
+                Text("이번 달 계좌에서 빠져나간 지난달 카드대금이에요.")
+            }
+        }
+        .navigationTitle(initial == nil ? "카드 추가" : "카드 수정")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("취소") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("저장") {
+                    onSave(trimmedTitle, amount, previousAmount)
+                    dismiss()
+                }
+                .disabled(trimmedTitle.isEmpty)
+            }
+        }
+    }
+}
+
 // MARK: - Account Balance Editor Sheet
 
 struct ReconciliationAccountEditor: View {

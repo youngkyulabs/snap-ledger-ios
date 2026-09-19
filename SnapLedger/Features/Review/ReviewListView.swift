@@ -15,6 +15,13 @@ private struct DroppedImage: Transferable, Sendable {
     }
 }
 
+/// Pairs a swipe-saved entry with its reconciled-month warning text.
+struct ReconciledSwipeContext: Identifiable {
+    let entry: ParsedEntry
+    let message: String
+    var id: PersistentIdentifier { entry.persistentModelID }
+}
+
 struct ReviewListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -29,6 +36,8 @@ struct ReviewListView: View {
     @State private var isDropTargeted = false
     @State private var pendingToDelete: ParsedEntry?
     @State private var swipeError: String?
+    /// Entry awaiting confirmation because its month is already reconciled.
+    @State private var reconciledSwipe: ReconciledSwipeContext?
     // Present failed image sheets at NavigationStack level.
     @State private var failedManual: FailedManualContext?
     @State private var retryUnavailable = false
@@ -218,6 +227,22 @@ struct ReviewListView: View {
             Text(message)
         }
         .alert(
+            "정산이 끝난 달이에요",
+            isPresented: Binding(
+                get: { reconciledSwipe != nil },
+                set: { if !$0 { reconciledSwipe = nil } }
+            ),
+            presenting: reconciledSwipe
+        ) { context in
+            Button("추가") {
+                reconciledSwipe = nil
+                performSwipeSave(entry: context.entry)
+            }
+            Button("취소", role: .cancel) { reconciledSwipe = nil }
+        } message: { context in
+            Text(context.message)
+        }
+        .alert(
             "지금은 다시 시도할 수 없어요",
             isPresented: $retryUnavailable
         ) {
@@ -332,6 +357,11 @@ struct ReviewListView: View {
             return
         }
         NotificationScheduler().clearDelivered()
+        // Confirm before altering a month the user already reconciled.
+        if let warning = ReconciledMonthGuard.warningMessage(for: entry.date, in: modelContext) {
+            reconciledSwipe = ReconciledSwipeContext(entry: entry, message: warning)
+            return
+        }
         performSwipeSave(entry: entry)
     }
 
@@ -491,42 +521,6 @@ extension ReviewListView {
         pending.failureMessage = nil
         try? modelContext.save()
         await drain()
-    }
-}
-
-private struct EntryRow: View {
-    let entry: ParsedEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(entry.merchant)
-                    .font(.body)
-                Spacer()
-                Text("\(entry.amount.formatted(.number))원")
-                    .font(.body.monospacedDigit())
-            }
-            HStack(spacing: 8) {
-                Text(entry.date, format: .dateTime.month().day().weekday(.abbreviated).locale(Locale(identifier: "ko_KR")))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let category = entry.category {
-                    Text(category)
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.tertiary, in: .capsule)
-                }
-                if entry.confidence < 0.8 {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .accessibilityLabel("신뢰도 낮음")
-                }
-            }
-        }
-        .padding(.vertical, 2)
-        .contentShape(.rect)
     }
 }
 

@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Month label for an integer month key (YYYYMM).
+func ledgerMonthLabel(_ key: Int) -> String {
+    "\(key / 100)년 \(key % 100)월"
+}
+
 /// Shared month selection row: ◀ Month (Menu) ▶.
 struct MonthNavigationRow<Key: Hashable>: View {
     struct Option: Identifiable {

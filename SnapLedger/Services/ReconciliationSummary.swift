@@ -32,6 +32,8 @@ struct ReconciliationSummary: Equatable {
     let interestTotal: Int
     let salaryAmount: Int
     let creditCardAmount: Int
+    /// Prior month's card bills paid out of this month's accounts.
+    let previousCardAmount: Int
     let savingsAmount: Int
     let adjustmentNetAmount: Int
     let recordedExpenseAmount: Int
@@ -66,6 +68,7 @@ struct ReconciliationSummary: Equatable {
         // Sum amounts across items
         let salary = monthIncomes.reduce(0) { $0 + $1.amount }
         let card = monthCards.reduce(0) { $0 + $1.amount }
+        let previousCard = monthCards.reduce(0) { $0 + $1.previousAmount }
         let savings = monthSavings.reduce(0) { $0 + $1.amount }
         let adjustmentNet = monthAdjustments.reduce(0) { partial, adjustment in
             switch adjustment.direction {
@@ -77,11 +80,13 @@ struct ReconciliationSummary: Equatable {
         }
         let recordedExpense = monthEntries.reduce(0) { $0 + $1.amount }
         // Calculate actual spending (excluding savings)
-        let actual = opening + salary + interest + adjustmentNet + card - closing - savings
+        // The prior month's bill lowered the closing balance without being spending of this month.
+        let actual = opening + salary + interest + adjustmentNet + card - closing - savings - previousCard
         let recorded = recordedExpense
         let hasData = monthReconciliation != nil || !monthBalances.isEmpty
             || !monthAdjustments.isEmpty || !monthSavings.isEmpty || !monthCards.isEmpty
             || !monthIncomes.isEmpty
+        // `previousAmount` is prefilled by carry-forward, so it cannot signal real input.
         let started = monthBalances.contains { $0.openingBalance != $0.closingBalance }
             || monthCards.contains { $0.amount != 0 }
 
@@ -92,6 +97,7 @@ struct ReconciliationSummary: Equatable {
             interestTotal: interest,
             salaryAmount: salary,
             creditCardAmount: card,
+            previousCardAmount: previousCard,
             savingsAmount: savings,
             adjustmentNetAmount: adjustmentNet,
             recordedExpenseAmount: recordedExpense,
