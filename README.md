@@ -64,7 +64,7 @@ swiftlint --strict --config .swiftlint.yml
 
 ```bash
 xcodebuild test -project SnapLedger.xcodeproj -scheme SnapLedger \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro,OS=latest' \
   -only-testing:SnapLedgerTests
 ```
 
