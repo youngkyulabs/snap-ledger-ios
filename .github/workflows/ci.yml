@@ -84,6 +84,8 @@ jobs:
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
           echo "${ACTIONLINT_SHA256}  ${tarball}" | sha256sum -c -
           tar xzf "$tarball" actionlint
-          # shellcheck ships on this runner, so `run:` blocks are checked too --
-          # something a local actionlint without shellcheck cannot do.
+          # The runner ships shellcheck, so `run:` blocks get checked too --
+          # something a local run without it cannot do. (Do not start this
+          # comment with the tool's name: that spelling is a shellcheck
+          # directive, and it fails to parse as one.)
           ./actionlint -color
