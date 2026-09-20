@@ -5,8 +5,10 @@ tagged commit, waiting for it to process, and linking it to the version.
 """
 from __future__ import annotations
 
+import argparse
 import os
 import re
+import sys
 import time
 
 from scripts.asc_client import ASCError
@@ -204,3 +206,132 @@ def link_build(client, version_id, build_id):
     if status not in (200, 204):
         raise ASCError("could not link build %s (%s): %s" % (build_id, status, body))
     return True
+
+
+APP_ID = "6772852897"
+PRODUCT_ID = "D3A25FB4-477F-477F-98A3-5D0449AA4DDC"
+DEFAULT_METADATA_DIR = "fastlane/metadata/ko"
+DEFAULT_PBXPROJ = "SnapLedger.xcodeproj/project.pbxproj"
+
+
+def _localization(client, version_id):
+    status, body = client.request(
+        "GET", "/v1/appStoreVersions/%s/appStoreVersionLocalizations" % version_id)
+    if status != 200:
+        raise ASCError("could not read localizations (%s): %s" % (status, body))
+    for localization in body.get("data", []):
+        if localization["attributes"].get("locale") == "ko":
+            return localization
+    raise ASCError("no ko localization on version %s" % version_id)
+
+
+def _app_info_localization(client):
+    status, body = client.request("GET", "/v1/apps/%s/appInfos" % APP_ID)
+    if status != 200:
+        raise ASCError("could not read app infos (%s): %s" % (status, body))
+    info_id = body["data"][0]["id"]
+    status, body = client.request("GET", "/v1/appInfos/%s/appInfoLocalizations" % info_id)
+    if status != 200:
+        raise ASCError("could not read app info localizations (%s): %s" % (status, body))
+    for localization in body.get("data", []):
+        if localization["attributes"].get("locale") == "ko":
+            return localization
+    raise ASCError("no ko app info localization")
+
+
+def _cmd_audit(args, client):
+    files = read_metadata_dir(args.metadata_dir)
+    if not files:
+        print("no metadata files found in %s" % args.metadata_dir)
+        return 1
+
+    limit_errors = check_limits(files)
+    for error in limit_errors:
+        print("LIMIT  %s" % error)
+
+    editable = find_editable_version(client, APP_ID)
+    if editable is None:
+        print("no editable version on App Store Connect; compared limits only")
+        return 1 if limit_errors else 0
+
+    version_live = _localization(client, editable["id"])["attributes"]
+    info_live = _app_info_localization(client)["attributes"]
+    differences = (
+        diff_metadata(files, version_live, VERSION_FIELDS)
+        + diff_metadata(files, info_live, APP_INFO_FIELDS)
+    )
+    for field, want, got in differences:
+        print("DIFF   %s: repo=%r asc=%r" % (field, want[:40], got[:40]))
+
+    if not differences and not limit_errors:
+        print("metadata matches App Store Connect (version %s)" %
+              editable["attributes"].get("versionString"))
+        return 0
+    return 1
+
+
+def _cmd_link_build(args, client):
+    version = parse_version_from_tag(args.tag)
+    with open(args.pbxproj, encoding="utf-8") as handle:
+        marketing = read_marketing_version(handle.read())
+    if marketing != version:
+        raise ASCError("tag %s says version %s but MARKETING_VERSION is %s" % (args.tag, version, marketing))
+
+    editable = find_editable_version(client, APP_ID)
+    assert_version_matches(editable, version)
+    if editable is None:
+        raise ASCError("no editable version %s on App Store Connect" % version)
+
+    run = find_build_run(client, PRODUCT_ID, args.workflow_id, args.commit)
+    if run is None:
+        raise ASCError("no Xcode Cloud run found for commit %s in workflow %s" % (args.commit, args.workflow_id))
+    print("matched build run #%s (%s)" % (run["attributes"].get("number"), run["id"]))
+
+    if args.dry_run:
+        print("dry run: stopping before waiting for the build")
+        return 0
+
+    build_id = wait_for_valid_build(client, run["id"], timeout_s=args.timeout)
+    if link_build(client, editable["id"], build_id):
+        print("linked build %s to version %s" % (build_id, version))
+    else:
+        print("build %s was already linked to version %s" % (build_id, version))
+    return 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="App Store Connect release helper")
+    subparsers = parser.add_subparsers(dest="command")
+
+    audit = subparsers.add_parser("audit", help="compare repo metadata against App Store Connect")
+    audit.add_argument("--metadata-dir", default=DEFAULT_METADATA_DIR)
+
+    link = subparsers.add_parser("link-build", help="wait for the tagged build and link it")
+    link.add_argument("--tag", required=True)
+    link.add_argument("--commit", required=True)
+    link.add_argument("--workflow-id", required=True)
+    link.add_argument("--pbxproj", default=DEFAULT_PBXPROJ)
+    link.add_argument("--timeout", type=int, default=2400)
+    link.add_argument("--dry-run", action="store_true")
+
+    args = parser.parse_args(argv)
+    if args.command is None:
+        parser.print_usage(sys.stderr)
+        return 2
+
+    handlers = {"audit": _cmd_audit, "link-build": _cmd_link_build}
+    handler = handlers.get(args.command)
+    if handler is None:
+        print("unknown command: %s" % args.command, file=sys.stderr)
+        return 2
+
+    try:
+        from scripts.asc_client import Client
+        return handler(args, Client.from_env())
+    except ASCError as error:
+        print("error: %s" % error, file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
