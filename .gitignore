@@ -37,3 +37,6 @@ docs/superpowers/
 
 # Claude Code scheduler runtime lock (do not commit)
 .claude/scheduled_tasks.lock
+
+# fastlane deliver staging output (source: internal/screenshot)
+fastlane/screenshots/
