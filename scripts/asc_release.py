@@ -44,11 +44,20 @@ def read_marketing_version(pbxproj_text):
     return values.pop()
 
 
-def find_editable_version(client, app_id, version=None):
-    """The editable version for `version`, or the first editable one if not given.
+def _version_sort_key(version_string):
+    return [int(part) if part.isdigit() else -1 for part in (version_string or "").split(".")]
 
-    Passing the version matters: REJECTED and DEVELOPER_REJECTED versions sit in
-    EDITABLE_STATES indefinitely, so "first editable" can be an old release.
+
+def _version_string(editable):
+    return (editable or {}).get("attributes", {}).get("versionString")
+
+
+def find_editable_versions(client, app_id, version=None):
+    """Every version App Store Connect still lets us edit, newest first.
+
+    REJECTED and DEVELOPER_REJECTED versions sit in EDITABLE_STATES
+    indefinitely, and the list endpoint has no documented order, so callers
+    must never depend on "whichever one came back first".
     """
     path = "/v1/apps/%s/appStoreVersions?limit=20" % app_id
     if version is not None:
@@ -56,14 +65,36 @@ def find_editable_version(client, app_id, version=None):
     status, body = client.request("GET", path)
     if status != 200:
         raise ASCError("could not list versions (%s): %s" % (status, body))
-    for found in body.get("data", []):
-        attributes = found.get("attributes", {})
+    found = []
+    for item in body.get("data", []):
+        attributes = item.get("attributes", {})
         if attributes.get("appStoreState") not in EDITABLE_STATES:
             continue
         if version is not None and attributes.get("versionString") != version:
             continue
-        return found
-    return None
+        found.append(item)
+    found.sort(key=lambda item: _version_sort_key(_version_string(item)), reverse=True)
+    return found
+
+
+def find_editable_version(client, app_id, version=None):
+    """The editable version for `version`, or the highest editable one."""
+    found = find_editable_versions(client, app_id, version)
+    return found[0] if found else None
+
+
+def conflicting_draft(editables, version):
+    """The draft deliver would rename, or None if there is nothing to fear.
+
+    deliver edits the app's editable version, renaming it when its version
+    string differs from --app_version. A draft that already *is* `version` is
+    exactly what we want, so other drafts only matter when that one is absent.
+    Checking membership rather than "the first editable one" keeps the answer
+    independent of the order App Store Connect happens to list versions in.
+    """
+    if any(_version_string(editable) == version for editable in editables):
+        return None
+    return editables[0] if editables else None
 
 
 def assert_version_matches(editable, expected):
@@ -329,7 +360,9 @@ def _cmd_preflight(args, client):
     except ASCError:
         version = None
     if version is not None:
-        editable = find_editable_version(client, APP_ID) or None
+        # Every editable version, not just whichever one came back first: a
+        # draft that already matches the tag makes the others harmless.
+        editable = conflicting_draft(find_editable_versions(client, APP_ID), version)
 
     problems = preflight_problems(args.tag, marketing, files, editable, args.workflow_id)
     for problem in problems:
@@ -376,11 +409,12 @@ def _cmd_audit(args, client):
     for error in limit_errors:
         print("LIMIT  %s" % error)
 
-    editable = find_editable_version(client, APP_ID)
+    editable = find_editable_version(client, APP_ID, args.version)
     if editable is None:
         print("no editable version on App Store Connect; compared limits only")
         return 1 if limit_errors else 0
 
+    print("comparing against App Store Connect version %s" % _version_string(editable))
     version_live = _localization(client, editable["id"])["attributes"]
     info_live = _app_info_localization(client)["attributes"]
     differences = (
@@ -437,6 +471,8 @@ def main(argv=None):
 
     audit = subparsers.add_parser("audit", help="compare repo metadata against App Store Connect")
     audit.add_argument("--metadata-dir", default=DEFAULT_METADATA_DIR)
+    audit.add_argument("--version", default=None,
+                       help="version to compare against; default is the highest editable one")
 
     pre = subparsers.add_parser("preflight", help="block a bad release before deliver writes anything")
     pre.add_argument("--tag", required=True)

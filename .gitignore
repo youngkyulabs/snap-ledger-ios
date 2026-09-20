@@ -25,8 +25,9 @@ Pods/
 # fastlane
 fastlane/report.xml
 fastlane/Preview.html
-fastlane/screenshots/
 fastlane/test_output/
+# deliver staging output, generated from internal/screenshot by scripts/stage_screenshots.sh
+fastlane/screenshots/
 
 # Local planning notes (kept out of repo)
 docs/plans/
@@ -38,5 +39,6 @@ docs/superpowers/
 # Claude Code scheduler runtime lock (do not commit)
 .claude/scheduled_tasks.lock
 
-# fastlane deliver staging output (source: internal/screenshot)
-fastlane/screenshots/
+# App Store Connect API credentials materialized by the release workflow
+.asc_key.p8
+.asc_key.json
