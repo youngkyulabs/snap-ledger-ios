@@ -60,3 +60,30 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -only-testing:SnapLedgerTests \
             | xcbeautify --renderer github-actions
+
+  workflows:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: actionlint
+        env:
+          # Pinned like fastlane in release.yml. A linter whose rules shift under
+          # you is worse than none, and the checksum comes from the release's own
+          # checksums.txt.
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$tarball" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
+          echo "${ACTIONLINT_SHA256}  ${tarball}" | sha256sum -c -
+          tar xzf "$tarball" actionlint
+          # shellcheck ships on this runner, so `run:` blocks are checked too --
+          # something a local actionlint without shellcheck cannot do.
+          ./actionlint -color
