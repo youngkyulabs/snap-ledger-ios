@@ -1,10 +1,11 @@
 import contextlib
 import io
+import itertools
 import os
 import tempfile
 import unittest
 
-from scripts.asc_client import ASCError
+from scripts.asc_client import ASCError, ASCTransportError
 from scripts.asc_release import (
     preflight_problems,
     find_editable_version,
@@ -25,6 +26,18 @@ from scripts.asc_release import (
     read_metadata_dir,
     wait_for_valid_build,
 )
+
+
+
+def advancing_clock(step=10.0):
+    """A clock that always moves forward.
+
+    A constant `now` plus a no-op `sleep` lets a loop that should have raised
+    spin forever, so a bug shows up as a hung suite instead of a red test.
+    Advancing means every loop eventually meets its deadline and fails loudly.
+    """
+    ticks = itertools.count(0.0, step)
+    return lambda: next(ticks)
 
 
 class ParseVersionTests(unittest.TestCase):
@@ -181,7 +194,7 @@ class WaitForValidBuildTests(unittest.TestCase):
         })
         slept = []
         self.assertEqual(
-            wait_for_valid_build(client, "run-1", interval_s=5, sleep=slept.append, now=lambda: 0.0),
+            wait_for_valid_build(client, "run-1", interval_s=5, sleep=slept.append, now=advancing_clock()),
             "build-1",
         )
         self.assertEqual(slept, [5])
@@ -193,8 +206,9 @@ class WaitForValidBuildTests(unittest.TestCase):
             "/v1/builds/": [(200, {"data": {"attributes": {"processingState": "INVALID"}}})],
         })
         with self.assertRaises(ASCError) as ctx:
-            wait_for_valid_build(client, "run-1", sleep=lambda _: None, now=lambda: 0.0)
-        self.assertIn("INVALID", str(ctx.exception))
+            wait_for_valid_build(client, "run-1", sleep=lambda _: None, now=advancing_clock())
+        self.assertIn("finished processing as INVALID", str(ctx.exception))
+        self.assertNotIn("timed out", str(ctx.exception))
 
     def test_raises_after_the_timeout_elapses(self):
         client = FakeClient({
@@ -323,7 +337,7 @@ class WaitForBuildRunTests(unittest.TestCase):
             (200, {"data": [_run(61, "abc123", "TAG-WF")]}),
         ]})
         run = wait_for_build_run(client, "PRODUCT", "TAG-WF", "abc123",
-                                 interval_s=7, sleep=lambda _: None, now=lambda: 0.0)
+                                 interval_s=7, sleep=lambda _: None, now=advancing_clock())
         self.assertEqual(run["id"], "run-61")
 
     def test_raises_when_the_run_never_appears(self):
@@ -343,8 +357,10 @@ class BuildRunFailureTests(unittest.TestCase):
                 "number": 61, "executionProgress": "COMPLETE", "completionStatus": "FAILED"}}})],
         })
         with self.assertRaises(ASCError) as ctx:
-            wait_for_valid_build(client, "run-1", sleep=lambda _: None, now=lambda: 0.0)
+            wait_for_valid_build(client, "run-1", sleep=lambda _: None, now=advancing_clock())
         message = str(ctx.exception)
+        self.assertIn("no build to link", message)
+        self.assertNotIn("timed out", message)
         self.assertIn("FAILED", message)
         self.assertIn("61", message)
 
@@ -409,6 +425,75 @@ class PreflightProblemsTests(unittest.TestCase):
         problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=self._files(),
                                       editable=None, workflow_id="")
         self.assertTrue(any("workflow" in p.lower() for p in problems))
+
+
+
+class TransientFailureTests(unittest.TestCase):
+    """An App Store Connect blip must not end a release deliver already wrote."""
+
+    class FlakyClient:
+        """Raises a transport error the first `failures` times, then replays."""
+
+        def __init__(self, failures, inner):
+            self.failures = failures
+            self.inner = inner
+            self.raised = 0
+
+        def request(self, method, path, body=None):
+            if self.raised < self.failures:
+                self.raised += 1
+                raise ASCTransportError("GET %s failed after 3 attempts (HTTP 503)" % path)
+            return self.inner.request(method, path, body)
+
+    def test_build_poll_outlasts_a_transport_error(self):
+        inner = FakeClient({
+            "/v1/ciBuildRuns/run-1/builds": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/ciBuildRuns/run-1": [(200, {"data": {"attributes": {"number": 61, "completionStatus": None}}})],
+            "/v1/builds/": [(200, {"data": {"attributes": {"processingState": "VALID"}}})],
+        })
+        client = self.FlakyClient(2, inner)
+        self.assertEqual(
+            wait_for_valid_build(client, "run-1", interval_s=5, sleep=lambda _: None, now=advancing_clock()),
+            "build-1",
+        )
+        self.assertEqual(client.raised, 2)
+
+    def test_a_failed_build_still_raises_through_the_new_handler(self):
+        # The guard must swallow transport errors only; a terminal INVALID has
+        # to escape. A handler one notch too broad (except ASCError) would
+        # swallow it and poll out the whole timeout instead, so this asserts the
+        # loop never slept -- the message alone would not catch that, because the
+        # timeout text quotes last_problem and would contain "INVALID" too.
+        client = FakeClient({
+            "/v1/ciBuildRuns/run-1/builds": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/ciBuildRuns/run-1": [(200, {"data": {"attributes": {"number": 61, "completionStatus": None}}})],
+            "/v1/builds/": [(200, {"data": {"attributes": {"processingState": "INVALID"}}})],
+        })
+        slept = []
+        clock = iter([0.0, 10.0, 9999.0])
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_valid_build(client, "run-1", timeout_s=60,
+                                 sleep=slept.append, now=lambda: next(clock))
+        self.assertIn("finished processing as INVALID", str(ctx.exception))
+        self.assertNotIn("timed out", str(ctx.exception))
+        self.assertEqual(slept, [])
+        self.assertNotIsInstance(ctx.exception, ASCTransportError)
+
+    def test_timeout_message_names_the_transport_problem(self):
+        inner = FakeClient({"/v1/ciProducts": [(200, {"data": []})]})
+        client = self.FlakyClient(99, inner)
+        clock = iter([0.0, 5.0, 9999.0])
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_build_run(client, "PRODUCT", "TAG-WF", "abc123",
+                               timeout_s=60, sleep=lambda _: None, now=lambda: next(clock))
+        self.assertIn("HTTP 503", str(ctx.exception))
+
+    def test_run_poll_outlasts_a_transport_error(self):
+        inner = FakeClient({"/v1/ciProducts": [(200, {"data": [_run(61, "abc123", "TAG-WF")]})]})
+        client = self.FlakyClient(1, inner)
+        run = wait_for_build_run(client, "PRODUCT", "TAG-WF", "abc123",
+                                 interval_s=7, sleep=lambda _: None, now=advancing_clock())
+        self.assertEqual(run["id"], "run-61")
 
 
 if __name__ == "__main__":

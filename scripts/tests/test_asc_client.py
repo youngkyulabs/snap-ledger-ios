@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import urllib.error
 
-from scripts.asc_client import RETRY_ATTEMPTS, ASCError, Client, _decode_body
+from scripts.asc_client import RETRY_ATTEMPTS, ASCError, ASCTransportError, Client, _decode_body
 
 
 def _b64u_decode(segment):
@@ -110,12 +110,23 @@ class RetryTests(unittest.TestCase):
         self.assertEqual(client.request("GET", "/v1/builds", sleep=lambda _: None), (200, {"data": []}))
         self.assertEqual(client.attempts, 2)
 
-    def test_gives_up_as_an_asc_error_not_a_raw_urlerror(self):
+    def test_gives_up_as_a_transport_error_not_a_raw_urlerror(self):
         client = RecordingClient([urllib.error.URLError("down")] * RETRY_ATTEMPTS)
-        with self.assertRaises(ASCError) as ctx:
+        with self.assertRaises(ASCTransportError) as ctx:
             client.request("GET", "/v1/builds", sleep=lambda _: None)
         self.assertIn("after %d attempts" % RETRY_ATTEMPTS, str(ctx.exception))
         self.assertEqual(client.attempts, RETRY_ATTEMPTS)
+
+    def test_a_persistent_503_also_raises_a_transport_error(self):
+        # A 5xx that outlives the retries is as transient as a reset socket, so
+        # it must leave by the same door the poll loops know how to tolerate.
+        client = RecordingClient([(503, b"busy")] * RETRY_ATTEMPTS)
+        with self.assertRaises(ASCTransportError) as ctx:
+            client.request("GET", "/v1/builds", sleep=lambda _: None)
+        self.assertIn("HTTP 503", str(ctx.exception))
+
+    def test_transport_error_is_still_an_asc_error(self):
+        self.assertTrue(issubclass(ASCTransportError, ASCError))
 
     def test_a_client_error_is_returned_without_retrying(self):
         client = RecordingClient([(409, {"errors": []})])
