@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import http.client
 import json
 import os
 import subprocess
@@ -32,6 +33,20 @@ class ASCTransportError(ASCError):
     """
 
 
+class _UnreadableBody(Exception):
+    """A 2xx body that arrived unparseable. Internal: never leaves `request`."""
+
+
+# urlopen and resp.read() raise more than OSError. A response cut short comes
+# out as http.client.IncompleteRead -- an HTTPException, which is *not* an
+# OSError -- and a body cut mid-JSON comes out of _decode_body as a ValueError.
+# Neither is an ASCError, so catching only OSError let both escape `request`
+# untouched: past the poll loops' `except ASCTransportError` and past main's
+# `except ASCError`, ending the release in a bare traceback after deliver had
+# already overwritten the metadata.
+TRANSIENT_EXCEPTIONS = (OSError, http.client.HTTPException, _UnreadableBody)
+
+
 def _b64u(raw):
     return base64.urlsafe_b64encode(raw).rstrip(b"=")
 
@@ -60,7 +75,12 @@ def _decode_body(raw):
     """
     stripped = raw.strip()
     if stripped.startswith((b"{", b"[")):
-        return json.loads(stripped)
+        try:
+            return json.loads(stripped)
+        except ValueError as error:
+            # A body that opens as JSON and does not close as one is a
+            # truncated read, not an answer. Hand it to the retry loop.
+            raise _UnreadableBody("truncated JSON response: %s" % error) from error
     return raw
 
 
@@ -132,9 +152,9 @@ class Client:
                 sleep(RETRY_BACKOFF_S * attempt)
             try:
                 # HTTPError is handled inside _request_once, so anything caught
-                # here is a genuine network/socket failure.
+                # here is a genuine network/socket/truncation failure.
                 status, payload = self._request_once(method, path, body)
-            except OSError as error:
+            except TRANSIENT_EXCEPTIONS as error:
                 last_problem = "%s: %s" % (type(error).__name__, error)
                 continue
             if status in RETRY_STATUSES:

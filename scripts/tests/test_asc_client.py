@@ -1,12 +1,21 @@
 import base64
+import http.client
 import json
 import os
 import subprocess
 import tempfile
 import unittest
 import urllib.error
+from unittest import mock
 
-from scripts.asc_client import RETRY_ATTEMPTS, ASCError, ASCTransportError, Client, _decode_body
+from scripts.asc_client import (
+    RETRY_ATTEMPTS,
+    ASCError,
+    ASCTransportError,
+    Client,
+    _decode_body,
+    _UnreadableBody,
+)
 
 
 def _b64u_decode(segment):
@@ -80,6 +89,12 @@ class DecodeBodyTests(unittest.TestCase):
     def test_whitespace_only_body_is_not_parsed(self):
         self.assertEqual(_decode_body(b"  \n "), b"  \n ")
 
+    def test_a_body_cut_mid_json_is_not_a_bare_value_error(self):
+        # json.loads raises ValueError here, which is neither an OSError nor an
+        # ASCError -- so it used to walk straight out of Client.request.
+        with self.assertRaises(_UnreadableBody):
+            _decode_body(b'{"data": [{"id": "bui')
+
     def test_non_json_body_is_returned_untouched(self):
         self.assertEqual(_decode_body(b"plain text"), b"plain text")
 
@@ -134,10 +149,71 @@ class RetryTests(unittest.TestCase):
     def test_transport_error_is_still_an_asc_error(self):
         self.assertTrue(issubclass(ASCTransportError, ASCError))
 
+    def test_retries_past_a_truncated_read(self):
+        # IncompleteRead is an HTTPException, not an OSError: catching only
+        # OSError let it escape the retry loop entirely.
+        client = RecordingClient([
+            http.client.IncompleteRead(b"half a body"),
+            (200, {"data": []}),
+        ])
+        self.assertEqual(client.request("GET", "/v1/builds", sleep=lambda _: None), (200, {"data": []}))
+        self.assertEqual(client.attempts, 2)
+
+    def test_a_persistent_truncated_read_becomes_a_transport_error(self):
+        client = RecordingClient([http.client.IncompleteRead(b"half")] * RETRY_ATTEMPTS)
+        with self.assertRaises(ASCTransportError):
+            client.request("GET", "/v1/builds", sleep=lambda _: None)
+
     def test_a_client_error_is_returned_without_retrying(self):
         client = RecordingClient([(409, {"errors": []})])
         self.assertEqual(client.request("PATCH", "/v1/x", sleep=lambda _: None), (409, {"errors": []}))
         self.assertEqual(client.attempts, 1)
+
+
+class _FakeResponse:
+    """The bit of http.client.HTTPResponse that _request_once touches."""
+
+    def __init__(self, status, raw):
+        self.status = status
+        self._raw = raw
+
+    def read(self):
+        return self._raw
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+
+class _TokenlessClient(Client):
+    def token(self):
+        return "stub-token"
+
+
+class RealRequestPathTests(unittest.TestCase):
+    """Drive the actual _request_once, not a stand-in for it."""
+
+    def _client(self):
+        return _TokenlessClient("unused.p8", "KEYID", "ISSUER")
+
+    def test_a_truncated_json_response_leaves_as_a_transport_error(self):
+        # End to end this was the worst shape of the bug: a ValueError out of
+        # _decode_body, past the retry loop, past the poll loops'
+        # `except ASCTransportError`, past main's `except ASCError`, and into a
+        # traceback with deliver's metadata already written.
+        with mock.patch("scripts.asc_client.urllib.request.urlopen",
+                        return_value=_FakeResponse(200, b'{"data": [{"id": "bui')):
+            with self.assertRaises(ASCTransportError) as ctx:
+                self._client().request("GET", "/v1/builds", sleep=lambda _: None)
+        self.assertIn("truncated JSON", str(ctx.exception))
+
+    def test_an_empty_204_still_comes_back_as_a_plain_body(self):
+        with mock.patch("scripts.asc_client.urllib.request.urlopen",
+                        return_value=_FakeResponse(204, b"")):
+            self.assertEqual(self._client().request("PATCH", "/v1/x", {"data": {}},
+                                                    sleep=lambda _: None), (204, b""))
 
 
 if __name__ == "__main__":

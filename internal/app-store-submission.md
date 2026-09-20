@@ -52,13 +52,19 @@ App Store에 표시되는 **텍스트의 실제 값은 `fastlane/metadata/ko/`**
 | Promotional Text | `promotional_text.txt` | 170자 | 심사 없이 수시 변경 가능 — 짧은 공지에 쓰기 좋다 |
 | Keywords | `keywords.txt` | 100자 | 콤마 구분, **공백 없이** (공백도 글자 수에 포함) |
 | Description | `description.txt` | 4000자 | `■` 섹션 구조 유지 — 동작 / 기능 / 프라이버시 / 요구 사항 / 의도된 한계 |
-| What's New | `release_notes.txt` | 4000자 | 버전마다 교체하되, 내린 노트는 아래에 보존 |
+| What's New | `release_notes.txt` | 4000자 | 버전마다 **반드시** 교체 — 안 바꾸면 `preflight`가 막는다. 내린 노트는 아래에 보존 |
 | Support URL | `support_url.txt` | — | §1 표에서 이 파일을 가리킨다 |
 | Privacy Policy URL | `privacy_url.txt` | — | **앱 정보(app-level)** — §1 표에서 이 파일을 가리킨다 |
 
 글자수 초과와 파일 누락은 `preflight`가 업로드 전에 막는다
 (`FIELD_LIMITS` / `missing_metadata_files` in `scripts/asc_release.py`). 파일이
 없으면 deliver는 그 필드를 조용히 건너뛰기 때문에, 누락은 경고가 아니라 차단이다.
+
+릴리즈 노트를 안 고친 것도 같은 이유로 차단이다(`published_release_notes`).
+파일이 그대로면 존재 검사도 글자수 검사도 통과하고, `audit`은 그 파일이 복사돼
+나온 바로 그 텍스트와 비교해 "일치"라고 답한다 — 아무도 못 보는 사이에 새 버전이
+지난 버전 노트를 달고 나간다. 그래서 App Store Connect에 이미 올라간 직전 버전의
+What's New와 글자 그대로 같으면 업로드 전에 멈춘다.
 
 ### 이전 버전 노트 (내려간 What's New)
 ```
