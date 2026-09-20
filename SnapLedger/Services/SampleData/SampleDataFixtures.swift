@@ -1,12 +1,23 @@
 #if DEBUG
 import Foundation
 
-/// Reference months used by sample data fixtures.
+/// Reference months used by sample data fixtures, resolved against today.
 enum SampleMonths {
-    /// Closed hero sample month.
-    static let hero = 202605
-    /// In-progress current sample month.
-    static let current = 202606
+    /// In-progress month containing today.
+    static var current: Int { key(monthsFromNow: 0) }
+    /// Closed month right before `current` — the screenshot hero month.
+    static var hero: Int { key(monthsFromNow: -1) }
+
+    /// yyyyMM key of the month `monthsFromNow` months away from `now`.
+    static func key(monthsFromNow: Int, now: Date = Date(), calendar: Calendar = .current) -> Int {
+        let start = calendar.dateComponents([.year, .month], from: now)
+        guard let first = calendar.date(from: start),
+              let shifted = calendar.date(byAdding: .month, value: monthsFromNow, to: first) else {
+            return 0
+        }
+        let result = calendar.dateComponents([.year, .month], from: shifted)
+        return (result.year ?? 0) * 100 + (result.month ?? 0)
+    }
 }
 
 /// Category budget limit seed fixture.
@@ -15,20 +26,21 @@ struct BudgetSeed: Equatable {
     let monthlyLimit: Int
 }
 
-/// Pending review item seed fixture.
+/// Pending review item seed fixture. `daysAgo` stays within 0...1 so seeded rows never show a date warning.
 struct ReviewSeed: Equatable {
     let id: String
     let merchant: String
     let amount: Int
     let category: String?
-    let dateString: String
+    let daysAgo: Int
     let confidence: Double
     let note: String?
 }
 
-/// Embedded sample data fixtures.
+/// Embedded sample data fixtures. Expense dates are templates — only their day of month is used,
+/// remapped onto `SampleMonths.hero` / `.current` at seed time.
 enum SampleDataFixtures {
-    static let expenses202605 = """
+    static let expensesHero = """
     날짜,설명,카테고리,금액,메모
     2026-05-01,스타벅스 강남R점,카페,5800,아메리카노+크루아상
     2026-05-01,GS25 역삼점,생활,3200,
@@ -69,7 +81,7 @@ enum SampleDataFixtures {
     2026-05-31,스타벅스 강남R점,카페,6400,주말 카페
     """
 
-    static let expenses202606 = """
+    static let expensesCurrent = """
     날짜,설명,카테고리,금액,메모
     2026-06-01,넷플릭스,구독,13500,프리미엄
     2026-06-01,스타벅스 강남R점,카페,5800,
@@ -92,7 +104,7 @@ enum SampleDataFixtures {
     2026-06-14,교보문고,문화,22400,서적
     """
 
-    static let reconciliation202605 = """
+    static let reconciliationHero = """
     종류,항목,계좌,방향,금액,메모
     수입,월급,,,3000000,5월 급여
     수입,부수입,,,180000,중고거래 정산
@@ -110,7 +122,7 @@ enum SampleDataFixtures {
     월메모,,,,,5월은 택시 이용이 잦아 교통비가 예산을 넘김. 6월엔 대중교통 위주로.
     """
 
-    static let reconciliation202606 = """
+    static let reconciliationCurrent = """
     종류,항목,계좌,방향,금액,메모
     수입,월급,,,3000000,6월 급여
     카드사용액,신한카드,,,280000,중순까지
@@ -127,19 +139,19 @@ enum SampleDataFixtures {
     /// Stable UUID strings ensure idempotent seeding and clearing.
     static let reviewSeeds: [ReviewSeed] = [
         ReviewSeed(id: "11111111-1111-1111-1111-111111111101", merchant: "메가커피 선릉",
-                   amount: 2_500, category: "카페", dateString: "2026-06-20", confidence: 1.0, note: nil),
+                   amount: 2_500, category: "카페", daysAgo: 0, confidence: 1.0, note: nil),
         ReviewSeed(id: "11111111-1111-1111-1111-111111111102", merchant: "한솥도시락 역삼",
-                   amount: 5_300, category: "식비", dateString: "2026-06-20", confidence: 1.0, note: "점심"),
+                   amount: 5_300, category: "식비", daysAgo: 0, confidence: 1.0, note: "점심"),
         ReviewSeed(id: "11111111-1111-1111-1111-111111111103", merchant: "GS25 역삼점",
-                   amount: 4_100, category: "생활", dateString: "2026-06-20", confidence: 1.0, note: nil),
+                   amount: 4_100, category: "생활", daysAgo: 0, confidence: 1.0, note: nil),
         ReviewSeed(id: "11111111-1111-1111-1111-111111111104", merchant: "카카오T 택시",
-                   amount: 7_800, category: "교통", dateString: "2026-06-20", confidence: 0.72, note: nil),
+                   amount: 7_800, category: "교통", daysAgo: 0, confidence: 0.72, note: nil),
         ReviewSeed(id: "11111111-1111-1111-1111-111111111105", merchant: "이마트 성수점",
-                   amount: 68_400, category: "생활", dateString: "2026-06-19", confidence: 1.0, note: "장보기"),
+                   amount: 68_400, category: "생활", daysAgo: 1, confidence: 1.0, note: "장보기"),
         ReviewSeed(id: "11111111-1111-1111-1111-111111111106", merchant: "배달의민족",
-                   amount: 23_000, category: "식비", dateString: "2026-06-18", confidence: 1.0, note: "저녁 배달"),
+                   amount: 23_000, category: "식비", daysAgo: 1, confidence: 1.0, note: "저녁 배달"),
         ReviewSeed(id: "11111111-1111-1111-1111-111111111107", merchant: "넷플릭스",
-                   amount: 13_500, category: "구독", dateString: "2026-06-18", confidence: 1.0, note: "정기결제"),
+                   amount: 13_500, category: "구독", daysAgo: 1, confidence: 1.0, note: "정기결제"),
     ]
 
     /// Standard category budget limits for sample seeding.
