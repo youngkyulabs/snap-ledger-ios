@@ -8,7 +8,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  # One release at a time for the whole app, not one per tag: App Store Connect
+  # keeps a single editable draft, so two tags in flight would fight over it.
+  group: app-store-release
   cancel-in-progress: false
 
 jobs:
@@ -21,7 +23,9 @@ jobs:
     timeout-minutes: 120
 
     env:
-      ASC_KEY_PATH: ${{ github.workspace }}/.asc_key.p8
+      # Credentials live in the runner temp dir, never in the checkout.
+      ASC_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+      ASC_KEY_JSON: ${{ runner.temp }}/asc_key.json
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       TAG_WORKFLOW_ID: ${{ vars.XCODE_CLOUD_TAG_WORKFLOW_ID }}
@@ -92,10 +96,10 @@ jobs:
               "key": key,
               "in_house": False,
           }
-          with open(".asc_key.json", "w", encoding="utf-8") as handle:
+          with open(os.environ["ASC_KEY_JSON"], "w", encoding="utf-8") as handle:
               json.dump(payload, handle)
           PY
-          chmod 600 .asc_key.json
+          chmod 600 "$ASC_KEY_JSON"
 
       - name: Upload metadata and screenshots
         env:
@@ -106,7 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           fastlane deliver \
-            --api_key_path .asc_key.json \
+            --api_key_path "$ASC_KEY_JSON" \
             --app_identifier com.youngkyu.snapledger \
             --app_version "${GITHUB_REF_NAME#v}" \
             --metadata_path ./fastlane/metadata \
@@ -128,4 +132,4 @@ jobs:
 
       - name: Remove credentials
         if: always()
-        run: rm -f "$ASC_KEY_PATH" .asc_key.json
+        run: rm -f "$ASC_KEY_PATH" "$ASC_KEY_JSON"

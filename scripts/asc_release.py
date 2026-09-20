@@ -192,8 +192,21 @@ def diff_metadata(files, live, mapping):
     return differences
 
 
+# A rejected key or a key without the Xcode Cloud role answers the same way on
+# every poll, so the loop below must leave immediately instead of holding the
+# runner for the full timeout. 404 is deliberately absent: the ids we poll come
+# from a listing we just read, and a distributed API may answer 404 for a moment
+# before catching up.
+FATAL_STATUSES = frozenset([401, 403])
+
 BUILD_FAILURE_STATES = frozenset(["INVALID", "FAILED"])
 RUN_FAILURE_STATES = frozenset(["FAILED", "ERRORED", "CANCELED", "SKIPPED"])
+
+
+def _raise_if_fatal(status, what):
+    if status in FATAL_STATUSES:
+        raise ASCError("%s returned %s; the API key is rejected or lacks the Xcode Cloud "
+                       "role, which polling cannot fix" % (what, status))
 
 
 def _run_workflow_id(run):
@@ -269,11 +282,13 @@ def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=ti
         # ASCError and must escape, or we would sit out the whole timeout.
         try:
             status, body = client.request("GET", "/v1/ciBuildRuns/%s/builds" % run_id)
+            _raise_if_fatal(status, "builds for run %s" % run_id)
             if status != 200:
                 last_problem = "builds returned %s: %s" % (status, body)
             if status == 200 and body.get("data"):
                 build_id = body["data"][0]["id"]
                 build_status, build_body = client.request("GET", "/v1/builds/%s" % build_id)
+                _raise_if_fatal(build_status, "build %s" % build_id)
                 if build_status == 200:
                     state = build_body["data"]["attributes"].get("processingState")
                     if state == "VALID":
@@ -286,6 +301,7 @@ def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=ti
             # A run that failed to archive never produces a build, so without this
             # the loop would spin for the full timeout and blame the wrong thing.
             run_status, run_body = client.request("GET", "/v1/ciBuildRuns/%s" % run_id)
+            _raise_if_fatal(run_status, "run %s" % run_id)
             if run_status == 200:
                 run_attributes = run_body["data"]["attributes"]
                 completion = run_attributes.get("completionStatus")
@@ -402,6 +418,8 @@ def _app_info_localization(client):
     status, body = client.request("GET", "/v1/apps/%s/appInfos" % APP_ID)
     if status != 200:
         raise ASCError("could not read app infos (%s): %s" % (status, body))
+    if not body.get("data"):
+        raise ASCError("app %s has no appInfos" % APP_ID)
     info_id = body["data"][0]["id"]
     status, body = client.request("GET", "/v1/appInfos/%s/appInfoLocalizations" % info_id)
     if status != 200:

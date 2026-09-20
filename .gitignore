@@ -39,6 +39,7 @@ docs/superpowers/
 # Claude Code scheduler runtime lock (do not commit)
 .claude/scheduled_tasks.lock
 
-# App Store Connect API credentials materialized by the release workflow
+# App Store Connect API credentials, if a local run drops them here
+# (CI writes them to the runner temp dir instead)
 .asc_key.p8
 .asc_key.json

@@ -12,8 +12,13 @@ from scripts.asc_client import ASCError, Client
 
 PRODUCT_ID = "D3A25FB4-477F-477F-98A3-5D0449AA4DDC"
 REPOSITORY_ID = "5943e6a7-2168-41d1-b9e8-e2706e92f3a9"
-XCODE_VERSION_ID = "31ce63a2-a54f-3e25-b883-dc13290abb7f"
-MACOS_VERSION_ID = "31ce63a2-a54f-3e25-b883-dc13290abb7f"
+# Not a copy-paste slip: Apple gives the "Latest Release" sentinel the same id in
+# both collections, and it is a real, separate resource in each. Verified against
+# the live API -- it is listed in /v1/ciXcodeVersions AND /v1/ciMacOsVersions, and
+# the workflow this script created resolves both relationships to it.
+LATEST_RELEASE_ID = "31ce63a2-a54f-3e25-b883-dc13290abb7f"
+XCODE_VERSION_ID = LATEST_RELEASE_ID
+MACOS_VERSION_ID = LATEST_RELEASE_ID
 
 BODY = {
     "data": {
