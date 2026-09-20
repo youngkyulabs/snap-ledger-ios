@@ -6,6 +6,10 @@ import unittest
 
 from scripts.asc_client import ASCError
 from scripts.asc_release import (
+    preflight_problems,
+    find_editable_version,
+    missing_metadata_files,
+    wait_for_build_run,
     APP_INFO_FIELDS,
     VERSION_FIELDS,
     assert_version_matches,
@@ -166,7 +170,8 @@ class FindBuildRunTests(unittest.TestCase):
 class WaitForValidBuildTests(unittest.TestCase):
     def test_returns_build_id_once_processing_state_is_valid(self):
         client = FakeClient({
-            "/v1/ciBuildRuns": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/ciBuildRuns/run-1/builds": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/ciBuildRuns/run-1": [(200, {"data": {"attributes": {"number": 61, "completionStatus": None}}})],
             "/v1/builds/": [
                 (200, {"data": {"attributes": {"processingState": "PROCESSING"}}}),
                 (200, {"data": {"attributes": {"processingState": "VALID"}}}),
@@ -181,7 +186,8 @@ class WaitForValidBuildTests(unittest.TestCase):
 
     def test_raises_when_the_build_fails_processing(self):
         client = FakeClient({
-            "/v1/ciBuildRuns": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/ciBuildRuns/run-1/builds": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/ciBuildRuns/run-1": [(200, {"data": {"attributes": {"number": 61, "completionStatus": None}}})],
             "/v1/builds/": [(200, {"data": {"attributes": {"processingState": "INVALID"}}})],
         })
         with self.assertRaises(ASCError) as ctx:
@@ -190,7 +196,8 @@ class WaitForValidBuildTests(unittest.TestCase):
 
     def test_raises_after_the_timeout_elapses(self):
         client = FakeClient({
-            "/v1/ciBuildRuns": [(200, {"data": []})],
+            "/v1/ciBuildRuns/run-1/builds": [(200, {"data": []})],
+            "/v1/ciBuildRuns/run-1": [(200, {"data": {"attributes": {"number": 61, "completionStatus": None}}})],
         })
         clock = iter([0.0, 10.0, 9999.0])
         with self.assertRaises(ASCError) as ctx:
@@ -233,6 +240,130 @@ class MainTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 main(["--help"])
         self.assertEqual(ctx.exception.code, 0)
+
+
+class FindEditableVersionTests(unittest.TestCase):
+    def test_picks_the_version_matching_the_tag_not_the_first_editable_one(self):
+        client = FakeClient({"/v1/apps": [(200, {"data": [
+            {"id": "old", "attributes": {"versionString": "1.4", "appStoreState": "DEVELOPER_REJECTED"}},
+            {"id": "new", "attributes": {"versionString": "1.5", "appStoreState": "PREPARE_FOR_SUBMISSION"}},
+        ]})]})
+        self.assertEqual(find_editable_version(client, "APP", "1.5")["id"], "new")
+
+    def test_without_a_version_returns_the_first_editable_one(self):
+        client = FakeClient({"/v1/apps": [(200, {"data": [
+            {"id": "old", "attributes": {"versionString": "1.4", "appStoreState": "DEVELOPER_REJECTED"}},
+        ]})]})
+        self.assertEqual(find_editable_version(client, "APP")["id"], "old")
+
+
+class BuildRunPreferenceTests(unittest.TestCase):
+    def test_confirmed_workflow_run_beats_a_higher_numbered_unknown_run(self):
+        unknown = _run(62, "abc123", "TAG-WF")
+        unknown["relationships"] = {}
+        client = FakeClient({"/v1/ciProducts": [(200, {"data": [_run(61, "abc123", "TAG-WF"), unknown]})]})
+        self.assertEqual(find_build_run(client, "PRODUCT", "TAG-WF", "abc123")["id"], "run-61")
+
+    def test_falls_back_to_unknown_runs_when_none_are_confirmed(self):
+        unknown = _run(62, "abc123", "TAG-WF")
+        unknown["relationships"] = {}
+        client = FakeClient({"/v1/ciProducts": [(200, {"data": [unknown]})]})
+        self.assertEqual(find_build_run(client, "PRODUCT", "TAG-WF", "abc123")["id"], "run-62")
+
+
+class WaitForBuildRunTests(unittest.TestCase):
+    def test_returns_the_run_once_it_appears(self):
+        client = FakeClient({"/v1/ciProducts": [
+            (200, {"data": []}),
+            (200, {"data": [_run(61, "abc123", "TAG-WF")]}),
+        ]})
+        run = wait_for_build_run(client, "PRODUCT", "TAG-WF", "abc123",
+                                 interval_s=7, sleep=lambda _: None, now=lambda: 0.0)
+        self.assertEqual(run["id"], "run-61")
+
+    def test_raises_when_the_run_never_appears(self):
+        client = FakeClient({"/v1/ciProducts": [(200, {"data": []})]})
+        clock = iter([0.0, 5.0, 9999.0])
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_build_run(client, "PRODUCT", "TAG-WF", "abc123",
+                               timeout_s=60, sleep=lambda _: None, now=lambda: next(clock))
+        self.assertIn("no Xcode Cloud run", str(ctx.exception))
+
+
+class BuildRunFailureTests(unittest.TestCase):
+    def test_fails_fast_when_the_run_itself_failed(self):
+        client = FakeClient({
+            "/v1/ciBuildRuns/run-1/builds": [(200, {"data": []})],
+            "/v1/ciBuildRuns/run-1": [(200, {"data": {"attributes": {
+                "number": 61, "executionProgress": "COMPLETE", "completionStatus": "FAILED"}}})],
+        })
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_valid_build(client, "run-1", sleep=lambda _: None, now=lambda: 0.0)
+        message = str(ctx.exception)
+        self.assertIn("FAILED", message)
+        self.assertIn("61", message)
+
+
+class MissingMetadataTests(unittest.TestCase):
+    def test_reports_a_metadata_file_that_is_absent(self):
+        files = {name: "x" for name in VERSION_FIELDS}
+        files.update({name: "x" for name in APP_INFO_FIELDS})
+        del files["promotional_text.txt"]
+        self.assertEqual(missing_metadata_files(files), ["promotional_text.txt"])
+
+    def test_reports_nothing_when_every_file_is_present(self):
+        files = {name: "x" for name in VERSION_FIELDS}
+        files.update({name: "x" for name in APP_INFO_FIELDS})
+        self.assertEqual(missing_metadata_files(files), [])
+
+
+class PreflightProblemsTests(unittest.TestCase):
+    """The gate that must run BEFORE fastlane deliver touches anything."""
+
+    def _files(self):
+        files = {name: "x" for name in VERSION_FIELDS}
+        files.update({name: "x" for name in APP_INFO_FIELDS})
+        return files
+
+    def test_clean_when_everything_lines_up(self):
+        self.assertEqual(
+            preflight_problems(tag="v1.5", marketing_version="1.5", files=self._files(),
+                               editable=None, workflow_id="WF"), [])
+
+    def test_blocks_a_malformed_tag(self):
+        problems = preflight_problems(tag="v1.5-beta", marketing_version="1.5",
+                                      files=self._files(), editable=None, workflow_id="WF")
+        self.assertTrue(any("v1.5-beta" in p for p in problems))
+
+    def test_blocks_when_marketing_version_disagrees(self):
+        problems = preflight_problems(tag="v1.5", marketing_version="1.4",
+                                      files=self._files(), editable=None, workflow_id="WF")
+        self.assertTrue(any("MARKETING_VERSION" in p for p in problems))
+
+    def test_blocks_when_another_version_draft_is_open(self):
+        editable = {"id": "x", "attributes": {"versionString": "1.6"}}
+        problems = preflight_problems(tag="v1.5", marketing_version="1.5",
+                                      files=self._files(), editable=editable, workflow_id="WF")
+        self.assertTrue(any("1.6" in p for p in problems))
+
+    def test_blocks_a_missing_metadata_file(self):
+        files = self._files()
+        del files["promotional_text.txt"]
+        problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=files,
+                                      editable=None, workflow_id="WF")
+        self.assertTrue(any("promotional_text.txt" in p for p in problems))
+
+    def test_blocks_text_over_the_character_limit(self):
+        files = self._files()
+        files["promotional_text.txt"] = "가" * 171
+        problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=files,
+                                      editable=None, workflow_id="WF")
+        self.assertTrue(any("promotionalText" in p for p in problems))
+
+    def test_blocks_an_empty_workflow_id(self):
+        problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=self._files(),
+                                      editable=None, workflow_id="")
+        self.assertTrue(any("workflow" in p.lower() for p in problems))
 
 
 if __name__ == "__main__":

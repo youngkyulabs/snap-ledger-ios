@@ -44,13 +44,25 @@ def read_marketing_version(pbxproj_text):
     return values.pop()
 
 
-def find_editable_version(client, app_id):
-    status, body = client.request("GET", "/v1/apps/%s/appStoreVersions?limit=20" % app_id)
+def find_editable_version(client, app_id, version=None):
+    """The editable version for `version`, or the first editable one if not given.
+
+    Passing the version matters: REJECTED and DEVELOPER_REJECTED versions sit in
+    EDITABLE_STATES indefinitely, so "first editable" can be an old release.
+    """
+    path = "/v1/apps/%s/appStoreVersions?limit=20" % app_id
+    if version is not None:
+        path += "&filter[versionString]=%s" % version
+    status, body = client.request("GET", path)
     if status != 200:
         raise ASCError("could not list versions (%s): %s" % (status, body))
-    for version in body.get("data", []):
-        if version.get("attributes", {}).get("appStoreState") in EDITABLE_STATES:
-            return version
+    for found in body.get("data", []):
+        attributes = found.get("attributes", {})
+        if attributes.get("appStoreState") not in EDITABLE_STATES:
+            continue
+        if version is not None and attributes.get("versionString") != version:
+            continue
+        return found
     return None
 
 
@@ -113,6 +125,16 @@ def read_metadata_dir(path):
     return files
 
 
+def missing_metadata_files(files):
+    """Expected metadata files that are not on disk.
+
+    deliver silently skips fields whose files are absent — that is how
+    Promotional Text went missing from 1.4 — so absence must be reported, not
+    treated as "nothing to compare".
+    """
+    return sorted(name for name in _all_fields() if name not in files)
+
+
 def check_limits(files):
     errors = []
     mapping = _all_fields()
@@ -140,6 +162,7 @@ def diff_metadata(files, live, mapping):
 
 
 BUILD_FAILURE_STATES = frozenset(["INVALID", "FAILED"])
+RUN_FAILURE_STATES = frozenset(["FAILED", "ERRORED", "CANCELED", "SKIPPED"])
 
 
 def _run_workflow_id(run):
@@ -148,12 +171,13 @@ def _run_workflow_id(run):
 
 
 def find_build_run(client, product_id, workflow_id, commit_sha):
-    path = "/v1/ciProducts/%s/buildRuns?limit=50&include=workflow" % product_id
+    path = "/v1/ciProducts/%s/buildRuns?limit=50&sort=-number&include=workflow" % product_id
     status, body = client.request("GET", path)
     if status != 200:
         raise ASCError("could not list build runs (%s): %s" % (status, body))
 
-    matches = []
+    confirmed = []
+    unknown = []
     for run in body.get("data", []):
         attributes = run.get("attributes") or {}
         source = attributes.get("sourceCommit") or {}
@@ -162,20 +186,49 @@ def find_build_run(client, product_id, workflow_id, commit_sha):
         found_workflow = _run_workflow_id(run)
         # sourceBranchOrTag comes back null, so the workflow relationship is
         # what separates the tag run from the main-push run on the same commit.
-        if found_workflow is not None and found_workflow != workflow_id:
-            continue
-        matches.append(run)
+        if found_workflow == workflow_id:
+            confirmed.append(run)
+        elif found_workflow is None:
+            unknown.append(run)
 
-    if not matches:
+    # A run we positively matched to the tag workflow always wins, even against a
+    # higher-numbered run whose workflow relationship the API left out.
+    pool = confirmed or unknown
+    if not pool:
         return None
-    matches.sort(key=lambda run: (run.get("attributes") or {}).get("number") or 0)
-    return matches[-1]
+    if not confirmed:
+        print("warning: no run confirmed for workflow %s; falling back to a run with no "
+              "workflow relationship" % workflow_id)
+    pool.sort(key=lambda run: (run.get("attributes") or {}).get("number") or 0)
+    return pool[-1]
+
+
+def wait_for_build_run(client, product_id, workflow_id, commit_sha,
+                       timeout_s=900, interval_s=30, sleep=time.sleep, now=time.monotonic):
+    """Poll until the tag's build run is listed.
+
+    The GHA job and the Xcode Cloud run start from the same tag push, so the run
+    may not exist yet when we first look.
+    """
+    deadline = now() + timeout_s
+    while True:
+        run = find_build_run(client, product_id, workflow_id, commit_sha)
+        if run is not None:
+            return run
+        if now() >= deadline:
+            raise ASCError(
+                "no Xcode Cloud run appeared for commit %s in workflow %s within %ds"
+                % (commit_sha, workflow_id, timeout_s))
+        sleep(interval_s)
 
 
 def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=time.sleep, now=time.monotonic):
     deadline = now() + timeout_s
+    last_problem = None
     while True:
         status, body = client.request("GET", "/v1/ciBuildRuns/%s/builds" % run_id)
+        if status != 200:
+            last_problem = "builds returned %s: %s" % (status, body)
         if status == 200 and body.get("data"):
             build_id = body["data"][0]["id"]
             build_status, build_body = client.request("GET", "/v1/builds/%s" % build_id)
@@ -185,8 +238,23 @@ def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=ti
                     return build_id
                 if state in BUILD_FAILURE_STATES:
                     raise ASCError("build %s finished processing as %s" % (build_id, state))
+            else:
+                last_problem = "build %s returned %s: %s" % (build_id, build_status, build_body)
+
+        # A run that failed to archive never produces a build, so without this the
+        # loop would spin for the full timeout and blame the wrong thing.
+        run_status, run_body = client.request("GET", "/v1/ciBuildRuns/%s" % run_id)
+        if run_status == 200:
+            run_attributes = run_body["data"]["attributes"]
+            completion = run_attributes.get("completionStatus")
+            if completion in RUN_FAILURE_STATES:
+                raise ASCError("Xcode Cloud run #%s finished as %s; no build to link"
+                               % (run_attributes.get("number"), completion))
+
         if now() >= deadline:
-            raise ASCError("timed out after %ds waiting for a VALID build from run %s" % (timeout_s, run_id))
+            detail = " (last problem: %s)" % last_problem if last_problem else ""
+            raise ASCError("timed out after %ds waiting for a VALID build from run %s%s"
+                           % (timeout_s, run_id, detail))
         sleep(interval_s)
 
 
@@ -212,6 +280,65 @@ APP_ID = "6772852897"
 PRODUCT_ID = "D3A25FB4-477F-477F-98A3-5D0449AA4DDC"
 DEFAULT_METADATA_DIR = "fastlane/metadata/ko"
 DEFAULT_PBXPROJ = "SnapLedger.xcodeproj/project.pbxproj"
+
+
+def preflight_problems(tag, marketing_version, files, editable, workflow_id):
+    """Everything that must be true before fastlane deliver writes anything.
+
+    deliver is destructive: it overwrites metadata and, with
+    --overwrite_screenshots, deletes the existing screenshots first. Every check
+    that could stop a release has to happen before that, not after.
+    """
+    problems = []
+
+    try:
+        version = parse_version_from_tag(tag)
+    except ASCError as error:
+        return [str(error)]
+
+    if marketing_version != version:
+        problems.append("tag %s says version %s but MARKETING_VERSION is %s"
+                        % (tag, version, marketing_version))
+
+    if editable is not None:
+        found = editable.get("attributes", {}).get("versionString")
+        if found != version:
+            problems.append(
+                "App Store Connect has an open %s draft but the tag says %s; deliver would "
+                "silently rename it" % (found, version))
+
+    for name in missing_metadata_files(files):
+        problems.append("metadata file missing: %s (deliver would skip that field silently)" % name)
+
+    problems.extend(check_limits(files))
+
+    if not (workflow_id or "").strip():
+        problems.append("Xcode Cloud workflow id is empty (set XCODE_CLOUD_TAG_WORKFLOW_ID)")
+
+    return problems
+
+
+def _cmd_preflight(args, client):
+    with open(args.pbxproj, encoding="utf-8") as handle:
+        marketing = read_marketing_version(handle.read())
+    files = read_metadata_dir(args.metadata_dir)
+
+    editable = None
+    try:
+        version = parse_version_from_tag(args.tag)
+    except ASCError:
+        version = None
+    if version is not None:
+        editable = find_editable_version(client, APP_ID) or None
+
+    problems = preflight_problems(args.tag, marketing, files, editable, args.workflow_id)
+    for problem in problems:
+        print("BLOCK  %s" % problem)
+    if problems:
+        print("preflight failed with %d problem(s); nothing was uploaded" % len(problems))
+        return 1
+    print("preflight clean for %s" % args.tag)
+    return 0
 
 
 def _localization(client, version_id):
@@ -277,14 +404,19 @@ def _cmd_link_build(args, client):
     if marketing != version:
         raise ASCError("tag %s says version %s but MARKETING_VERSION is %s" % (args.tag, version, marketing))
 
-    editable = find_editable_version(client, APP_ID)
+    editable = find_editable_version(client, APP_ID, version)
     assert_version_matches(editable, version)
     if editable is None:
         raise ASCError("no editable version %s on App Store Connect" % version)
 
-    run = find_build_run(client, PRODUCT_ID, args.workflow_id, args.commit)
-    if run is None:
-        raise ASCError("no Xcode Cloud run found for commit %s in workflow %s" % (args.commit, args.workflow_id))
+    if args.dry_run:
+        run = find_build_run(client, PRODUCT_ID, args.workflow_id, args.commit)
+        if run is None:
+            raise ASCError("no Xcode Cloud run found for commit %s in workflow %s"
+                           % (args.commit, args.workflow_id))
+    else:
+        run = wait_for_build_run(client, PRODUCT_ID, args.workflow_id, args.commit,
+                                 timeout_s=args.run_timeout)
     print("matched build run #%s (%s)" % (run["attributes"].get("number"), run["id"]))
 
     if args.dry_run:
@@ -306,12 +438,19 @@ def main(argv=None):
     audit = subparsers.add_parser("audit", help="compare repo metadata against App Store Connect")
     audit.add_argument("--metadata-dir", default=DEFAULT_METADATA_DIR)
 
+    pre = subparsers.add_parser("preflight", help="block a bad release before deliver writes anything")
+    pre.add_argument("--tag", required=True)
+    pre.add_argument("--workflow-id", default="")
+    pre.add_argument("--metadata-dir", default=DEFAULT_METADATA_DIR)
+    pre.add_argument("--pbxproj", default=DEFAULT_PBXPROJ)
+
     link = subparsers.add_parser("link-build", help="wait for the tagged build and link it")
     link.add_argument("--tag", required=True)
     link.add_argument("--commit", required=True)
     link.add_argument("--workflow-id", required=True)
     link.add_argument("--pbxproj", default=DEFAULT_PBXPROJ)
     link.add_argument("--timeout", type=int, default=2400)
+    link.add_argument("--run-timeout", type=int, default=900)
     link.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args(argv)
@@ -319,7 +458,7 @@ def main(argv=None):
         parser.print_usage(sys.stderr)
         return 2
 
-    handlers = {"audit": _cmd_audit, "link-build": _cmd_link_build}
+    handlers = {"audit": _cmd_audit, "preflight": _cmd_preflight, "link-build": _cmd_link_build}
     handler = handlers.get(args.command)
     if handler is None:
         print("unknown command: %s" % args.command, file=sys.stderr)
