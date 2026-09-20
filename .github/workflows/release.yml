@@ -23,9 +23,6 @@ jobs:
     timeout-minutes: 120
 
     env:
-      # Credentials live in the runner temp dir, never in the checkout.
-      ASC_KEY_PATH: ${{ runner.temp }}/asc_key.p8
-      ASC_KEY_JSON: ${{ runner.temp }}/asc_key.json
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       TAG_WORKFLOW_ID: ${{ vars.XCODE_CLOUD_TAG_WORKFLOW_ID }}
@@ -52,6 +49,14 @@ jobs:
             echo "::error::${GITHUB_REF_NAME} (${TAG_COMMIT}) is not on main; refusing to release"
             exit 1
           fi
+
+      - name: Point credentials at the runner temp dir
+        run: |
+          # Set here rather than in the job's `env`: the `runner` context is
+          # unavailable at that level, and referencing it there makes the whole
+          # workflow file invalid. $RUNNER_TEMP is outside the checkout.
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/asc_key.p8" >> "$GITHUB_ENV"
+          echo "ASC_KEY_JSON=$RUNNER_TEMP/asc_key.json" >> "$GITHUB_ENV"
 
       - name: Restore ASC private key
         env:
@@ -132,4 +137,4 @@ jobs:
 
       - name: Remove credentials
         if: always()
-        run: rm -f "$ASC_KEY_PATH" "$ASC_KEY_JSON"
+        run: rm -f "$RUNNER_TEMP/asc_key.p8" "$RUNNER_TEMP/asc_key.json"
