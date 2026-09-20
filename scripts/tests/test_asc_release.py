@@ -1,10 +1,21 @@
+import os
+import tempfile
 import unittest
 
 from scripts.asc_client import ASCError
 from scripts.asc_release import (
+    APP_INFO_FIELDS,
+    VERSION_FIELDS,
     assert_version_matches,
+    check_limits,
+    diff_metadata,
+    find_build_run,
+    link_build,
+    main,
     parse_version_from_tag,
     read_marketing_version,
+    read_metadata_dir,
+    wait_for_valid_build,
 )
 
 
@@ -59,18 +70,6 @@ class VersionGuardTests(unittest.TestCase):
         self.assertIn("1.5", message)
 
 
-import os
-import tempfile
-
-from scripts.asc_release import (
-    APP_INFO_FIELDS,
-    VERSION_FIELDS,
-    check_limits,
-    diff_metadata,
-    read_metadata_dir,
-)
-
-
 class ReadMetadataDirTests(unittest.TestCase):
     def test_reads_known_files_and_ignores_others(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,9 +114,6 @@ class DiffMetadataTests(unittest.TestCase):
         files = {"subtitle.txt": "새 부제"}
         live = {"subtitle": "옛 부제"}
         self.assertEqual(diff_metadata(files, live, APP_INFO_FIELDS), [("subtitle", "새 부제", "옛 부제")])
-
-
-from scripts.asc_release import find_build_run, link_build, wait_for_valid_build
 
 
 class FakeClient:
@@ -217,6 +213,22 @@ class LinkBuildTests(unittest.TestCase):
         })
         self.assertTrue(link_build(client, "version-1", "build-1"))
         self.assertEqual([method for method, _, _ in client.calls], ["GET", "PATCH"])
+
+
+class MainTests(unittest.TestCase):
+    def test_no_command_returns_usage_error(self):
+        self.assertEqual(main([]), 2)
+
+    def test_unknown_command_exits_with_argparse_error(self):
+        # argparse rejects an unknown subcommand before main() can dispatch it.
+        with self.assertRaises(SystemExit) as ctx:
+            main(["nonsense-command"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_help_returns_zero(self):
+        with self.assertRaises(SystemExit) as ctx:
+            main(["--help"])
+        self.assertEqual(ctx.exception.code, 0)
 
 
 if __name__ == "__main__":
