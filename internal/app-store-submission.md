@@ -31,6 +31,10 @@
 
 ## 2. App Store 표시 텍스트 (한국어)
 
+> **업로드되는 실제 값은 `fastlane/metadata/ko/`의 파일들이다.** 이 문서는 근거와
+> 맥락(글자수 제한, 심사 영향)을 남기는 곳이고, 값을 바꿀 때는 두 곳을 함께
+> 고친다. 차이는 `python3 -m scripts.asc_release audit`으로 확인한다.
+
 ### Subtitle (최대 30자)
 ```
 스크린샷이 한 줄 가계부로
