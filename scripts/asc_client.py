@@ -1,4 +1,11 @@
-"""App Store Connect REST client. Standard library only; ES256 JWT via openssl."""
+"""App Store Connect REST client. Standard library only; ES256 JWT via openssl.
+
+The release job installs fastlane, whose spaceship is a complete ASC client, so
+this duplicates it on purpose: `preflight` is the gate that has to pass *before*
+anything is installed or uploaded, and it cannot depend on a Ruby toolchain that
+is set up three steps later. Standard library only keeps it runnable from a bare
+checkout, locally and in CI.
+"""
 from __future__ import annotations
 
 import base64
