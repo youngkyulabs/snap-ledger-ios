@@ -74,6 +74,12 @@ class DecodeBodyTests(unittest.TestCase):
         self.assertEqual(_decode_body(b'{"data": 1}'), {"data": 1})
         self.assertEqual(_decode_body(b"[1, 2]"), [1, 2])
 
+    def test_leading_whitespace_does_not_defeat_parsing(self):
+        self.assertEqual(_decode_body(b'\n  {"data": 1}\n'), {"data": 1})
+
+    def test_whitespace_only_body_is_not_parsed(self):
+        self.assertEqual(_decode_body(b"  \n "), b"  \n ")
+
     def test_non_json_body_is_returned_untouched(self):
         self.assertEqual(_decode_body(b"plain text"), b"plain text")
 

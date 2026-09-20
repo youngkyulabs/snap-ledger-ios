@@ -58,8 +58,9 @@ def _decode_body(raw):
     `raw[:1] in b"{["` looks right but is a substring test, and b"" is a
     substring of everything -- which sent an empty 204 body into json.loads.
     """
-    if raw[:1] in (b"{", b"["):
-        return json.loads(raw)
+    stripped = raw.strip()
+    if stripped.startswith((b"{", b"[")):
+        return json.loads(stripped)
     return raw
 
 

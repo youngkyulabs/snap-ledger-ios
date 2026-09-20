@@ -14,6 +14,7 @@ from scripts.asc_release import (
     APP_INFO_FIELDS,
     VERSION_FIELDS,
     assert_version_matches,
+    FATAL_STATUSES,
     check_limits,
     conflicting_draft,
     diff_metadata,
@@ -494,6 +495,52 @@ class TransientFailureTests(unittest.TestCase):
         run = wait_for_build_run(client, "PRODUCT", "TAG-WF", "abc123",
                                  interval_s=7, sleep=lambda _: None, now=advancing_clock())
         self.assertEqual(run["id"], "run-61")
+
+
+
+class FatalStatusTests(unittest.TestCase):
+    """401/403 is the same answer on every poll -- leave, do not wait it out."""
+
+    def test_an_unauthorized_builds_listing_fails_immediately(self):
+        client = FakeClient({"/v1/ciBuildRuns/run-1/builds": [(401, {"errors": []})]})
+        slept = []
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_valid_build(client, "run-1", timeout_s=2400,
+                                 sleep=slept.append, now=advancing_clock())
+        self.assertIn("401", str(ctx.exception))
+        self.assertNotIn("timed out", str(ctx.exception))
+        self.assertEqual(slept, [])
+
+    def test_a_forbidden_build_detail_fails_immediately(self):
+        client = FakeClient({
+            "/v1/ciBuildRuns/run-1/builds": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/builds/": [(403, {"errors": []})],
+        })
+        slept = []
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_valid_build(client, "run-1", timeout_s=2400,
+                                 sleep=slept.append, now=advancing_clock())
+        self.assertIn("403", str(ctx.exception))
+        self.assertEqual(slept, [])
+
+    def test_a_transient_500_is_still_waited_out(self):
+        # Only permanent answers are fatal; a 5xx that reaches here keeps polling.
+        self.assertNotIn(500, FATAL_STATUSES)
+        self.assertNotIn(404, FATAL_STATUSES)
+        client = FakeClient({
+            "/v1/ciBuildRuns/run-1/builds": [
+                (500, {"errors": []}),
+                (200, {"data": [{"id": "build-1"}]}),
+            ],
+            "/v1/ciBuildRuns/run-1": [(200, {"data": {"attributes": {"number": 61, "completionStatus": None}}})],
+            "/v1/builds/": [(200, {"data": {"attributes": {"processingState": "VALID"}}})],
+        })
+        slept = []
+        self.assertEqual(
+            wait_for_valid_build(client, "run-1", interval_s=5,
+                                 sleep=slept.append, now=advancing_clock()),
+            "build-1")
+        self.assertEqual(slept, [5])
 
 
 if __name__ == "__main__":
