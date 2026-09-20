@@ -74,10 +74,6 @@ jobs:
             --tag "${GITHUB_REF_NAME}" \
             --workflow-id "${TAG_WORKFLOW_ID}"
 
-      - name: Audit metadata against App Store Connect
-        continue-on-error: true
-        run: python3 -m scripts.asc_release audit
-
       - name: Stage screenshots
         run: ./scripts/stage_screenshots.sh
 

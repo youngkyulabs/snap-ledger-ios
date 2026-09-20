@@ -52,37 +52,33 @@ def _version_string(editable):
     return (editable or {}).get("attributes", {}).get("versionString")
 
 
-# 200 is the page size App Store Connect allows here. MAX_PAGES only exists so
-# a server that keeps handing back a `next` link cannot loop us forever.
+# The largest page App Store Connect serves here, and far more versions than
+# this app will ship. Chasing `next` links would be machinery for a case that
+# cannot arise; the guard below is there so that if it ever did, the listing
+# fails loudly instead of going quietly partial.
 PAGE_LIMIT = 200
-MAX_PAGES = 20
 
 
 def list_app_store_versions(client, app_id, version=None):
-    """Every appStoreVersion there is, following the pagination links.
+    """Every appStoreVersion App Store Connect knows about.
 
-    One capped page put the answer back at the mercy of the order App Store
-    Connect happened to return: past the page size, the single open draft can
-    sit outside the page, `find_editable_versions` comes back empty, and the
-    rename guard passes on nothing. The endpoint has no documented order, so
-    the only read that means anything is all of it.
+    `limit=20` used to cap this, which left the rename guard at the mercy of
+    what fit in the page: once the open draft sits outside it, the editable
+    list comes back empty and preflight passes on nothing. The endpoint has no
+    documented order, so a partial read is worse than no read.
     """
     path = "/v1/apps/%s/appStoreVersions?limit=%d" % (app_id, PAGE_LIMIT)
     if version is not None:
         path += "&filter[versionString]=%s" % version
-    items = []
-    seen = set()
-    for _ in range(MAX_PAGES):
-        status, body = client.request("GET", path)
-        if status != 200:
-            raise ASCError("could not list versions (%s): %s" % (status, body))
-        items.extend(body.get("data", []))
-        following = ((body.get("links") or {}).get("next")) or None
-        if following is None or following in seen:
-            return items
-        seen.add(following)
-        path = following
-    raise ASCError("appStoreVersions listing did not end after %d pages" % MAX_PAGES)
+    status, body = client.request("GET", path)
+    if status != 200:
+        raise ASCError("could not list versions (%s): %s" % (status, body))
+    items = body.get("data", [])
+    if len(items) >= PAGE_LIMIT:
+        raise ASCError("appStoreVersions came back with a full %d-item page, so the "
+                       "listing is truncated and the draft checks cannot be trusted"
+                       % PAGE_LIMIT)
+    return items
 
 
 def editable_versions(items, version=None):
@@ -127,18 +123,6 @@ def conflicting_draft(editables, version):
     if any(_version_string(editable) == version for editable in editables):
         return None
     return editables[0] if editables else None
-
-
-def assert_version_matches(editable, expected):
-    if editable is None:
-        return
-    found = editable.get("attributes", {}).get("versionString")
-    if found != expected:
-        raise ASCError(
-            "App Store Connect has an open %s draft but the tag says %s. "
-            "fastlane would silently rename that draft, so this run stops. "
-            "Close or finish the %s draft first." % (found, expected, found)
-        )
 
 
 # Metadata file name -> appStoreVersionLocalizations attribute.
@@ -252,31 +236,25 @@ def find_build_run(client, product_id, workflow_id, commit_sha):
     if status != 200:
         raise ASCError("could not list build runs (%s): %s" % (status, body))
 
+    # This comparison decides which binary ships, so it only accepts a run we
+    # positively matched. A run whose workflow relationship the API left out is
+    # not evidence -- guessing from it would be the same ambiguity that short
+    # SHA prefix matching was rejected for. Nothing found means we keep waiting.
     confirmed = []
-    unknown = []
     for run in body.get("data", []):
         attributes = run.get("attributes") or {}
         source = attributes.get("sourceCommit") or {}
         if source.get("commitSha") != commit_sha:
             continue
-        found_workflow = _run_workflow_id(run)
         # sourceBranchOrTag comes back null, so the workflow relationship is
         # what separates the tag run from the main-push run on the same commit.
-        if found_workflow == workflow_id:
+        if _run_workflow_id(run) == workflow_id:
             confirmed.append(run)
-        elif found_workflow is None:
-            unknown.append(run)
 
-    # A run we positively matched to the tag workflow always wins, even against a
-    # higher-numbered run whose workflow relationship the API left out.
-    pool = confirmed or unknown
-    if not pool:
-        return None
     if not confirmed:
-        print("warning: no run confirmed for workflow %s; falling back to a run with no "
-              "workflow relationship" % workflow_id)
-    pool.sort(key=lambda run: (run.get("attributes") or {}).get("number") or 0)
-    return pool[-1]
+        return None
+    confirmed.sort(key=lambda run: (run.get("attributes") or {}).get("number") or 0)
+    return confirmed[-1]
 
 
 def wait_for_build_run(client, product_id, workflow_id, commit_sha,
@@ -556,8 +534,10 @@ def _cmd_link_build(args, client):
     if marketing != version:
         raise ASCError("tag %s says version %s but MARKETING_VERSION is %s" % (args.tag, version, marketing))
 
+    # Filtered by version, so this is either the draft we want or nothing. The
+    # guard against deliver renaming someone else's draft lives in preflight,
+    # which runs before anything is uploaded.
     editable = find_editable_version(client, APP_ID, version)
-    assert_version_matches(editable, version)
     if editable is None:
         raise ASCError("no editable version %s on App Store Connect" % version)
 

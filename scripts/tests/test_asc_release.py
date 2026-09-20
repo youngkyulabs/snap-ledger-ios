@@ -13,7 +13,6 @@ from scripts.asc_release import (
     wait_for_build_run,
     APP_INFO_FIELDS,
     VERSION_FIELDS,
-    assert_version_matches,
     FATAL_STATUSES,
     check_limits,
     conflicting_draft,
@@ -22,13 +21,13 @@ from scripts.asc_release import (
     find_editable_versions,
     link_build,
     list_app_store_versions,
+    PAGE_LIMIT,
     main,
     parse_version_from_tag,
     published_release_notes,
     read_marketing_version,
     read_metadata_dir,
     wait_for_valid_build,
-    MAX_PAGES,
     RELEASE_NOTES_FILE,
 )
 
@@ -77,23 +76,6 @@ class MarketingVersionTests(unittest.TestCase):
     def test_rejects_missing_marketing_version(self):
         with self.assertRaises(ASCError):
             read_marketing_version("CURRENT_PROJECT_VERSION = 1;")
-
-
-class VersionGuardTests(unittest.TestCase):
-    def test_passes_when_no_editable_version_exists(self):
-        assert_version_matches(None, "1.5")
-
-    def test_passes_when_editable_version_matches(self):
-        editable = {"id": "x", "attributes": {"versionString": "1.5"}}
-        assert_version_matches(editable, "1.5")
-
-    def test_blocks_when_editable_version_is_a_different_version(self):
-        editable = {"id": "x", "attributes": {"versionString": "1.6"}}
-        with self.assertRaises(ASCError) as ctx:
-            assert_version_matches(editable, "1.5")
-        message = str(ctx.exception)
-        self.assertIn("1.6", message)
-        self.assertIn("1.5", message)
 
 
 class ReadMetadataDirTests(unittest.TestCase):
@@ -326,62 +308,25 @@ def _version_row(item_id, version_string, state):
             "attributes": {"versionString": version_string, "appStoreState": state}}
 
 
-class PagingClient:
-    """Serves canned appStoreVersions pages and records the paths asked for."""
+class VersionListingTests(unittest.TestCase):
+    """A capped page made the rename guard depend on what fit in it."""
 
-    def __init__(self, pages):
-        self.pages = list(pages)
-        self.paths = []
+    def test_asks_for_the_largest_page_app_store_connect_serves(self):
+        client = FakeClient({"/v1/apps": [(200, {"data": []})]})
+        list_app_store_versions(client, "APP")
+        # Pinned to the literal: an expectation built from PAGE_LIMIT would
+        # follow the constant back down to the 20 that caused the bug.
+        self.assertIn("limit=200", client.calls[0][1])
 
-    def request(self, method, path, body=None):
-        self.paths.append(path)
-        return self.pages.pop(0)
-
-
-NEXT_PAGE = "https://api.appstoreconnect.apple.com/v1/apps/APP/appStoreVersions?cursor=2"
-
-
-class VersionPagingTests(unittest.TestCase):
-    """One capped page made the rename guard depend on what fit in it."""
-
-    def test_a_draft_beyond_the_first_page_is_still_found(self):
-        client = PagingClient([
-            (200, {"data": [_version_row("live", "1.4", "READY_FOR_SALE")],
-                   "links": {"next": NEXT_PAGE}}),
-            (200, {"data": [_version_row("draft", "1.6", "PREPARE_FOR_SUBMISSION")]}),
-        ])
-        self.assertEqual([v["id"] for v in find_editable_versions(client, "APP")], ["draft"])
-        self.assertEqual(client.paths[1], NEXT_PAGE)
-
-    def test_a_draft_on_a_later_page_still_blocks_the_rename(self):
-        client = PagingClient([
-            (200, {"data": [_version_row("live", "1.4", "READY_FOR_SALE")],
-                   "links": {"next": NEXT_PAGE}}),
-            (200, {"data": [_version_row("draft", "1.6", "PREPARE_FOR_SUBMISSION")]}),
-        ])
-        conflict = conflicting_draft(find_editable_versions(client, "APP"), "1.5")
-        self.assertEqual(conflict["id"], "draft")
-
-    def test_a_repeating_next_link_does_not_loop_forever(self):
-        same = NEXT_PAGE
-        client = PagingClient([(200, {"data": [], "links": {"next": same}})] * 2)
-        self.assertEqual(list_app_store_versions(client, "APP"), [])
-        self.assertEqual(len(client.paths), 2)
-
-    def test_an_endless_pager_gives_up_instead_of_spinning(self):
-        class EndlessPager:
-            def __init__(self):
-                self.calls = 0
-
-            def request(self, method, path, body=None):
-                self.calls += 1
-                return (200, {"data": [],
-                              "links": {"next": "%s&p=%d" % (NEXT_PAGE, self.calls)}})
-
-        client = EndlessPager()
-        with self.assertRaises(ASCError):
+    def test_a_full_page_is_refused_instead_of_read_as_the_whole_truth(self):
+        # Silently partial is the failure mode that matters: the open draft
+        # falls off the end, the editable list comes back empty, and preflight
+        # passes on nothing at all.
+        rows = [_version_row("v%d" % n, "1.%d" % n, "READY_FOR_SALE") for n in range(PAGE_LIMIT)]
+        client = FakeClient({"/v1/apps": [(200, {"data": rows})]})
+        with self.assertRaises(ASCError) as ctx:
             list_app_store_versions(client, "APP")
-        self.assertEqual(client.calls, MAX_PAGES)
+        self.assertIn("truncated", str(ctx.exception))
 
 
 class PublishedReleaseNotesTests(unittest.TestCase):
@@ -446,11 +391,13 @@ class BuildRunPreferenceTests(unittest.TestCase):
         client = FakeClient({"/v1/ciProducts": [(200, {"data": [_run(61, "abc123", "TAG-WF"), unknown]})]})
         self.assertEqual(find_build_run(client, "PRODUCT", "TAG-WF", "abc123")["id"], "run-61")
 
-    def test_falls_back_to_unknown_runs_when_none_are_confirmed(self):
+    def test_a_run_without_a_workflow_relationship_is_not_guessed_at(self):
+        # Which binary ships is not a thing to infer from a missing field. No
+        # match means the caller keeps polling and eventually says so.
         unknown = _run(62, "abc123", "TAG-WF")
         unknown["relationships"] = {}
         client = FakeClient({"/v1/ciProducts": [(200, {"data": [unknown]})]})
-        self.assertEqual(find_build_run(client, "PRODUCT", "TAG-WF", "abc123")["id"], "run-62")
+        self.assertIsNone(find_build_run(client, "PRODUCT", "TAG-WF", "abc123"))
 
 
 class WaitForBuildRunTests(unittest.TestCase):
