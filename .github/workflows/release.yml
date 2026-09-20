@@ -37,20 +37,11 @@ jobs:
       - name: Unit tests for release scripts
         run: python3 -m unittest discover -s scripts/tests -t . -v
 
-      - name: Verify tag matches MARKETING_VERSION
+      - name: Preflight (blocks before anything is uploaded)
         run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
-          MARKETING=$(grep -o 'MARKETING_VERSION = [^;]*;' SnapLedger.xcodeproj/project.pbxproj \
-            | sed 's/MARKETING_VERSION = //; s/;//' | sort -u)
-          if [ "$(echo "$MARKETING" | wc -l | tr -d ' ')" != "1" ]; then
-            echo "MARKETING_VERSION differs across configs: $MARKETING" >&2; exit 1
-          fi
-          if [ "$MARKETING" != "$VERSION" ]; then
-            echo "tag $TAG says $VERSION but MARKETING_VERSION is $MARKETING" >&2; exit 1
-          fi
-          echo "version $VERSION confirmed"
+          python3 -m scripts.asc_release preflight \
+            --tag "${GITHUB_REF_NAME}" \
+            --workflow-id "${TAG_WORKFLOW_ID}"
 
       - name: Audit metadata against App Store Connect
         continue-on-error: true
