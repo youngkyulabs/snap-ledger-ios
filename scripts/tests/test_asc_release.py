@@ -21,11 +21,15 @@ from scripts.asc_release import (
     find_build_run,
     find_editable_versions,
     link_build,
+    list_app_store_versions,
     main,
     parse_version_from_tag,
+    published_release_notes,
     read_marketing_version,
     read_metadata_dir,
     wait_for_valid_build,
+    MAX_PAGES,
+    RELEASE_NOTES_FILE,
 )
 
 
@@ -315,6 +319,124 @@ class ConflictingDraftTests(unittest.TestCase):
         drafts = [self._draft("1.4"), self._draft("1.5")]
         self.assertIsNone(conflicting_draft(drafts, "1.5"))
         self.assertIsNone(conflicting_draft(list(reversed(drafts)), "1.5"))
+
+
+def _version_row(item_id, version_string, state):
+    return {"id": item_id,
+            "attributes": {"versionString": version_string, "appStoreState": state}}
+
+
+class PagingClient:
+    """Serves canned appStoreVersions pages and records the paths asked for."""
+
+    def __init__(self, pages):
+        self.pages = list(pages)
+        self.paths = []
+
+    def request(self, method, path, body=None):
+        self.paths.append(path)
+        return self.pages.pop(0)
+
+
+NEXT_PAGE = "https://api.appstoreconnect.apple.com/v1/apps/APP/appStoreVersions?cursor=2"
+
+
+class VersionPagingTests(unittest.TestCase):
+    """One capped page made the rename guard depend on what fit in it."""
+
+    def test_a_draft_beyond_the_first_page_is_still_found(self):
+        client = PagingClient([
+            (200, {"data": [_version_row("live", "1.4", "READY_FOR_SALE")],
+                   "links": {"next": NEXT_PAGE}}),
+            (200, {"data": [_version_row("draft", "1.6", "PREPARE_FOR_SUBMISSION")]}),
+        ])
+        self.assertEqual([v["id"] for v in find_editable_versions(client, "APP")], ["draft"])
+        self.assertEqual(client.paths[1], NEXT_PAGE)
+
+    def test_a_draft_on_a_later_page_still_blocks_the_rename(self):
+        client = PagingClient([
+            (200, {"data": [_version_row("live", "1.4", "READY_FOR_SALE")],
+                   "links": {"next": NEXT_PAGE}}),
+            (200, {"data": [_version_row("draft", "1.6", "PREPARE_FOR_SUBMISSION")]}),
+        ])
+        conflict = conflicting_draft(find_editable_versions(client, "APP"), "1.5")
+        self.assertEqual(conflict["id"], "draft")
+
+    def test_a_repeating_next_link_does_not_loop_forever(self):
+        same = NEXT_PAGE
+        client = PagingClient([(200, {"data": [], "links": {"next": same}})] * 2)
+        self.assertEqual(list_app_store_versions(client, "APP"), [])
+        self.assertEqual(len(client.paths), 2)
+
+    def test_an_endless_pager_gives_up_instead_of_spinning(self):
+        class EndlessPager:
+            def __init__(self):
+                self.calls = 0
+
+            def request(self, method, path, body=None):
+                self.calls += 1
+                return (200, {"data": [],
+                              "links": {"next": "%s&p=%d" % (NEXT_PAGE, self.calls)}})
+
+        client = EndlessPager()
+        with self.assertRaises(ASCError):
+            list_app_store_versions(client, "APP")
+        self.assertEqual(client.calls, MAX_PAGES)
+
+
+class PublishedReleaseNotesTests(unittest.TestCase):
+    """The notes the store already shows, so a forgotten rewrite is visible."""
+
+    @staticmethod
+    def _client(localizations):
+        return FakeClient({"/v1/appStoreVersions/": [(200, {"data": localizations})]})
+
+    def test_reads_the_newest_version_that_is_not_ours(self):
+        versions = [
+            _version_row("a", "1.3", "REPLACED_WITH_NEW_VERSION"),
+            _version_row("b", "1.4", "READY_FOR_SALE"),
+            _version_row("c", "1.5", "PREPARE_FOR_SUBMISSION"),
+        ]
+        client = self._client([{"attributes": {"locale": "ko", "whatsNew": "1.4 notes"}}])
+        self.assertEqual(published_release_notes(client, versions, "1.5"), ("1.4", "1.4 notes"))
+        self.assertEqual(client.calls[0][1],
+                         "/v1/appStoreVersions/b/appStoreVersionLocalizations")
+
+    def test_nothing_to_compare_when_ours_is_the_only_version(self):
+        versions = [_version_row("c", "1.5", "PREPARE_FOR_SUBMISSION")]
+        self.assertIsNone(published_release_notes(FakeClient({}), versions, "1.5"))
+
+    def test_nothing_to_compare_without_a_ko_localization(self):
+        versions = [_version_row("b", "1.4", "READY_FOR_SALE")]
+        client = self._client([{"attributes": {"locale": "en-US", "whatsNew": "x"}}])
+        self.assertIsNone(published_release_notes(client, versions, "1.5"))
+
+
+class StaleReleaseNotesTests(unittest.TestCase):
+    """release_notes.txt passes presence and length checks while stale."""
+
+    def _files(self, notes):
+        files = {name: "x" for name in VERSION_FIELDS}
+        files.update({name: "x" for name in APP_INFO_FIELDS})
+        files[RELEASE_NOTES_FILE] = notes
+        return files
+
+    def test_blocks_notes_identical_to_the_published_ones(self):
+        problems = preflight_problems(
+            tag="v1.5", marketing_version="1.5", files=self._files("• 1.4 이야기"),
+            editable=None, workflow_id="WF", published_notes=("1.4", "• 1.4 이야기\n"))
+        self.assertTrue(any(RELEASE_NOTES_FILE in p and "1.4" in p for p in problems),
+                        problems)
+
+    def test_allows_notes_that_were_actually_rewritten(self):
+        self.assertEqual(preflight_problems(
+            tag="v1.5", marketing_version="1.5", files=self._files("• 1.5 이야기"),
+            editable=None, workflow_id="WF", published_notes=("1.4", "• 1.4 이야기")), [])
+
+    def test_no_comparison_available_does_not_block(self):
+        self.assertEqual(preflight_problems(
+            tag="v1.5", marketing_version="1.5", files=self._files("• 1.4 이야기"),
+            editable=None, workflow_id="WF", published_notes=None), [])
 
 
 class BuildRunPreferenceTests(unittest.TestCase):

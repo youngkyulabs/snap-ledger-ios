@@ -52,21 +52,48 @@ def _version_string(editable):
     return (editable or {}).get("attributes", {}).get("versionString")
 
 
-def find_editable_versions(client, app_id, version=None):
-    """Every version App Store Connect still lets us edit, newest first.
+# 200 is the page size App Store Connect allows here. MAX_PAGES only exists so
+# a server that keeps handing back a `next` link cannot loop us forever.
+PAGE_LIMIT = 200
+MAX_PAGES = 20
+
+
+def list_app_store_versions(client, app_id, version=None):
+    """Every appStoreVersion there is, following the pagination links.
+
+    One capped page put the answer back at the mercy of the order App Store
+    Connect happened to return: past the page size, the single open draft can
+    sit outside the page, `find_editable_versions` comes back empty, and the
+    rename guard passes on nothing. The endpoint has no documented order, so
+    the only read that means anything is all of it.
+    """
+    path = "/v1/apps/%s/appStoreVersions?limit=%d" % (app_id, PAGE_LIMIT)
+    if version is not None:
+        path += "&filter[versionString]=%s" % version
+    items = []
+    seen = set()
+    for _ in range(MAX_PAGES):
+        status, body = client.request("GET", path)
+        if status != 200:
+            raise ASCError("could not list versions (%s): %s" % (status, body))
+        items.extend(body.get("data", []))
+        following = ((body.get("links") or {}).get("next")) or None
+        if following is None or following in seen:
+            return items
+        seen.add(following)
+        path = following
+    raise ASCError("appStoreVersions listing did not end after %d pages" % MAX_PAGES)
+
+
+def editable_versions(items, version=None):
+    """The editable subset of an already-fetched listing, newest first.
 
     REJECTED and DEVELOPER_REJECTED versions sit in EDITABLE_STATES
     indefinitely, and the list endpoint has no documented order, so callers
     must never depend on "whichever one came back first".
     """
-    path = "/v1/apps/%s/appStoreVersions?limit=20" % app_id
-    if version is not None:
-        path += "&filter[versionString]=%s" % version
-    status, body = client.request("GET", path)
-    if status != 200:
-        raise ASCError("could not list versions (%s): %s" % (status, body))
     found = []
-    for item in body.get("data", []):
+    for item in items:
         attributes = item.get("attributes", {})
         if attributes.get("appStoreState") not in EDITABLE_STATES:
             continue
@@ -75,6 +102,11 @@ def find_editable_versions(client, app_id, version=None):
         found.append(item)
     found.sort(key=lambda item: _version_sort_key(_version_string(item)), reverse=True)
     return found
+
+
+def find_editable_versions(client, app_id, version=None):
+    """Every version App Store Connect still lets us edit, newest first."""
+    return editable_versions(list_app_store_versions(client, app_id, version), version)
 
 
 def find_editable_version(client, app_id, version=None):
@@ -342,7 +374,42 @@ DEFAULT_METADATA_DIR = "fastlane/metadata/ko"
 DEFAULT_PBXPROJ = "SnapLedger.xcodeproj/project.pbxproj"
 
 
-def preflight_problems(tag, marketing_version, files, editable, workflow_id):
+RELEASE_NOTES_FILE = "release_notes.txt"
+
+
+def _whats_new(client, version_id):
+    """The ko What's New on a version, or None if we cannot read it."""
+    status, body = client.request(
+        "GET", "/v1/appStoreVersions/%s/appStoreVersionLocalizations" % version_id)
+    if status != 200:
+        return None
+    for localization in body.get("data", []):
+        if localization.get("attributes", {}).get("locale") == "ko":
+            return localization["attributes"].get("whatsNew")
+    return None
+
+
+def published_release_notes(client, versions, version):
+    """(version string, What's New) of the newest version that is not ours.
+
+    Used to catch the one field that has to change every single release and is
+    the easiest to forget. Returns None when there is nothing to compare
+    against -- the caller says so out loud rather than passing quietly.
+    """
+    others = [item for item in versions
+              if _version_string(item) and _version_string(item) != version]
+    if not others:
+        return None
+    others.sort(key=lambda item: _version_sort_key(_version_string(item)), reverse=True)
+    newest = others[0]
+    notes = _whats_new(client, newest["id"])
+    if not _normalize(notes):
+        return None
+    return _version_string(newest), notes
+
+
+def preflight_problems(tag, marketing_version, files, editable, workflow_id,
+                       published_notes=None):
     """Everything that must be true before fastlane deliver writes anything.
 
     deliver is destructive: it overwrites metadata and, with
@@ -372,6 +439,18 @@ def preflight_problems(tag, marketing_version, files, editable, workflow_id):
 
     problems.extend(check_limits(files))
 
+    # Every other check here passes on an untouched release_notes.txt: the file
+    # exists and is under 4000 characters, and `audit` compares it against the
+    # very text it was copied from and reports a match. Nothing else notices
+    # that the release would ship the previous version's changelog.
+    if published_notes is not None and RELEASE_NOTES_FILE in files:
+        published_version, published_text = published_notes
+        if _normalize(files[RELEASE_NOTES_FILE]) == _normalize(published_text):
+            problems.append(
+                "%s is still the What's New already published for %s; %s would ship %s's "
+                "release notes (deliver uploads the file as it stands)"
+                % (RELEASE_NOTES_FILE, published_version, version, published_version))
+
     if not (workflow_id or "").strip():
         problems.append("Xcode Cloud workflow id is empty (set XCODE_CLOUD_TAG_WORKFLOW_ID)")
 
@@ -384,16 +463,24 @@ def _cmd_preflight(args, client):
     files = read_metadata_dir(args.metadata_dir)
 
     editable = None
+    published = None
     try:
         version = parse_version_from_tag(args.tag)
     except ASCError:
         version = None
     if version is not None:
-        # Every editable version, not just whichever one came back first: a
-        # draft that already matches the tag makes the others harmless.
-        editable = conflicting_draft(find_editable_versions(client, APP_ID), version)
+        # One listing, read twice: every editable version, not just whichever
+        # one came back first (a draft that already matches the tag makes the
+        # others harmless), and the notes the last release actually shipped.
+        versions = list_app_store_versions(client, APP_ID)
+        editable = conflicting_draft(editable_versions(versions), version)
+        published = published_release_notes(client, versions, version)
+        if published is None:
+            print("NOTE   no previously published release notes to compare against; "
+                  "the %s staleness check did not run" % RELEASE_NOTES_FILE)
 
-    problems = preflight_problems(args.tag, marketing, files, editable, args.workflow_id)
+    problems = preflight_problems(args.tag, marketing, files, editable, args.workflow_id,
+                                  published_notes=published)
     for problem in problems:
         print("BLOCK  %s" % problem)
     if problems:
