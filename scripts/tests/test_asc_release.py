@@ -117,5 +117,107 @@ class DiffMetadataTests(unittest.TestCase):
         self.assertEqual(diff_metadata(files, live, APP_INFO_FIELDS), [("subtitle", "새 부제", "옛 부제")])
 
 
+from scripts.asc_release import find_build_run, link_build, wait_for_valid_build
+
+
+class FakeClient:
+    """Replays queued (status, body) pairs per path prefix and records PATCHes."""
+
+    def __init__(self, responses):
+        self.responses = responses
+        self.calls = []
+
+    def request(self, method, path, body=None):
+        self.calls.append((method, path, body))
+        for prefix, queue in self.responses.items():
+            if path.startswith(prefix):
+                return queue.pop(0) if len(queue) > 1 else queue[0]
+        raise AssertionError("unexpected request: %s %s" % (method, path))
+
+
+def _run(number, sha, workflow_id):
+    return {
+        "id": "run-%d" % number,
+        "attributes": {"number": number, "sourceCommit": {"commitSha": sha}},
+        "relationships": {"workflow": {"data": {"type": "ciWorkflows", "id": workflow_id}}},
+    }
+
+
+class FindBuildRunTests(unittest.TestCase):
+    def test_picks_the_tag_workflow_run_when_two_runs_share_a_commit(self):
+        client = FakeClient({"/v1/ciProducts": [(200, {"data": [
+            _run(60, "abc123", "MAIN-WF"),
+            _run(61, "abc123", "TAG-WF"),
+        ]})]})
+        run = find_build_run(client, "PRODUCT", "TAG-WF", "abc123")
+        self.assertEqual(run["id"], "run-61")
+
+    def test_picks_the_highest_numbered_run_on_a_rerun(self):
+        client = FakeClient({"/v1/ciProducts": [(200, {"data": [
+            _run(61, "abc123", "TAG-WF"),
+            _run(63, "abc123", "TAG-WF"),
+            _run(62, "abc123", "TAG-WF"),
+        ]})]})
+        self.assertEqual(find_build_run(client, "PRODUCT", "TAG-WF", "abc123")["id"], "run-63")
+
+    def test_returns_none_when_no_run_matches_the_commit(self):
+        client = FakeClient({"/v1/ciProducts": [(200, {"data": [_run(60, "other", "TAG-WF")]})]})
+        self.assertIsNone(find_build_run(client, "PRODUCT", "TAG-WF", "abc123"))
+
+
+class WaitForValidBuildTests(unittest.TestCase):
+    def test_returns_build_id_once_processing_state_is_valid(self):
+        client = FakeClient({
+            "/v1/ciBuildRuns": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/builds/": [
+                (200, {"data": {"attributes": {"processingState": "PROCESSING"}}}),
+                (200, {"data": {"attributes": {"processingState": "VALID"}}}),
+            ],
+        })
+        slept = []
+        self.assertEqual(
+            wait_for_valid_build(client, "run-1", interval_s=5, sleep=slept.append, now=lambda: 0.0),
+            "build-1",
+        )
+        self.assertEqual(slept, [5])
+
+    def test_raises_when_the_build_fails_processing(self):
+        client = FakeClient({
+            "/v1/ciBuildRuns": [(200, {"data": [{"id": "build-1"}]})],
+            "/v1/builds/": [(200, {"data": {"attributes": {"processingState": "INVALID"}}})],
+        })
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_valid_build(client, "run-1", sleep=lambda _: None, now=lambda: 0.0)
+        self.assertIn("INVALID", str(ctx.exception))
+
+    def test_raises_after_the_timeout_elapses(self):
+        client = FakeClient({
+            "/v1/ciBuildRuns": [(200, {"data": []})],
+        })
+        clock = iter([0.0, 10.0, 9999.0])
+        with self.assertRaises(ASCError) as ctx:
+            wait_for_valid_build(client, "run-1", timeout_s=60, sleep=lambda _: None, now=lambda: next(clock))
+        self.assertIn("timed out", str(ctx.exception))
+
+
+class LinkBuildTests(unittest.TestCase):
+    def test_skips_the_patch_when_the_build_is_already_linked(self):
+        client = FakeClient({"/v1/appStoreVersions": [(200, {"data": {
+            "relationships": {"build": {"data": {"type": "builds", "id": "build-1"}}}
+        }})]})
+        self.assertFalse(link_build(client, "version-1", "build-1"))
+        self.assertEqual([method for method, _, _ in client.calls], ["GET"])
+
+    def test_patches_when_a_different_build_is_linked(self):
+        client = FakeClient({
+            "/v1/appStoreVersions/version-1?": [(200, {"data": {
+                "relationships": {"build": {"data": {"type": "builds", "id": "build-0"}}}
+            }})],
+            "/v1/appStoreVersions/version-1/relationships/build": [(204, b"")],
+        })
+        self.assertTrue(link_build(client, "version-1", "build-1"))
+        self.assertEqual([method for method, _, _ in client.calls], ["GET", "PATCH"])
+
+
 if __name__ == "__main__":
     unittest.main()
