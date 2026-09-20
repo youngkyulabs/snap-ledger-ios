@@ -85,5 +85,23 @@ hero 실지출과 맞물려 **초과 1건(교통)·주의 1건(식비)·여유 �
 6. CSV export 자체를 검증하려면, 데이터를 채운 뒤 설정 → 저장 폴더에서 폴더를 지정하면 위 포맷대로
    파일이 떨어지는지 확인할 수 있다.
 
+## 캡처 환경 (1.4 기준)
+
+- **기기**: iPhone 18 Pro Max(1320×2868) · iPad Pro 13-inch M5(2064×2752), 둘 다 iOS 27 시뮬레이터.
+  App Store의 6.9"·13" 규격과 일치하므로 이 조합을 유지한다.
+- **상태바 고정**:
+  `xcrun simctl status_bar <udid> override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3`
+  - `--time`에는 **시각 문자열만** 준다. ISO(`2026-09-20T00:41:00.000Z`)를 주면 iPad 상태바 요일이 실제 날짜와
+    어긋난다(일요일인데 `Wed`로 표시됨). 시각만 주면 날짜·요일은 기기 시계에서 와서 앱 내용과 일치한다.
+- **iPad 로케일**: iPad는 상태바에 날짜·요일이 나오므로 한국어가 필요하다.
+  `xcrun simctl spawn <udid> defaults write "Apple Global Domain" AppleLanguages -array ko-KR`
+  (+ `AppleLocale -string ko_KR`) 후 shutdown → boot.
+- **캡처**: `xcrun simctl io <udid> screenshot --type=png internal/screenshot/iPhoneN.png`
+  (Simulator 앱 창 캡처 대신 이 명령을 써야 정확한 픽셀 규격이 나온다.)
+- **월 통일**: 월 단위 화면(월간 요약·카테고리별 진행률·카테고리별 합계·월 정산)은 모두 hero(지난달)로 맞춘다.
+  최근 기록도 hero 구간이 보이도록 스크롤해 캡처한다.
+
+---
+
 > 정산 CSV의 `종류` 값은 `수입 / 카드사용액 / 저축액 / 기초잔액 / 기말잔액 / 이자 / 자금변동 / 월메모` 중 하나여야 한다.
 > `기초·기말잔액·이자`는 `계좌`, `자금변동`은 `방향(입금/출금)`이 필수.
