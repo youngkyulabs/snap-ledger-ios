@@ -62,7 +62,7 @@ jobs:
             | xcbeautify --renderer github-actions
 
   workflows:
-    name: Workflow lint
+    name: Workflows · Release scripts
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -89,3 +89,9 @@ jobs:
           # comment with the tool's name: that spelling is a shellcheck
           # directive, and it fails to parse as one.)
           ./actionlint -color
+
+      - name: Unit tests for release scripts
+        # These also run inside release.yml, but only once a tag exists -- and a
+        # release tag cannot be deleted or moved under the version-tags ruleset,
+        # so a break found there costs a version number. Two seconds here.
+        run: python3 -m unittest discover -s scripts/tests -t . -v
