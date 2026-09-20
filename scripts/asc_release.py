@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 
 from scripts.asc_client import ASCError
 
@@ -134,3 +135,72 @@ def diff_metadata(files, live, mapping):
         if want != got:
             differences.append((field, want, got))
     return differences
+
+
+BUILD_FAILURE_STATES = frozenset(["INVALID", "FAILED"])
+
+
+def _run_workflow_id(run):
+    relationship = (run.get("relationships") or {}).get("workflow") or {}
+    return (relationship.get("data") or {}).get("id")
+
+
+def find_build_run(client, product_id, workflow_id, commit_sha):
+    path = "/v1/ciProducts/%s/buildRuns?limit=50&include=workflow" % product_id
+    status, body = client.request("GET", path)
+    if status != 200:
+        raise ASCError("could not list build runs (%s): %s" % (status, body))
+
+    matches = []
+    for run in body.get("data", []):
+        attributes = run.get("attributes") or {}
+        source = attributes.get("sourceCommit") or {}
+        if source.get("commitSha") != commit_sha:
+            continue
+        found_workflow = _run_workflow_id(run)
+        # sourceBranchOrTag comes back null, so the workflow relationship is
+        # what separates the tag run from the main-push run on the same commit.
+        if found_workflow is not None and found_workflow != workflow_id:
+            continue
+        matches.append(run)
+
+    if not matches:
+        return None
+    matches.sort(key=lambda run: (run.get("attributes") or {}).get("number") or 0)
+    return matches[-1]
+
+
+def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=time.sleep, now=time.monotonic):
+    deadline = now() + timeout_s
+    while True:
+        status, body = client.request("GET", "/v1/ciBuildRuns/%s/builds" % run_id)
+        if status == 200 and body.get("data"):
+            build_id = body["data"][0]["id"]
+            build_status, build_body = client.request("GET", "/v1/builds/%s" % build_id)
+            if build_status == 200:
+                state = build_body["data"]["attributes"].get("processingState")
+                if state == "VALID":
+                    return build_id
+                if state in BUILD_FAILURE_STATES:
+                    raise ASCError("build %s finished processing as %s" % (build_id, state))
+        if now() >= deadline:
+            raise ASCError("timed out after %ds waiting for a VALID build from run %s" % (timeout_s, run_id))
+        sleep(interval_s)
+
+
+def link_build(client, version_id, build_id):
+    status, body = client.request("GET", "/v1/appStoreVersions/%s?include=build" % version_id)
+    if status == 200:
+        relationship = (body["data"].get("relationships") or {}).get("build") or {}
+        current = (relationship.get("data") or {}).get("id")
+        if current == build_id:
+            return False
+
+    status, body = client.request(
+        "PATCH",
+        "/v1/appStoreVersions/%s/relationships/build" % version_id,
+        {"data": {"type": "builds", "id": build_id}},
+    )
+    if status not in (200, 204):
+        raise ASCError("could not link build %s (%s): %s" % (build_id, status, body))
+    return True
