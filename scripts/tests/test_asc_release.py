@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import tempfile
 import unittest
@@ -221,13 +223,15 @@ class MainTests(unittest.TestCase):
 
     def test_unknown_command_exits_with_argparse_error(self):
         # argparse rejects an unknown subcommand before main() can dispatch it.
-        with self.assertRaises(SystemExit) as ctx:
-            main(["nonsense-command"])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                main(["nonsense-command"])
         self.assertEqual(ctx.exception.code, 2)
 
     def test_help_returns_zero(self):
-        with self.assertRaises(SystemExit) as ctx:
-            main(["--help"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                main(["--help"])
         self.assertEqual(ctx.exception.code, 0)
 
 
