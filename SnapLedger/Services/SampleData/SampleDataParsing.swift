@@ -46,6 +46,51 @@ enum SampleDataParsing {
         return seeds
     }
 
+    /// Moves fixture seeds onto the target month, keeping only their day of month.
+    static func remapSeeds(_ seeds: [ExpenseSeed], to month: Int, calendar: Calendar = .current) -> [ExpenseSeed] {
+        seeds.compactMap { seed in
+            guard let date = remap(seed.date, to: month, calendar: calendar) else { return nil }
+            return ExpenseSeed(
+                date: date,
+                merchant: seed.merchant,
+                category: seed.category,
+                amount: seed.amount,
+                note: seed.note
+            )
+        }
+    }
+
+    /// Rebuilds a date in the target month at noon, clamping the day to that month's length.
+    static func remap(_ date: Date, to month: Int, calendar: Calendar = .current) -> Date? {
+        var components = DateComponents()
+        components.year = month / 100
+        components.month = month % 100
+        components.day = 1
+        components.hour = 12
+        guard let first = calendar.date(from: components),
+              let range = calendar.range(of: .day, in: .month, for: first) else {
+            return nil
+        }
+        components.day = min(calendar.component(.day, from: date), range.upperBound - 1)
+        return calendar.date(from: components)
+    }
+
+    /// Drops seeds dated after today so the in-progress month never holds future spending.
+    static func droppingFuture(
+        _ seeds: [ExpenseSeed],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [ExpenseSeed] {
+        let today = calendar.startOfDay(for: now)
+        return seeds.filter { calendar.startOfDay(for: $0.date) <= today }
+    }
+
+    /// Noon of the day `daysAgo` days before `now`.
+    static func noon(daysAgo: Int, now: Date = Date(), calendar: Calendar = .current) -> Date {
+        let day = calendar.date(byAdding: .day, value: -daysAgo, to: now) ?? now
+        return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? day
+    }
+
     private static func nonEmpty(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

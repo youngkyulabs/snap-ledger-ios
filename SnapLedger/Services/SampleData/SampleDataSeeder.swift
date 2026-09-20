@@ -21,8 +21,8 @@ struct SampleDataSeeder {
         try clear(in: context)
 
         let expenseCount = try seedExpenses(into: context)
-        try seedReconciliation(SampleDataFixtures.reconciliation202605, month: SampleMonths.hero, in: context)
-        try seedReconciliation(SampleDataFixtures.reconciliation202606, month: SampleMonths.current, in: context)
+        try seedReconciliation(SampleDataFixtures.reconciliationHero, month: SampleMonths.hero, in: context)
+        try seedReconciliation(SampleDataFixtures.reconciliationCurrent, month: SampleMonths.current, in: context)
         try seedBudgets(into: context)
         let reviewCount = try seedReview(into: context)
 
@@ -61,8 +61,14 @@ struct SampleDataSeeder {
     }
 
     private func seedExpenses(into context: ModelContext) throws -> Int {
-        var seeds = SampleDataParsing.parseExpenses(SampleDataFixtures.expenses202605)
-        seeds += SampleDataParsing.parseExpenses(SampleDataFixtures.expenses202606)
+        var seeds = SampleDataParsing.remapSeeds(
+            SampleDataParsing.parseExpenses(SampleDataFixtures.expensesHero),
+            to: SampleMonths.hero
+        )
+        seeds += SampleDataParsing.droppingFuture(SampleDataParsing.remapSeeds(
+            SampleDataParsing.parseExpenses(SampleDataFixtures.expensesCurrent),
+            to: SampleMonths.current
+        ))
         // Monotonic savedAt ensures predictable display ordering
         let base = Date(timeIntervalSince1970: 1_700_000_000)
         for (index, seed) in seeds.enumerated() {
@@ -99,15 +105,14 @@ struct SampleDataSeeder {
     @discardableResult
     private func seedReview(into context: ModelContext) throws -> Int {
         let seeds = SampleDataFixtures.reviewSeeds
-        // Monotonic createdAt ensures reverse-chronological order
-        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        // createdAt anchors the review date warning, so it tracks now alongside the entry dates
+        let now = Date()
         var inserted = 0
         for (index, seed) in seeds.enumerated() {
-            guard let uuid = UUID(uuidString: seed.id),
-                  let date = SampleDataParsing.parseDate(seed.dateString) else {
-                continue
-            }
-            let createdAt = base.addingTimeInterval(TimeInterval(seeds.count - index))
+            guard let uuid = UUID(uuidString: seed.id) else { continue }
+            let date = SampleDataParsing.noon(daysAgo: seed.daysAgo, now: now)
+            // Descending createdAt keeps the seeded order reverse-chronological
+            let createdAt = now.addingTimeInterval(-TimeInterval(index))
             context.insert(ParsedEntry(
                 id: uuid,
                 date: date,
