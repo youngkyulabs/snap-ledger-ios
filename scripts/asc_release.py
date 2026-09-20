@@ -5,6 +5,7 @@ tagged commit, waiting for it to process, and linking it to the version.
 """
 from __future__ import annotations
 
+import os
 import re
 
 from scripts.asc_client import ASCError
@@ -60,3 +61,76 @@ def assert_version_matches(editable, expected):
             "fastlane would silently rename that draft, so this run stops. "
             "Close or finish the %s draft first." % (found, expected, found)
         )
+
+
+# Metadata file name -> appStoreVersionLocalizations attribute.
+VERSION_FIELDS = {
+    "description.txt": "description",
+    "release_notes.txt": "whatsNew",
+    "promotional_text.txt": "promotionalText",
+    "keywords.txt": "keywords",
+    "support_url.txt": "supportUrl",
+}
+
+# Metadata file name -> appInfoLocalizations attribute. These are app-level,
+# not version-level; changing subtitle triggers review.
+APP_INFO_FIELDS = {
+    "subtitle.txt": "subtitle",
+    "privacy_url.txt": "privacyPolicyUrl",
+}
+
+FIELD_LIMITS = {
+    "description": 4000,
+    "whatsNew": 4000,
+    "promotionalText": 170,
+    "keywords": 100,
+    "subtitle": 30,
+}
+
+
+def _all_fields():
+    merged = {}
+    merged.update(VERSION_FIELDS)
+    merged.update(APP_INFO_FIELDS)
+    return merged
+
+
+def _normalize(value):
+    return (value or "").strip()
+
+
+def read_metadata_dir(path):
+    files = {}
+    for name in _all_fields():
+        full = os.path.join(path, name)
+        if not os.path.isfile(full):
+            continue
+        with open(full, encoding="utf-8") as handle:
+            files[name] = handle.read().strip()
+    return files
+
+
+def check_limits(files):
+    errors = []
+    mapping = _all_fields()
+    for name, text in sorted(files.items()):
+        field = mapping.get(name)
+        limit = FIELD_LIMITS.get(field)
+        if limit is None:
+            continue
+        length = len(_normalize(text))
+        if length > limit:
+            errors.append("%s is %d characters, limit is %d (%s)" % (field, length, limit, name))
+    return errors
+
+
+def diff_metadata(files, live, mapping):
+    differences = []
+    for name, field in sorted(mapping.items()):
+        if name not in files:
+            continue
+        want = _normalize(files[name])
+        got = _normalize(live.get(field))
+        if want != got:
+            differences.append((field, want, got))
+    return differences

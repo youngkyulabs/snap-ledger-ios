@@ -59,5 +59,63 @@ class VersionGuardTests(unittest.TestCase):
         self.assertIn("1.5", message)
 
 
+import os
+import tempfile
+
+from scripts.asc_release import (
+    APP_INFO_FIELDS,
+    VERSION_FIELDS,
+    check_limits,
+    diff_metadata,
+    read_metadata_dir,
+)
+
+
+class ReadMetadataDirTests(unittest.TestCase):
+    def test_reads_known_files_and_ignores_others(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "description.txt"), "w", encoding="utf-8") as handle:
+                handle.write("설명입니다\n")
+            with open(os.path.join(tmp, "notes.md"), "w", encoding="utf-8") as handle:
+                handle.write("ignored")
+            files = read_metadata_dir(tmp)
+        self.assertEqual(files, {"description.txt": "설명입니다"})
+
+
+class CheckLimitsTests(unittest.TestCase):
+    def test_flags_promotional_text_over_170_characters(self):
+        errors = check_limits({"promotional_text.txt": "가" * 171})
+        self.assertEqual(len(errors), 1)
+        self.assertIn("promotionalText", errors[0])
+        self.assertIn("171", errors[0])
+
+    def test_accepts_text_at_exactly_the_limit(self):
+        self.assertEqual(check_limits({"promotional_text.txt": "가" * 170}), [])
+
+    def test_flags_subtitle_and_keywords_independently(self):
+        errors = check_limits({"subtitle.txt": "가" * 31, "keywords.txt": "나" * 101})
+        self.assertEqual(len(errors), 2)
+
+
+class DiffMetadataTests(unittest.TestCase):
+    def test_trailing_newline_is_not_a_difference(self):
+        files = {"description.txt": "설명"}
+        live = {"description": "설명\n"}
+        self.assertEqual(diff_metadata(files, live, VERSION_FIELDS), [])
+
+    def test_missing_live_value_is_reported(self):
+        files = {"promotional_text.txt": "홍보 문구"}
+        live = {"promotionalText": None}
+        self.assertEqual(diff_metadata(files, live, VERSION_FIELDS), [("promotionalText", "홍보 문구", "")])
+
+    def test_files_without_a_mapping_entry_are_skipped(self):
+        self.assertEqual(diff_metadata({"unknown.txt": "x"}, {}, VERSION_FIELDS), [])
+
+    def test_app_info_fields_use_their_own_mapping(self):
+        files = {"subtitle.txt": "새 부제"}
+        live = {"subtitle": "옛 부제"}
+        self.assertEqual(diff_metadata(files, live, APP_INFO_FIELDS), [("subtitle", "새 부제", "옛 부제")])
+
+
 if __name__ == "__main__":
     unittest.main()
