@@ -24,6 +24,14 @@ class ASCError(RuntimeError):
     """Anything that went wrong talking to App Store Connect."""
 
 
+class ASCTransportError(ASCError):
+    """The request never produced a usable answer -- outlast it, do not abort.
+
+    Kept distinct from ASCError so a polling loop can tolerate it while still
+    failing immediately on a terminal answer (a build that came back INVALID).
+    """
+
+
 def _b64u(raw):
     return base64.urlsafe_b64encode(raw).rstrip(b"=")
 
@@ -128,9 +136,12 @@ class Client:
             except OSError as error:
                 last_problem = "%s: %s" % (type(error).__name__, error)
                 continue
-            if status in RETRY_STATUSES and attempt < RETRY_ATTEMPTS - 1:
+            if status in RETRY_STATUSES:
+                # A 503 that outlives our attempts is as transient as a reset
+                # socket, so it leaves by the same door and callers that poll
+                # can keep waiting instead of failing the release.
                 last_problem = "HTTP %s" % status
                 continue
             return status, payload
-        raise ASCError("%s %s failed after %d attempts (%s)"
-                       % (method, path, RETRY_ATTEMPTS, last_problem))
+        raise ASCTransportError("%s %s failed after %d attempts (%s)"
+                                % (method, path, RETRY_ATTEMPTS, last_problem))

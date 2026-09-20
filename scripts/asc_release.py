@@ -11,7 +11,7 @@ import re
 import sys
 import time
 
-from scripts.asc_client import ASCError
+from scripts.asc_client import ASCError, ASCTransportError
 
 TAG_PATTERN = re.compile(r"^v(\d+\.\d+(?:\.\d+)?)$")
 MARKETING_VERSION_PATTERN = re.compile(r"MARKETING_VERSION\s*=\s*([^;]+);")
@@ -242,14 +242,21 @@ def wait_for_build_run(client, product_id, workflow_id, commit_sha,
     may not exist yet when we first look.
     """
     deadline = now() + timeout_s
+    last_problem = None
     while True:
-        run = find_build_run(client, product_id, workflow_id, commit_sha)
+        try:
+            run = find_build_run(client, product_id, workflow_id, commit_sha)
+        except ASCTransportError as error:
+            # Client.request already retried; a longer outage is just another
+            # unsuccessful poll, not a reason to abandon the release.
+            run, last_problem = None, str(error)
         if run is not None:
             return run
         if now() >= deadline:
+            detail = " (last problem: %s)" % last_problem if last_problem else ""
             raise ASCError(
-                "no Xcode Cloud run appeared for commit %s in workflow %s within %ds"
-                % (commit_sha, workflow_id, timeout_s))
+                "no Xcode Cloud run appeared for commit %s in workflow %s within %ds%s"
+                % (commit_sha, workflow_id, timeout_s, detail))
         sleep(interval_s)
 
 
@@ -257,30 +264,36 @@ def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=ti
     deadline = now() + timeout_s
     last_problem = None
     while True:
-        status, body = client.request("GET", "/v1/ciBuildRuns/%s/builds" % run_id)
-        if status != 200:
-            last_problem = "builds returned %s: %s" % (status, body)
-        if status == 200 and body.get("data"):
-            build_id = body["data"][0]["id"]
-            build_status, build_body = client.request("GET", "/v1/builds/%s" % build_id)
-            if build_status == 200:
-                state = build_body["data"]["attributes"].get("processingState")
-                if state == "VALID":
-                    return build_id
-                if state in BUILD_FAILURE_STATES:
-                    raise ASCError("build %s finished processing as %s" % (build_id, state))
-            else:
-                last_problem = "build %s returned %s: %s" % (build_id, build_status, build_body)
+        # Only ASCTransportError is swallowed here. A terminal answer -- a build
+        # that came back INVALID, a run that failed to archive -- raises plain
+        # ASCError and must escape, or we would sit out the whole timeout.
+        try:
+            status, body = client.request("GET", "/v1/ciBuildRuns/%s/builds" % run_id)
+            if status != 200:
+                last_problem = "builds returned %s: %s" % (status, body)
+            if status == 200 and body.get("data"):
+                build_id = body["data"][0]["id"]
+                build_status, build_body = client.request("GET", "/v1/builds/%s" % build_id)
+                if build_status == 200:
+                    state = build_body["data"]["attributes"].get("processingState")
+                    if state == "VALID":
+                        return build_id
+                    if state in BUILD_FAILURE_STATES:
+                        raise ASCError("build %s finished processing as %s" % (build_id, state))
+                else:
+                    last_problem = "build %s returned %s: %s" % (build_id, build_status, build_body)
 
-        # A run that failed to archive never produces a build, so without this the
-        # loop would spin for the full timeout and blame the wrong thing.
-        run_status, run_body = client.request("GET", "/v1/ciBuildRuns/%s" % run_id)
-        if run_status == 200:
-            run_attributes = run_body["data"]["attributes"]
-            completion = run_attributes.get("completionStatus")
-            if completion in RUN_FAILURE_STATES:
-                raise ASCError("Xcode Cloud run #%s finished as %s; no build to link"
-                               % (run_attributes.get("number"), completion))
+            # A run that failed to archive never produces a build, so without this
+            # the loop would spin for the full timeout and blame the wrong thing.
+            run_status, run_body = client.request("GET", "/v1/ciBuildRuns/%s" % run_id)
+            if run_status == 200:
+                run_attributes = run_body["data"]["attributes"]
+                completion = run_attributes.get("completionStatus")
+                if completion in RUN_FAILURE_STATES:
+                    raise ASCError("Xcode Cloud run #%s finished as %s; no build to link"
+                                   % (run_attributes.get("number"), completion))
+        except ASCTransportError as error:
+            last_problem = str(error)
 
         if now() >= deadline:
             detail = " (last problem: %s)" % last_problem if last_problem else ""
