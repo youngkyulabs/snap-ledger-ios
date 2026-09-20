@@ -14,8 +14,10 @@ from scripts.asc_release import (
     VERSION_FIELDS,
     assert_version_matches,
     check_limits,
+    conflicting_draft,
     diff_metadata,
     find_build_run,
+    find_editable_versions,
     link_build,
     main,
     parse_version_from_tag,
@@ -250,11 +252,54 @@ class FindEditableVersionTests(unittest.TestCase):
         ]})]})
         self.assertEqual(find_editable_version(client, "APP", "1.5")["id"], "new")
 
-    def test_without_a_version_returns_the_first_editable_one(self):
+    def test_without_a_version_returns_the_only_editable_one(self):
         client = FakeClient({"/v1/apps": [(200, {"data": [
             {"id": "old", "attributes": {"versionString": "1.4", "appStoreState": "DEVELOPER_REJECTED"}},
         ]})]})
         self.assertEqual(find_editable_version(client, "APP")["id"], "old")
+
+    def test_without_a_version_the_highest_wins_whatever_the_response_order(self):
+        rows = [
+            {"id": "old", "attributes": {"versionString": "1.4", "appStoreState": "DEVELOPER_REJECTED"}},
+            {"id": "new", "attributes": {"versionString": "1.10", "appStoreState": "PREPARE_FOR_SUBMISSION"}},
+        ]
+        for order in (rows, list(reversed(rows))):
+            with self.subTest(order=[row["id"] for row in order]):
+                client = FakeClient({"/v1/apps": [(200, {"data": list(order)})]})
+                self.assertEqual(find_editable_version(client, "APP")["id"], "new")
+
+    def test_non_editable_states_are_dropped(self):
+        client = FakeClient({"/v1/apps": [(200, {"data": [
+            {"id": "live", "attributes": {"versionString": "1.4", "appStoreState": "READY_FOR_SALE"}},
+        ]})]})
+        self.assertEqual(find_editable_versions(client, "APP"), [])
+        self.assertIsNone(find_editable_version(client, "APP"))
+
+
+class ConflictingDraftTests(unittest.TestCase):
+    """Which open draft, if any, deliver would rename out from under us."""
+
+    @staticmethod
+    def _draft(version_string):
+        return {"id": version_string, "attributes": {"versionString": version_string}}
+
+    def test_nothing_open_is_no_conflict(self):
+        self.assertIsNone(conflicting_draft([], "1.5"))
+
+    def test_a_draft_for_our_own_version_is_no_conflict(self):
+        drafts = [self._draft("1.5")]
+        self.assertIsNone(conflicting_draft(drafts, "1.5"))
+
+    def test_another_version_alone_is_the_conflict(self):
+        drafts = [self._draft("1.6")]
+        self.assertEqual(conflicting_draft(drafts, "1.5")["id"], "1.6")
+
+    def test_a_stale_draft_beside_our_own_does_not_block(self):
+        # A lingering DEVELOPER_REJECTED 1.4 next to the real 1.5 draft used to
+        # block the release or not depending on the order ASC listed them in.
+        drafts = [self._draft("1.4"), self._draft("1.5")]
+        self.assertIsNone(conflicting_draft(drafts, "1.5"))
+        self.assertIsNone(conflicting_draft(list(reversed(drafts)), "1.5"))
 
 
 class BuildRunPreferenceTests(unittest.TestCase):

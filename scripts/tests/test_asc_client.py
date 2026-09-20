@@ -4,8 +4,9 @@ import os
 import subprocess
 import tempfile
 import unittest
+import urllib.error
 
-from scripts.asc_client import ASCError, Client
+from scripts.asc_client import RETRY_ATTEMPTS, ASCError, Client, _decode_body
 
 
 def _b64u_decode(segment):
@@ -61,6 +62,65 @@ class TokenTests(unittest.TestCase):
         self.assertEqual(payload["exp"] - payload["iat"], 600)
 
         self.assertEqual(len(_b64u_decode(signature_b64)), 64)
+
+
+class DecodeBodyTests(unittest.TestCase):
+    def test_empty_204_body_is_not_parsed_as_json(self):
+        # b"" is a substring of b"{[", so the old membership test sent an empty
+        # 204 body -- link_build's success path -- into json.loads.
+        self.assertEqual(_decode_body(b""), b"")
+
+    def test_json_object_and_array_bodies_are_parsed(self):
+        self.assertEqual(_decode_body(b'{"data": 1}'), {"data": 1})
+        self.assertEqual(_decode_body(b"[1, 2]"), [1, 2])
+
+    def test_non_json_body_is_returned_untouched(self):
+        self.assertEqual(_decode_body(b"plain text"), b"plain text")
+
+
+class RecordingClient(Client):
+    """Client whose single-shot request is scripted instead of networked."""
+
+    def __init__(self, outcomes):
+        super().__init__("unused.p8", "KEYID", "ISSUER")
+        self.outcomes = list(outcomes)
+        self.attempts = 0
+
+    def _request_once(self, method, path, body=None):
+        self.attempts += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+class RetryTests(unittest.TestCase):
+    def test_retries_past_a_transient_network_error(self):
+        client = RecordingClient([
+            urllib.error.URLError("connection reset"),
+            (200, {"data": []}),
+        ])
+        slept = []
+        self.assertEqual(client.request("GET", "/v1/builds", sleep=slept.append), (200, {"data": []}))
+        self.assertEqual(client.attempts, 2)
+        self.assertEqual(slept, [5])
+
+    def test_retries_a_503_then_succeeds(self):
+        client = RecordingClient([(503, b"busy"), (200, {"data": []})])
+        self.assertEqual(client.request("GET", "/v1/builds", sleep=lambda _: None), (200, {"data": []}))
+        self.assertEqual(client.attempts, 2)
+
+    def test_gives_up_as_an_asc_error_not_a_raw_urlerror(self):
+        client = RecordingClient([urllib.error.URLError("down")] * RETRY_ATTEMPTS)
+        with self.assertRaises(ASCError) as ctx:
+            client.request("GET", "/v1/builds", sleep=lambda _: None)
+        self.assertIn("after %d attempts" % RETRY_ATTEMPTS, str(ctx.exception))
+        self.assertEqual(client.attempts, RETRY_ATTEMPTS)
+
+    def test_a_client_error_is_returned_without_retrying(self):
+        client = RecordingClient([(409, {"errors": []})])
+        self.assertEqual(client.request("PATCH", "/v1/x", sleep=lambda _: None), (409, {"errors": []}))
+        self.assertEqual(client.attempts, 1)
 
 
 if __name__ == "__main__":

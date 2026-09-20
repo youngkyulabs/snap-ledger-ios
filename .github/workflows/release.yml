@@ -15,7 +15,10 @@ jobs:
   release:
     name: Metadata · Screenshots · Build link
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Must stay comfortably above the link-build budget below (15 + 75 = 90 min)
+    # plus setup, so a slow-but-healthy Xcode Cloud build ends in the script's
+    # own error rather than a bare "job cancelled" with metadata already sent.
+    timeout-minutes: 120
 
     env:
       ASC_KEY_PATH: ${{ github.workspace }}/.asc_key.p8
@@ -26,6 +29,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # Full history so the tag can be proven to sit on main.
+          fetch-depth: 0
+
+      - name: Resolve the tagged commit
+        run: |
+          # GITHUB_SHA is the tag object's SHA for an annotated tag, which would
+          # never match Xcode Cloud's sourceCommit. Dereference to the commit.
+          sha=$(git rev-parse "${GITHUB_REF_NAME}^{commit}")
+          echo "TAG_COMMIT=$sha" >> "$GITHUB_ENV"
+          echo "${GITHUB_REF_NAME} -> $sha"
+
+      - name: Refuse a tag that is not on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::${GITHUB_REF_NAME} (${TAG_COMMIT}) is not on main; refusing to release"
+            exit 1
+          fi
 
       - name: Restore ASC private key
         env:
@@ -99,8 +121,10 @@ jobs:
         run: |
           python3 -m scripts.asc_release link-build \
             --tag "${GITHUB_REF_NAME}" \
-            --commit "${GITHUB_SHA}" \
-            --workflow-id "${TAG_WORKFLOW_ID}"
+            --commit "${TAG_COMMIT}" \
+            --workflow-id "${TAG_WORKFLOW_ID}" \
+            --run-timeout 900 \
+            --timeout 4500
 
       - name: Remove credentials
         if: always()
