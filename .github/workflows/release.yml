@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  # One release at a time for the whole app, not one per tag: App Store Connect
+  # keeps a single editable draft, so two tags in flight would fight over it.
+  group: app-store-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Metadata · Screenshots · Build link
+    runs-on: ubuntu-latest
+    # Must stay comfortably above the link-build budget below (15 + 75 = 90 min)
+    # plus setup, so a slow-but-healthy Xcode Cloud build ends in the script's
+    # own error rather than a bare "job cancelled" with metadata already sent.
+    timeout-minutes: 120
+
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      TAG_WORKFLOW_ID: ${{ vars.XCODE_CLOUD_TAG_WORKFLOW_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # Full history so the tag can be proven to sit on main.
+          fetch-depth: 0
+
+      - name: Resolve the tagged commit
+        run: |
+          # GITHUB_SHA is the tag object's SHA for an annotated tag, which would
+          # never match Xcode Cloud's sourceCommit. Dereference to the commit.
+          sha=$(git rev-parse "${GITHUB_REF_NAME}^{commit}")
+          echo "TAG_COMMIT=$sha" >> "$GITHUB_ENV"
+          echo "${GITHUB_REF_NAME} -> $sha"
+
+      - name: Refuse a tag that is not on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::${GITHUB_REF_NAME} (${TAG_COMMIT}) is not on main; refusing to release"
+            exit 1
+          fi
+
+      - name: Point credentials at the runner temp dir
+        run: |
+          # Set here rather than in the job's `env`: the `runner` context is
+          # unavailable at that level, and referencing it there makes the whole
+          # workflow file invalid. $RUNNER_TEMP is outside the checkout.
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/asc_key.p8" >> "$GITHUB_ENV"
+          echo "ASC_KEY_JSON=$RUNNER_TEMP/asc_key.json" >> "$GITHUB_ENV"
+
+      - name: Restore ASC private key
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          printf '%s' "$ASC_PRIVATE_KEY" > "$ASC_KEY_PATH"
+          chmod 600 "$ASC_KEY_PATH"
+
+      - name: Unit tests for release scripts
+        run: python3 -m unittest discover -s scripts/tests -t . -v
+
+      - name: Preflight (blocks before anything is uploaded)
+        run: |
+          python3 -m scripts.asc_release preflight \
+            --tag "${GITHUB_REF_NAME}" \
+            --workflow-id "${TAG_WORKFLOW_ID}"
+
+      - name: Stage screenshots
+        run: ./scripts/stage_screenshots.sh
+
+      - name: Set up Ruby and fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      - name: Install fastlane
+        run: gem install fastlane -N -v 2.240.1
+
+      - name: Build ASC API key JSON for fastlane
+        run: |
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ["ASC_KEY_PATH"], encoding="utf-8") as handle:
+              key = handle.read()
+          payload = {
+              "key_id": os.environ["ASC_KEY_ID"],
+              "issuer_id": os.environ["ASC_ISSUER_ID"],
+              "key": key,
+              "in_house": False,
+          }
+          with open(os.environ["ASC_KEY_JSON"], "w", encoding="utf-8") as handle:
+              json.dump(payload, handle)
+          PY
+          chmod 600 "$ASC_KEY_JSON"
+
+      - name: Upload metadata and screenshots
+        env:
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'
+        run: |
+          set -euo pipefail
+          fastlane deliver \
+            --api_key_path "$ASC_KEY_JSON" \
+            --app_identifier com.youngkyu.snapledger \
+            --app_version "${GITHUB_REF_NAME#v}" \
+            --metadata_path ./fastlane/metadata \
+            --screenshots_path ./fastlane/screenshots \
+            --overwrite_screenshots true \
+            --skip_binary_upload true \
+            --submit_for_review false \
+            --precheck_include_in_app_purchases false \
+            --force
+
+      - name: Wait for the Xcode Cloud build and link it
+        run: |
+          python3 -m scripts.asc_release link-build \
+            --tag "${GITHUB_REF_NAME}" \
+            --commit "${TAG_COMMIT}" \
+            --workflow-id "${TAG_WORKFLOW_ID}" \
+            --run-timeout 900 \
+            --timeout 4500
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc_key.p8" "$RUNNER_TEMP/asc_key.json"

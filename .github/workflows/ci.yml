@@ -60,3 +60,38 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -only-testing:SnapLedgerTests \
             | xcbeautify --renderer github-actions
+
+  workflows:
+    name: Workflows · Release scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: actionlint
+        env:
+          # Pinned like fastlane in release.yml. A linter whose rules shift under
+          # you is worse than none, and the checksum comes from the release's own
+          # checksums.txt.
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$tarball" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
+          echo "${ACTIONLINT_SHA256}  ${tarball}" | sha256sum -c -
+          tar xzf "$tarball" actionlint
+          # The runner ships shellcheck, so `run:` blocks get checked too --
+          # something a local run without it cannot do. (Do not start this
+          # comment with the tool's name: that spelling is a shellcheck
+          # directive, and it fails to parse as one.)
+          ./actionlint -color
+
+      - name: Unit tests for release scripts
+        # These also run inside release.yml, but only once a tag exists -- and a
+        # release tag cannot be deleted or moved under the version-tags ruleset,
+        # so a break found there costs a version number. Two seconds here.
+        run: python3 -m unittest discover -s scripts/tests -t . -v
