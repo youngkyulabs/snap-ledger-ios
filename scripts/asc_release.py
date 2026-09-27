@@ -48,8 +48,8 @@ def _version_sort_key(version_string):
     return [int(part) if part.isdigit() else -1 for part in (version_string or "").split(".")]
 
 
-def _version_string(editable):
-    return (editable or {}).get("attributes", {}).get("versionString")
+def _version_string(item):
+    return (item or {}).get("attributes", {}).get("versionString")
 
 
 def list_app_store_versions(client, app_id, version=None):
@@ -105,11 +105,7 @@ FIELD_LIMITS = {
 }
 
 
-def _all_fields():
-    merged = {}
-    merged.update(VERSION_FIELDS)
-    merged.update(APP_INFO_FIELDS)
-    return merged
+ALL_FIELDS = {**VERSION_FIELDS, **APP_INFO_FIELDS}
 
 
 def _normalize(value):
@@ -118,7 +114,7 @@ def _normalize(value):
 
 def read_metadata_dir(path):
     files = {}
-    for name in _all_fields():
+    for name in ALL_FIELDS:
         full = os.path.join(path, name)
         if not os.path.isfile(full):
             continue
@@ -133,14 +129,13 @@ def missing_metadata_files(files):
     deliver silently skips fields whose files are absent, so absence has to be
     reported rather than treated as "nothing to compare".
     """
-    return sorted(name for name in _all_fields() if name not in files)
+    return sorted(name for name in ALL_FIELDS if name not in files)
 
 
 def check_limits(files):
     errors = []
-    mapping = _all_fields()
     for name, text in sorted(files.items()):
-        field = mapping.get(name)
+        field = ALL_FIELDS.get(name)
         limit = FIELD_LIMITS.get(field)
         if limit is None:
             continue
@@ -330,7 +325,7 @@ def published_release_notes(client, versions, version):
     return _version_string(newest), notes
 
 
-def preflight_problems(tag, marketing_version, files, editable, workflow_id,
+def preflight_problems(tag, marketing_version, files, editables, workflow_id,
                        published_notes=None):
     """Everything that must be true before fastlane deliver writes anything.
 
@@ -349,8 +344,9 @@ def preflight_problems(tag, marketing_version, files, editable, workflow_id,
         problems.append("tag %s says version %s but MARKETING_VERSION is %s"
                         % (tag, version, marketing_version))
 
-    if editable is not None:
-        found = editable.get("attributes", {}).get("versionString")
+    # Fail closed: an open draft for any other version is one deliver could rename.
+    for draft in editables:
+        found = _version_string(draft)
         if found != version:
             problems.append(
                 "App Store Connect has an open %s draft but the tag says %s; deliver would "
@@ -381,7 +377,7 @@ def _cmd_preflight(args, client):
         marketing = read_marketing_version(handle.read())
     files = read_metadata_dir(args.metadata_dir)
 
-    editable = None
+    editables = []
     published = None
     try:
         version = parse_version_from_tag(args.tag)
@@ -389,15 +385,13 @@ def _cmd_preflight(args, client):
         version = None
     if version is not None:
         versions = list_app_store_versions(client, APP_ID)
-        # Fail closed: any open draft for another version is one deliver would rename.
-        editable = next((item for item in editable_versions(versions)
-                         if _version_string(item) != version), None)
+        editables = editable_versions(versions)
         published = published_release_notes(client, versions, version)
         if published is None:
             print("NOTE   no previously published release notes to compare against; "
                   "the %s staleness check did not run" % RELEASE_NOTES_FILE)
 
-    problems = preflight_problems(args.tag, marketing, files, editable, args.workflow_id,
+    problems = preflight_problems(args.tag, marketing, files, editables, args.workflow_id,
                                   published_notes=published)
     for problem in problems:
         print("BLOCK  %s" % problem)

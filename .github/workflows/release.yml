@@ -31,7 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # Full history so the tag can be proven to sit on main.
+          # Full history and every branch, so the tag can be proven to sit on main.
           fetch-depth: 0
 
       - name: Resolve the tagged commit
@@ -44,7 +44,6 @@ jobs:
 
       - name: Refuse a tag that is not on main
         run: |
-          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
             echo "::error::${GITHUB_REF_NAME} (${TAG_COMMIT}) is not on main; refusing to release"
             exit 1

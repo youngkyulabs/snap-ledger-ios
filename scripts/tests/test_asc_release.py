@@ -317,19 +317,19 @@ class StaleReleaseNotesTests(unittest.TestCase):
     def test_blocks_notes_identical_to_the_published_ones(self):
         problems = preflight_problems(
             tag="v1.5", marketing_version="1.5", files=self._files("• 1.4 이야기"),
-            editable=None, workflow_id="WF", published_notes=("1.4", "• 1.4 이야기\n"))
+            editables=[], workflow_id="WF", published_notes=("1.4", "• 1.4 이야기\n"))
         self.assertTrue(any(RELEASE_NOTES_FILE in p and "1.4" in p for p in problems),
                         problems)
 
     def test_allows_notes_that_were_actually_rewritten(self):
         self.assertEqual(preflight_problems(
             tag="v1.5", marketing_version="1.5", files=self._files("• 1.5 이야기"),
-            editable=None, workflow_id="WF", published_notes=("1.4", "• 1.4 이야기")), [])
+            editables=[], workflow_id="WF", published_notes=("1.4", "• 1.4 이야기")), [])
 
     def test_no_comparison_available_does_not_block(self):
         self.assertEqual(preflight_problems(
             tag="v1.5", marketing_version="1.5", files=self._files("• 1.4 이야기"),
-            editable=None, workflow_id="WF", published_notes=None), [])
+            editables=[], workflow_id="WF", published_notes=None), [])
 
 
 class BuildRunPreferenceTests(unittest.TestCase):
@@ -407,41 +407,57 @@ class PreflightProblemsTests(unittest.TestCase):
     def test_clean_when_everything_lines_up(self):
         self.assertEqual(
             preflight_problems(tag="v1.5", marketing_version="1.5", files=self._files(),
-                               editable=None, workflow_id="WF"), [])
+                               editables=[], workflow_id="WF"), [])
 
     def test_blocks_a_malformed_tag(self):
         problems = preflight_problems(tag="v1.5-beta", marketing_version="1.5",
-                                      files=self._files(), editable=None, workflow_id="WF")
+                                      files=self._files(), editables=[], workflow_id="WF")
         self.assertTrue(any("v1.5-beta" in p for p in problems))
 
     def test_blocks_when_marketing_version_disagrees(self):
         problems = preflight_problems(tag="v1.5", marketing_version="1.4",
-                                      files=self._files(), editable=None, workflow_id="WF")
+                                      files=self._files(), editables=[], workflow_id="WF")
         self.assertTrue(any("MARKETING_VERSION" in p for p in problems))
 
+    @staticmethod
+    def _draft(version_string):
+        return {"id": version_string, "attributes": {"versionString": version_string}}
+
     def test_blocks_when_another_version_draft_is_open(self):
-        editable = {"id": "x", "attributes": {"versionString": "1.6"}}
-        problems = preflight_problems(tag="v1.5", marketing_version="1.5",
-                                      files=self._files(), editable=editable, workflow_id="WF")
+        problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=self._files(),
+                                      editables=[self._draft("1.6")], workflow_id="WF")
         self.assertTrue(any("1.6" in p for p in problems))
+
+    def test_a_draft_for_our_own_version_is_clean(self):
+        self.assertEqual(preflight_problems(tag="v1.5", marketing_version="1.5",
+                                            files=self._files(), editables=[self._draft("1.5")],
+                                            workflow_id="WF"), [])
+
+    def test_another_draft_beside_our_own_still_blocks(self):
+        # Fails closed whatever order App Store Connect lists them in.
+        drafts = [self._draft("1.4"), self._draft("1.5")]
+        for order in (drafts, list(reversed(drafts))):
+            problems = preflight_problems(tag="v1.5", marketing_version="1.5",
+                                          files=self._files(), editables=order, workflow_id="WF")
+            self.assertTrue(any("1.4" in p for p in problems), problems)
 
     def test_blocks_a_missing_metadata_file(self):
         files = self._files()
         del files["promotional_text.txt"]
         problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=files,
-                                      editable=None, workflow_id="WF")
+                                      editables=[], workflow_id="WF")
         self.assertTrue(any("promotional_text.txt" in p for p in problems))
 
     def test_blocks_text_over_the_character_limit(self):
         files = self._files()
         files["promotional_text.txt"] = "가" * 171
         problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=files,
-                                      editable=None, workflow_id="WF")
+                                      editables=[], workflow_id="WF")
         self.assertTrue(any("promotionalText" in p for p in problems))
 
     def test_blocks_an_empty_workflow_id(self):
         problems = preflight_problems(tag="v1.5", marketing_version="1.5", files=self._files(),
-                                      editable=None, workflow_id="")
+                                      editables=[], workflow_id="")
         self.assertTrue(any("workflow" in p.lower() for p in problems))
 
 
