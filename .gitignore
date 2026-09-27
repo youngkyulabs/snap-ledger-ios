@@ -25,8 +25,9 @@ Pods/
 # fastlane
 fastlane/report.xml
 fastlane/Preview.html
-fastlane/screenshots/
 fastlane/test_output/
+# deliver staging output, generated from internal/screenshot by scripts/stage_screenshots.sh
+fastlane/screenshots/
 
 # Local planning notes (kept out of repo)
 docs/plans/
