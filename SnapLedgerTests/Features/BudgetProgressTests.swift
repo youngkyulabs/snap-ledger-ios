@@ -22,7 +22,7 @@ struct BudgetProgressTests {
 
     private func entry(_ y: Int, _ m: Int, _ d: Int, amount: Int, category: String?) -> SavedEntry {
         SavedEntry(date: date(y, m, d), amount: amount, merchant: "M", category: category,
-                   savedAt: date(y, m, d), csvFile: "expenses-\(y)-\(String(format: "%02d", m)).csv")
+                   savedAt: date(y, m, d), csvFile: "expenses-\(y)-\(m.zeroPadded(2)).csv")
     }
 
     @Test func usagePercentStaysBelow100UntilOver() {

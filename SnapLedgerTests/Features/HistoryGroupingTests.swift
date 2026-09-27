@@ -30,7 +30,7 @@ struct HistoryGroupingTests {
             merchant: merchant,
             category: nil,
             savedAt: savedAt ?? date(y, m, d, h),
-            csvFile: "expenses-\(y)-\(String(format: "%02d", m)).csv"
+            csvFile: "expenses-\(y)-\(m.zeroPadded(2)).csv"
         )
     }
 

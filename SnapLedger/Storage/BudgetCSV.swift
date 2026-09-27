@@ -15,8 +15,8 @@ struct BudgetCSVWriter {
         let url = folder.appendingPathComponent(Self.filename(forMonthKey: key))
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinationError: NSError?
-        var thrown: Error?
-        coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { coordinatedURL in
+        var thrown: (any Error)?
+        unsafe coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { coordinatedURL in
             do {
                 if rows.isEmpty {
                     if FileManager.default.fileExists(atPath: coordinatedURL.path) {

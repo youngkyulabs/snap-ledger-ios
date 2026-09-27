@@ -8,8 +8,8 @@ private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "import
 @MainActor
 enum ImageImporter {
     enum ImportError: Error, LocalizedError {
-        case writeFailed(underlying: Error)
-        case persistFailed(underlying: Error)
+        case writeFailed(underlying: any Error)
+        case persistFailed(underlying: any Error)
 
         var errorDescription: String? {
             switch self {

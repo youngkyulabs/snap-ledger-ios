@@ -331,7 +331,7 @@ private enum EntryReorderAction {
             try SaveCoordinator(categoryLearner: CategoryLearner())
                 .reorder(reordered, in: context)
         } catch {
-            onError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            onError((error as? any LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
 }

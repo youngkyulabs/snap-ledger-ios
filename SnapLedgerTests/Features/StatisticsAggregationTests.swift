@@ -30,7 +30,7 @@ struct StatisticsAggregationTests {
             merchant: merchant,
             category: category,
             savedAt: date(y, m, d),
-            csvFile: "expenses-\(y)-\(String(format: "%02d", m)).csv"
+            csvFile: "expenses-\(y)-\(m.zeroPadded(2)).csv"
         )
     }
 

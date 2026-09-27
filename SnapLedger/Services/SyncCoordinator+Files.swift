@@ -12,6 +12,6 @@ extension SyncCoordinator {
     }
 
     nonisolated static func monthKeyString(from key: Int) -> String {
-        String(format: "%04d-%02d", key / 100, key % 100)
+        "\((key / 100).zeroPadded(4))-\((key % 100).zeroPadded(2))"
     }
 }

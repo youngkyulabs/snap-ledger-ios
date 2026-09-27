@@ -6,7 +6,7 @@ import SwiftData
 enum CSVFolderAccess {
     enum AccessError: Error {
         case noCSVFolder
-        case bookmarkResolveFailed(underlying: Error)
+        case bookmarkResolveFailed(underlying: any Error)
         case folderUnavailable
     }
 

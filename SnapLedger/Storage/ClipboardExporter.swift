@@ -59,7 +59,7 @@ nonisolated enum ClipboardExporter {
 
     private static func tsvLine(_ row: SavedRow, calendar: Calendar) -> String {
         let c = calendar.dateComponents([.year, .month, .day], from: row.date)
-        let dateStr = String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        let dateStr = "\((c.year ?? 0).zeroPadded(4))-\((c.month ?? 0).zeroPadded(2))-\((c.day ?? 0).zeroPadded(2))"
         return [
             dateStr,
             sanitize(row.description),

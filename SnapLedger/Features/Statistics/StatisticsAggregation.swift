@@ -77,9 +77,7 @@ enum StatisticsAggregation {
                 total: total,
                 entryCount: items.count,
                 slices: slices(for: items, monthTotal: total),
-                csvFilename: String(format: "expenses-%04d-%02d.csv",
-                                    monthKey.year ?? 0,
-                                    monthKey.month ?? 0)
+                csvFilename: "expenses-\((monthKey.year ?? 0).zeroPadded(4))-\((monthKey.month ?? 0).zeroPadded(2)).csv"
             )
         }
 

@@ -7,8 +7,8 @@ private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "pendin
 @MainActor
 struct PendingProcessor {
     let inboxURL: URL
-    let ocrService: OCRService
-    let extractionService: ExtractionService
+    let ocrService: any OCRService
+    let extractionService: any ExtractionService
     let categoryLearner: CategoryLearner
 
     static func make(in context: ModelContext) -> PendingProcessor {

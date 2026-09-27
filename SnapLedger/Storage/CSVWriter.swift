@@ -54,7 +54,7 @@ struct CSVWriter {
 
     static func monthKey(for date: Date, calendar: Calendar = .current) -> String {
         let c = calendar.dateComponents([.year, .month], from: date)
-        return String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
+        return "\((c.year ?? 0).zeroPadded(4))-\((c.month ?? 0).zeroPadded(2))"
     }
 
     static func filename(forMonthKey key: String) -> String {
@@ -67,7 +67,7 @@ struct CSVWriter {
 
     private func dayKey(for date: Date) -> String {
         let c = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        return "\((c.year ?? 0).zeroPadded(4))-\((c.month ?? 0).zeroPadded(2))-\((c.day ?? 0).zeroPadded(2))"
     }
 
     private func csvLine(_ row: SavedRow) -> String {
@@ -83,8 +83,8 @@ struct CSVWriter {
     private func appendRows(_ rows: [SavedRow], to url: URL) throws {
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinationError: NSError?
-        var thrown: Error?
-        coordinator.coordinate(
+        var thrown: (any Error)?
+        unsafe coordinator.coordinate(
             writingItemAt: url, options: .forMerging, error: &coordinationError
         ) { coordinatedURL in
             do {
@@ -137,8 +137,8 @@ struct CSVWriter {
     private func replaceRows(_ rows: [SavedRow], at url: URL) throws {
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinationError: NSError?
-        var thrown: Error?
-        coordinator.coordinate(
+        var thrown: (any Error)?
+        unsafe coordinator.coordinate(
             writingItemAt: url, options: .forReplacing, error: &coordinationError
         ) { coordinatedURL in
             do {
