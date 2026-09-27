@@ -20,8 +20,7 @@ import urllib.request
 BASE = "https://api.appstoreconnect.apple.com"
 TOKEN_LIFETIME_S = 600
 
-# The release job polls for the better part of an hour, so a single stalled
-# socket must not be able to hang it: urlopen without a timeout blocks forever.
+# urlopen without a timeout blocks forever, and the release polls for up to an hour.
 REQUEST_TIMEOUT_S = 30
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_S = 5
@@ -44,13 +43,8 @@ class _UnreadableBody(Exception):
     """A 2xx body that arrived unparseable. Internal: never leaves `request`."""
 
 
-# urlopen and resp.read() raise more than OSError. A response cut short comes
-# out as http.client.IncompleteRead -- an HTTPException, which is *not* an
-# OSError -- and a body cut mid-JSON comes out of _decode_body as a ValueError.
-# Neither is an ASCError, so catching only OSError let both escape `request`
-# untouched: past the poll loops' `except ASCTransportError` and past main's
-# `except ASCError`, ending the release in a bare traceback after deliver had
-# already overwritten the metadata.
+# A response cut short raises http.client.IncompleteRead, which is not an
+# OSError, and a body cut mid-JSON raises _UnreadableBody. Both are retryable.
 TRANSIENT_EXCEPTIONS = (OSError, http.client.HTTPException, _UnreadableBody)
 
 
@@ -75,18 +69,13 @@ def _der_to_raw(der):
 
 
 def _decode_body(raw):
-    """Parse a response body, tolerating the empty one a 204 returns.
-
-    `raw[:1] in b"{["` looks right but is a substring test, and b"" is a
-    substring of everything -- which sent an empty 204 body into json.loads.
-    """
+    """Parse a JSON response body; anything else (an empty 204) comes back raw."""
     stripped = raw.strip()
     if stripped.startswith((b"{", b"[")):
         try:
             return json.loads(stripped)
         except ValueError as error:
-            # A body that opens as JSON and does not close as one is a
-            # truncated read, not an answer. Hand it to the retry loop.
+            # Opens as JSON but does not close as one: a truncated read.
             raise _UnreadableBody("truncated JSON response: %s" % error) from error
     return raw
 
@@ -147,27 +136,22 @@ class Client:
     def request(self, method, path, body=None, sleep=time.sleep):
         """One request, retried past transient failures.
 
-        The build poll makes well over a hundred calls across ~an hour; a single
-        reset connection or 503 used to escape as an unhandled URLError and
-        abort the release *after* deliver had already overwritten metadata.
-        Every call here is idempotent (GETs, and a PATCH that sets a
-        relationship to one specific build), so retrying is safe.
+        Every call made through here is idempotent (GETs, and a PATCH that sets
+        a relationship to one specific build), so retrying is safe.
         """
         last_problem = None
         for attempt in range(RETRY_ATTEMPTS):
             if attempt:
                 sleep(RETRY_BACKOFF_S * attempt)
             try:
-                # HTTPError is handled inside _request_once, so anything caught
-                # here is a genuine network/socket/truncation failure.
+                # HTTPError is handled inside _request_once.
                 status, payload = self._request_once(method, path, body)
             except TRANSIENT_EXCEPTIONS as error:
                 last_problem = "%s: %s" % (type(error).__name__, error)
                 continue
             if status in RETRY_STATUSES:
-                # A 503 that outlives our attempts is as transient as a reset
-                # socket, so it leaves by the same door and callers that poll
-                # can keep waiting instead of failing the release.
+                # A 5xx that outlives the attempts leaves as a transport error,
+                # so polling callers keep waiting.
                 last_problem = "HTTP %s" % status
                 continue
             return status, payload

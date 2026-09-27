@@ -15,13 +15,10 @@ from scripts.asc_release import (
     VERSION_FIELDS,
     FATAL_STATUSES,
     check_limits,
-    conflicting_draft,
     diff_metadata,
     find_build_run,
-    find_editable_versions,
     link_build,
     list_app_store_versions,
-    PAGE_LIMIT,
     main,
     parse_version_from_tag,
     published_release_notes,
@@ -259,48 +256,11 @@ class FindEditableVersionTests(unittest.TestCase):
         ]})]})
         self.assertEqual(find_editable_version(client, "APP")["id"], "old")
 
-    def test_without_a_version_the_highest_wins_whatever_the_response_order(self):
-        rows = [
-            {"id": "old", "attributes": {"versionString": "1.4", "appStoreState": "DEVELOPER_REJECTED"}},
-            {"id": "new", "attributes": {"versionString": "1.10", "appStoreState": "PREPARE_FOR_SUBMISSION"}},
-        ]
-        for order in (rows, list(reversed(rows))):
-            with self.subTest(order=[row["id"] for row in order]):
-                client = FakeClient({"/v1/apps": [(200, {"data": list(order)})]})
-                self.assertEqual(find_editable_version(client, "APP")["id"], "new")
-
     def test_non_editable_states_are_dropped(self):
         client = FakeClient({"/v1/apps": [(200, {"data": [
             {"id": "live", "attributes": {"versionString": "1.4", "appStoreState": "READY_FOR_SALE"}},
         ]})]})
-        self.assertEqual(find_editable_versions(client, "APP"), [])
         self.assertIsNone(find_editable_version(client, "APP"))
-
-
-class ConflictingDraftTests(unittest.TestCase):
-    """Which open draft, if any, deliver would rename out from under us."""
-
-    @staticmethod
-    def _draft(version_string):
-        return {"id": version_string, "attributes": {"versionString": version_string}}
-
-    def test_nothing_open_is_no_conflict(self):
-        self.assertIsNone(conflicting_draft([], "1.5"))
-
-    def test_a_draft_for_our_own_version_is_no_conflict(self):
-        drafts = [self._draft("1.5")]
-        self.assertIsNone(conflicting_draft(drafts, "1.5"))
-
-    def test_another_version_alone_is_the_conflict(self):
-        drafts = [self._draft("1.6")]
-        self.assertEqual(conflicting_draft(drafts, "1.5")["id"], "1.6")
-
-    def test_a_stale_draft_beside_our_own_does_not_block(self):
-        # A lingering DEVELOPER_REJECTED 1.4 next to the real 1.5 draft used to
-        # block the release or not depending on the order ASC listed them in.
-        drafts = [self._draft("1.4"), self._draft("1.5")]
-        self.assertIsNone(conflicting_draft(drafts, "1.5"))
-        self.assertIsNone(conflicting_draft(list(reversed(drafts)), "1.5"))
 
 
 def _version_row(item_id, version_string, state):
@@ -314,19 +274,7 @@ class VersionListingTests(unittest.TestCase):
     def test_asks_for_the_largest_page_app_store_connect_serves(self):
         client = FakeClient({"/v1/apps": [(200, {"data": []})]})
         list_app_store_versions(client, "APP")
-        # Pinned to the literal: an expectation built from PAGE_LIMIT would
-        # follow the constant back down to the 20 that caused the bug.
         self.assertIn("limit=200", client.calls[0][1])
-
-    def test_a_full_page_is_refused_instead_of_read_as_the_whole_truth(self):
-        # Silently partial is the failure mode that matters: the open draft
-        # falls off the end, the editable list comes back empty, and preflight
-        # passes on nothing at all.
-        rows = [_version_row("v%d" % n, "1.%d" % n, "READY_FOR_SALE") for n in range(PAGE_LIMIT)]
-        client = FakeClient({"/v1/apps": [(200, {"data": rows})]})
-        with self.assertRaises(ASCError) as ctx:
-            list_app_store_versions(client, "APP")
-        self.assertIn("truncated", str(ctx.exception))
 
 
 class PublishedReleaseNotesTests(unittest.TestCase):

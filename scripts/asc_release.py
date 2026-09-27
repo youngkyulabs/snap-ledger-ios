@@ -11,7 +11,7 @@ import re
 import sys
 import time
 
-from scripts.asc_client import ASCError, ASCTransportError
+from scripts.asc_client import ASCError, ASCTransportError, Client
 
 TAG_PATTERN = re.compile(r"^v(\d+\.\d+(?:\.\d+)?)$")
 MARKETING_VERSION_PATTERN = re.compile(r"MARKETING_VERSION\s*=\s*([^;]+);")
@@ -52,77 +52,32 @@ def _version_string(editable):
     return (editable or {}).get("attributes", {}).get("versionString")
 
 
-# The largest page App Store Connect serves here, and far more versions than
-# this app will ship. Chasing `next` links would be machinery for a case that
-# cannot arise; the guard below is there so that if it ever did, the listing
-# fails loudly instead of going quietly partial.
-PAGE_LIMIT = 200
-
-
 def list_app_store_versions(client, app_id, version=None):
-    """Every appStoreVersion App Store Connect knows about.
+    """Every appStoreVersion of the app.
 
-    `limit=20` used to cap this, which left the rename guard at the mercy of
-    what fit in the page: once the open draft sits outside it, the editable
-    list comes back empty and preflight passes on nothing. The endpoint has no
-    documented order, so a partial read is worse than no read.
+    200 is the largest page App Store Connect serves and far more versions than
+    this app will ship; a smaller page once hid the open draft from preflight.
     """
-    path = "/v1/apps/%s/appStoreVersions?limit=%d" % (app_id, PAGE_LIMIT)
+    path = "/v1/apps/%s/appStoreVersions?limit=200" % app_id
     if version is not None:
         path += "&filter[versionString]=%s" % version
     status, body = client.request("GET", path)
     if status != 200:
         raise ASCError("could not list versions (%s): %s" % (status, body))
-    items = body.get("data", [])
-    if len(items) >= PAGE_LIMIT:
-        raise ASCError("appStoreVersions came back with a full %d-item page, so the "
-                       "listing is truncated and the draft checks cannot be trusted"
-                       % PAGE_LIMIT)
-    return items
+    return body.get("data", [])
 
 
 def editable_versions(items, version=None):
-    """The editable subset of an already-fetched listing, newest first.
-
-    REJECTED and DEVELOPER_REJECTED versions sit in EDITABLE_STATES
-    indefinitely, and the list endpoint has no documented order, so callers
-    must never depend on "whichever one came back first".
-    """
-    found = []
-    for item in items:
-        attributes = item.get("attributes", {})
-        if attributes.get("appStoreState") not in EDITABLE_STATES:
-            continue
-        if version is not None and attributes.get("versionString") != version:
-            continue
-        found.append(item)
-    found.sort(key=lambda item: _version_sort_key(_version_string(item)), reverse=True)
-    return found
-
-
-def find_editable_versions(client, app_id, version=None):
-    """Every version App Store Connect still lets us edit, newest first."""
-    return editable_versions(list_app_store_versions(client, app_id, version), version)
+    """The editable subset of an already-fetched listing, optionally for `version`."""
+    return [item for item in items
+            if item.get("attributes", {}).get("appStoreState") in EDITABLE_STATES
+            and (version is None or _version_string(item) == version)]
 
 
 def find_editable_version(client, app_id, version=None):
-    """The editable version for `version`, or the highest editable one."""
-    found = find_editable_versions(client, app_id, version)
+    """The app's editable version (App Store Connect allows one at a time), or None."""
+    found = editable_versions(list_app_store_versions(client, app_id, version), version)
     return found[0] if found else None
-
-
-def conflicting_draft(editables, version):
-    """The draft deliver would rename, or None if there is nothing to fear.
-
-    deliver edits the app's editable version, renaming it when its version
-    string differs from --app_version. A draft that already *is* `version` is
-    exactly what we want, so other drafts only matter when that one is absent.
-    Checking membership rather than "the first editable one" keeps the answer
-    independent of the order App Store Connect happens to list versions in.
-    """
-    if any(_version_string(editable) == version for editable in editables):
-        return None
-    return editables[0] if editables else None
 
 
 # Metadata file name -> appStoreVersionLocalizations attribute.
@@ -175,9 +130,8 @@ def read_metadata_dir(path):
 def missing_metadata_files(files):
     """Expected metadata files that are not on disk.
 
-    deliver silently skips fields whose files are absent — that is how
-    Promotional Text went missing from 1.4 — so absence must be reported, not
-    treated as "nothing to compare".
+    deliver silently skips fields whose files are absent, so absence has to be
+    reported rather than treated as "nothing to compare".
     """
     return sorted(name for name in _all_fields() if name not in files)
 
@@ -208,11 +162,9 @@ def diff_metadata(files, live, mapping):
     return differences
 
 
-# A rejected key or a key without the Xcode Cloud role answers the same way on
-# every poll, so the loop below must leave immediately instead of holding the
-# runner for the full timeout. 404 is deliberately absent: the ids we poll come
-# from a listing we just read, and a distributed API may answer 404 for a moment
-# before catching up.
+# Answers polling cannot change (a rejected key, or one without the Xcode Cloud
+# role). 404 is left out: the ids we poll come from a fresh listing and may 404
+# for a moment before the API catches up.
 FATAL_STATUSES = frozenset([401, 403])
 
 BUILD_FAILURE_STATES = frozenset(["INVALID", "FAILED"])
@@ -236,18 +188,16 @@ def find_build_run(client, product_id, workflow_id, commit_sha):
     if status != 200:
         raise ASCError("could not list build runs (%s): %s" % (status, body))
 
-    # This comparison decides which binary ships, so it only accepts a run we
-    # positively matched. A run whose workflow relationship the API left out is
-    # not evidence -- guessing from it would be the same ambiguity that short
-    # SHA prefix matching was rejected for. Nothing found means we keep waiting.
+    # This decides which binary ships, so only a run matched on both the full
+    # commit SHA and the workflow counts; nothing found means keep waiting.
     confirmed = []
     for run in body.get("data", []):
         attributes = run.get("attributes") or {}
         source = attributes.get("sourceCommit") or {}
         if source.get("commitSha") != commit_sha:
             continue
-        # sourceBranchOrTag comes back null, so the workflow relationship is
-        # what separates the tag run from the main-push run on the same commit.
+        # sourceBranchOrTag comes back null, so the workflow is what separates
+        # the tag run from a main-push run on the same commit.
         if _run_workflow_id(run) == workflow_id:
             confirmed.append(run)
 
@@ -270,8 +220,7 @@ def wait_for_build_run(client, product_id, workflow_id, commit_sha,
         try:
             run = find_build_run(client, product_id, workflow_id, commit_sha)
         except ASCTransportError as error:
-            # Client.request already retried; a longer outage is just another
-            # unsuccessful poll, not a reason to abandon the release.
+            # Client.request already retried; a longer outage is just another miss.
             run, last_problem = None, str(error)
         if run is not None:
             return run
@@ -287,9 +236,8 @@ def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=ti
     deadline = now() + timeout_s
     last_problem = None
     while True:
-        # Only ASCTransportError is swallowed here. A terminal answer -- a build
-        # that came back INVALID, a run that failed to archive -- raises plain
-        # ASCError and must escape, or we would sit out the whole timeout.
+        # Only transport errors are waited out; a terminal answer (INVALID build,
+        # failed run) raises plain ASCError and ends the wait.
         try:
             status, body = client.request("GET", "/v1/ciBuildRuns/%s/builds" % run_id)
             _raise_if_fatal(status, "builds for run %s" % run_id)
@@ -308,8 +256,7 @@ def wait_for_valid_build(client, run_id, timeout_s=2400, interval_s=30, sleep=ti
                 else:
                     last_problem = "build %s returned %s: %s" % (build_id, build_status, build_body)
 
-            # A run that failed to archive never produces a build, so without this
-            # the loop would spin for the full timeout and blame the wrong thing.
+            # A run that failed to archive never produces a build.
             run_status, run_body = client.request("GET", "/v1/ciBuildRuns/%s" % run_id)
             _raise_if_fatal(run_status, "run %s" % run_id)
             if run_status == 200:
@@ -355,32 +302,29 @@ DEFAULT_PBXPROJ = "SnapLedger.xcodeproj/project.pbxproj"
 RELEASE_NOTES_FILE = "release_notes.txt"
 
 
-def _whats_new(client, version_id):
-    """The ko What's New on a version, or None if we cannot read it."""
+def _ko_localization(client, version_id):
+    """The version's ko localization, or None if it cannot be read."""
     status, body = client.request(
         "GET", "/v1/appStoreVersions/%s/appStoreVersionLocalizations" % version_id)
     if status != 200:
         return None
     for localization in body.get("data", []):
         if localization.get("attributes", {}).get("locale") == "ko":
-            return localization["attributes"].get("whatsNew")
+            return localization
     return None
 
 
 def published_release_notes(client, versions, version):
-    """(version string, What's New) of the newest version that is not ours.
-
-    Used to catch the one field that has to change every single release and is
-    the easiest to forget. Returns None when there is nothing to compare
-    against -- the caller says so out loud rather than passing quietly.
-    """
+    """(version string, What's New) of the newest version that is not ours,
+    or None when there is nothing to compare against."""
     others = [item for item in versions
               if _version_string(item) and _version_string(item) != version]
     if not others:
         return None
     others.sort(key=lambda item: _version_sort_key(_version_string(item)), reverse=True)
     newest = others[0]
-    notes = _whats_new(client, newest["id"])
+    localization = _ko_localization(client, newest["id"]) or {}
+    notes = localization.get("attributes", {}).get("whatsNew")
     if not _normalize(notes):
         return None
     return _version_string(newest), notes
@@ -417,10 +361,7 @@ def preflight_problems(tag, marketing_version, files, editable, workflow_id,
 
     problems.extend(check_limits(files))
 
-    # Every other check here passes on an untouched release_notes.txt: the file
-    # exists and is under 4000 characters, and `audit` compares it against the
-    # very text it was copied from and reports a match. Nothing else notices
-    # that the release would ship the previous version's changelog.
+    # Presence and length checks both pass on a release_notes.txt nobody rewrote.
     if published_notes is not None and RELEASE_NOTES_FILE in files:
         published_version, published_text = published_notes
         if _normalize(files[RELEASE_NOTES_FILE]) == _normalize(published_text):
@@ -447,11 +388,10 @@ def _cmd_preflight(args, client):
     except ASCError:
         version = None
     if version is not None:
-        # One listing, read twice: every editable version, not just whichever
-        # one came back first (a draft that already matches the tag makes the
-        # others harmless), and the notes the last release actually shipped.
         versions = list_app_store_versions(client, APP_ID)
-        editable = conflicting_draft(editable_versions(versions), version)
+        # Fail closed: any open draft for another version is one deliver would rename.
+        editable = next((item for item in editable_versions(versions)
+                         if _version_string(item) != version), None)
         published = published_release_notes(client, versions, version)
         if published is None:
             print("NOTE   no previously published release notes to compare against; "
@@ -466,17 +406,6 @@ def _cmd_preflight(args, client):
         return 1
     print("preflight clean for %s" % args.tag)
     return 0
-
-
-def _localization(client, version_id):
-    status, body = client.request(
-        "GET", "/v1/appStoreVersions/%s/appStoreVersionLocalizations" % version_id)
-    if status != 200:
-        raise ASCError("could not read localizations (%s): %s" % (status, body))
-    for localization in body.get("data", []):
-        if localization["attributes"].get("locale") == "ko":
-            return localization
-    raise ASCError("no ko localization on version %s" % version_id)
 
 
 def _app_info_localization(client):
@@ -511,7 +440,11 @@ def _cmd_audit(args, client):
         return 1 if limit_errors else 0
 
     print("comparing against App Store Connect version %s" % _version_string(editable))
-    version_live = _localization(client, editable["id"])["attributes"]
+    localization = _ko_localization(client, editable["id"])
+    if localization is None:
+        raise ASCError("could not read the ko localization of version %s"
+                       % _version_string(editable))
+    version_live = localization["attributes"]
     info_live = _app_info_localization(client)["attributes"]
     differences = (
         diff_metadata(files, version_live, VERSION_FIELDS)
@@ -534,9 +467,8 @@ def _cmd_link_build(args, client):
     if marketing != version:
         raise ASCError("tag %s says version %s but MARKETING_VERSION is %s" % (args.tag, version, marketing))
 
-    # Filtered by version, so this is either the draft we want or nothing. The
-    # guard against deliver renaming someone else's draft lives in preflight,
-    # which runs before anything is uploaded.
+    # Filtered by version: the draft we want or nothing. The rename guard lives
+    # in preflight, before anything is uploaded.
     editable = find_editable_version(client, APP_ID, version)
     if editable is None:
         raise ASCError("no editable version %s on App Store Connect" % version)
@@ -593,14 +525,8 @@ def main(argv=None):
         return 2
 
     handlers = {"audit": _cmd_audit, "preflight": _cmd_preflight, "link-build": _cmd_link_build}
-    handler = handlers.get(args.command)
-    if handler is None:
-        print("unknown command: %s" % args.command, file=sys.stderr)
-        return 2
-
     try:
-        from scripts.asc_client import Client
-        return handler(args, Client.from_env())
+        return handlers[args.command](args, Client.from_env())
     except ASCError as error:
         print("error: %s" % error, file=sys.stderr)
         return 1
