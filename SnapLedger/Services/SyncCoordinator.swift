@@ -6,7 +6,7 @@ import SwiftData
 struct SyncCoordinator {
     enum SyncError: Error, LocalizedError {
         case noCSVFolder
-        case bookmarkResolveFailed(underlying: Error)
+        case bookmarkResolveFailed(underlying: any Error)
         case folderUnavailable
 
         var errorDescription: String? {

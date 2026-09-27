@@ -123,7 +123,7 @@ struct FileSyncView: View {
                 try SyncCoordinator().exportAll(in: modelContext)
                 resultMessage = "앱의 모든 지출·정산을 폴더로 내보냈어요."
             } catch {
-                resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                resultMessage = (error as? any LocalizedError)?.errorDescription ?? error.localizedDescription
             }
         }
     }

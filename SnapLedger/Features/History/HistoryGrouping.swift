@@ -15,7 +15,7 @@ enum HistoryGrouping {
         let days: [DayGroup]
 
         var csvFilename: String {
-            String(format: "expenses-%04d-%02d.csv", id.year ?? 0, id.month ?? 0)
+            "expenses-\((id.year ?? 0).zeroPadded(4))-\((id.month ?? 0).zeroPadded(2)).csv"
         }
     }
 

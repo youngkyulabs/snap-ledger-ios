@@ -289,7 +289,7 @@ struct ReconciliationStore {
     }
 
     static func monthString(from key: Int) -> String {
-        String(format: "%04d-%02d", key / 100, key % 100)
+        "\((key / 100).zeroPadded(4))-\((key % 100).zeroPadded(2))"
     }
 
     static func previousMonthKey(_ key: Int) -> Int {

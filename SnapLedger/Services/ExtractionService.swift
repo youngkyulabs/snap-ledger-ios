@@ -277,7 +277,7 @@ struct FoundationModelsExtractionService: ExtractionService {
               calendar.component(.day, from: snapped) == parts.day
         else { return raw }
 
-        return String(format: "%04d-%02d-%02d", snappedYear, parts.month, parts.day)
+        return "\(snappedYear.zeroPadded(4))-\(parts.month.zeroPadded(2))-\(parts.day.zeroPadded(2))"
     }
 
     /// Corrects a hallucinated year using the "payment time ≈ extraction time" invariant — given a
@@ -310,7 +310,7 @@ struct FoundationModelsExtractionService: ExtractionService {
             adjustedYear += 1
         }
 
-        return String(format: "%04d-%02d-%02d", adjustedYear, month, day)
+        return "\(adjustedYear.zeroPadded(4))-\(month.zeroPadded(2))-\(day.zeroPadded(2))"
     }
 
     static func normalize(

@@ -24,7 +24,7 @@ enum BookmarkStore {
     static func isReachableDirectory(_ url: URL) -> Bool {
         guard !isInTrash(url) else { return false }
         var isDirectory: ObjCBool = false
-        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        return unsafe FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
             && isDirectory.boolValue
     }
 

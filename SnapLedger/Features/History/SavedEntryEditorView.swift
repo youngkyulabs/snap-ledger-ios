@@ -237,7 +237,7 @@ struct SavedEntryEditorView: View {
                 .update(entry, to: edit, in: modelContext)
             dismiss()
         } catch {
-            saveError = (error as? LocalizedError)?.errorDescription
+            saveError = (error as? any LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }
     }
@@ -252,7 +252,7 @@ struct SavedEntryEditorView: View {
                 .delete(entry, originalDate: originalDate, in: modelContext)
             dismiss()
         } catch {
-            saveError = (error as? LocalizedError)?.errorDescription
+            saveError = (error as? any LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }
     }

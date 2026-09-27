@@ -221,11 +221,11 @@ private struct TrendChart: View {
 private func trendAxisLabel(for amount: Int) -> String {
     if amount >= 10_000 {
         let value = Double(amount) / 10_000
-        return String(format: "%.0f만", value)
+        return "\(Int(value.rounded(.toNearestOrEven)))만"
     }
     if amount >= 1_000 {
         let value = Double(amount) / 1_000
-        return String(format: "%.0f천", value)
+        return "\(Int(value.rounded(.toNearestOrEven)))천"
     }
     return "\(amount)"
 }

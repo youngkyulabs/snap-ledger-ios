@@ -469,7 +469,7 @@ extension MonthlyReconciliationView {
             // Auto-save draft silently on each edit.
             try ReconciliationStore().save(draft, month: month, in: modelContext)
         } catch {
-            resultMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            resultMessage = (error as? any LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 }

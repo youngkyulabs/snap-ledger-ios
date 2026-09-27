@@ -1,5 +1,5 @@
 import Foundation
-@preconcurrency import Vision
+import Vision
 import CoreGraphics
 import ImageIO
 
@@ -31,23 +31,23 @@ nonisolated struct VisionKitOCRService: OCRService {
     }
 
     func recognize(cgImage: CGImage) async throws -> String {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
-            let request = VNRecognizeTextRequest { request, error in
-                if let error {
-                    cont.resume(throwing: error)
-                    return
-                }
-                let observations = request.results as? [VNRecognizedTextObservation] ?? []
-                let text = observations
-                    .compactMap { $0.topCandidates(1).first?.string }
-                    .joined(separator: "\n")
-                cont.resume(returning: text)
-            }
-            request.recognitionLanguages = languages
-            request.recognitionLevel = level
-            request.usesLanguageCorrection = true
-
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, any Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
+                let request = VNRecognizeTextRequest { request, error in
+                    if let error {
+                        cont.resume(throwing: error)
+                        return
+                    }
+                    let observations = request.results as? [VNRecognizedTextObservation] ?? []
+                    let text = observations
+                        .compactMap { $0.topCandidates(1).first?.string }
+                        .joined(separator: "\n")
+                    cont.resume(returning: text)
+                }
+                request.recognitionLanguages = languages
+                request.recognitionLevel = level
+                request.usesLanguageCorrection = true
+
                 let handler = VNImageRequestHandler(cgImage: cgImage)
                 do {
                     try handler.perform([request])

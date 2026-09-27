@@ -371,7 +371,7 @@ struct ReviewListView: View {
                 .save(entry, in: modelContext)
             presentBudgetToast(BudgetProgress.thresholdLine(for: entry, in: modelContext))
         } catch {
-            swipeError = (error as? LocalizedError)?.errorDescription
+            swipeError = (error as? any LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }
     }
@@ -409,7 +409,7 @@ extension ReviewListView {
                 try ImageImporter.ingest(data: data, suggestedExtension: "png", in: modelContext)
                 inserted += 1
             } catch {
-                importError = (error as? LocalizedError)?.errorDescription
+                importError = (error as? any LocalizedError)?.errorDescription
                     ?? error.localizedDescription
             }
         }
@@ -428,7 +428,7 @@ extension ReviewListView {
                 try ImageImporter.ingest(data: data, suggestedExtension: ext, in: modelContext)
                 inserted += 1
             } catch {
-                importError = (error as? LocalizedError)?.errorDescription
+                importError = (error as? any LocalizedError)?.errorDescription
                     ?? error.localizedDescription
             }
         }
@@ -457,7 +457,7 @@ extension ReviewListView {
             try ImageImporter.ingest(data: data, suggestedExtension: ext, in: modelContext)
             return true
         } catch {
-            importError = (error as? LocalizedError)?.errorDescription
+            importError = (error as? any LocalizedError)?.errorDescription
                 ?? error.localizedDescription
             return false
         }
@@ -471,7 +471,7 @@ extension ReviewListView {
                 try ImageImporter.ingest(data: image.data, contentType: .image, in: modelContext)
                 inserted += 1
             } catch {
-                importError = (error as? LocalizedError)?.errorDescription
+                importError = (error as? any LocalizedError)?.errorDescription
                     ?? error.localizedDescription
             }
         }
