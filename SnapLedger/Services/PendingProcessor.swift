@@ -158,6 +158,7 @@ struct PendingProcessor {
 
         let sourceURL = inboxURL.appendingPathComponent(pending.filename)
         let isText = InboxPayload.isText(filename: pending.filename)
+        var inserted: [ParsedEntry] = []
         do {
             // Shared text is already text; only images need OCR. Clamp it to what the
             // extraction prompt can carry — a long share would otherwise overflow the
@@ -189,13 +190,21 @@ struct PendingProcessor {
             for entry in entries {
                 context.insert(entry)
             }
+            inserted = entries
             pending.state = .done
             try context.save()
         } catch {
-            // Drop any entries inserted before the failed save; `.processing` was already committed.
-            context.rollback()
-            pending.state = .failed
-            pending.failureMessage = String(describing: error)
+            // Undo only this item's inserts; the shared context may hold unrelated edits.
+            for entry in inserted {
+                context.delete(entry)
+            }
+            if error is CancellationError {
+                pending.state = .queued
+                pending.failureMessage = nil
+            } else {
+                pending.state = .failed
+                pending.failureMessage = String(describing: error)
+            }
             try? context.save()
         }
     }

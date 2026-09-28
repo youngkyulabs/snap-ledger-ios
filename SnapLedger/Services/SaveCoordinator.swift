@@ -90,7 +90,7 @@ struct SaveCoordinator {
         for (entry, stamp) in zip(entries, stamps) {
             entry.savedAt = stamp
         }
-        try context.save()
+        try saveOrRollback(context)
 
         exportEntryBestEffort(monthKeys: monthKeys, in: context)
     }

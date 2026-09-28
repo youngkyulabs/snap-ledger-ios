@@ -364,9 +364,6 @@ struct EntryEditorView: View {
             onSaved?(BudgetProgress.thresholdLine(for: entry, in: modelContext))
             dismiss()
         } catch {
-            if insertOnSave {
-                modelContext.delete(entry)
-            }
             saveError = (error as? any LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }

@@ -43,6 +43,15 @@ actor OCRGate {
     }
 }
 
+/// Simulates the on-device model honoring a cancellation mid-extraction.
+struct CancellingExtractionService: ExtractionService {
+    let isAvailable = true
+
+    func extract(from text: String) async throws -> PaymentExtraction {
+        throw CancellationError()
+    }
+}
+
 /// First call blocks on the gate; later calls return immediately.
 struct GatedOCRService: OCRService {
     let gate: OCRGate
@@ -132,6 +141,27 @@ struct PendingProcessorDrainControlTests {
         let states = try ctx.fetch(FetchDescriptor<PendingImage>()).map(\.state)
         #expect(states.count == 2)
         #expect(states.allSatisfy { $0 == .done })
+    }
+
+    @Test func cancelledExtractionLeavesItemQueued() async throws {
+        let ctx = ModelContext(try makeContainer())
+        let inbox = try makeInbox()
+        let pending = PendingImage(filename: try writeFakeImage("cut.jpg", in: inbox))
+        ctx.insert(pending)
+        try ctx.save()
+        let processor = PendingProcessor(
+            inboxURL: inbox,
+            ocrService: StubOCRService(text: "5,000원 일시불"),
+            extractionService: CancellingExtractionService(),
+            categoryLearner: CategoryLearner(),
+            drainState: DrainState()
+        )
+
+        await processor.process(pending, in: ctx)
+
+        #expect(pending.state == .queued)
+        #expect(pending.failureMessage == nil)
+        #expect(try ctx.fetch(FetchDescriptor<ParsedEntry>()).isEmpty)
     }
 
     @Test func requeueSkipsItemCurrentlyProcessing() async throws {
