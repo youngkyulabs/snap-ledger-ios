@@ -68,7 +68,7 @@ struct MerchantSnapshot: Equatable {
     let updatedAt: Date
 }
 
-/// Migration helper for copying legacy unmigrated data to CloudKit store.
+/// Migration helper for copying legacy unmigrated data to CloudKit store; copies only stage changes, and the caller saves.
 enum CloudStoreMigration {
     /// Reads legacy budget data into snapshots.
     @MainActor
@@ -84,7 +84,7 @@ enum CloudStoreMigration {
         }
     }
 
-    /// Migrates budget snapshots to CloudKit store.
+    /// Stages budget snapshots into the CloudKit store.
     @MainActor
     static func copyBudgets(_ snapshots: [BudgetSnapshot], into cloud: ModelContext) throws {
         let existing = try cloud.fetch(FetchDescriptor<CategoryBudget>())
@@ -107,10 +107,9 @@ enum CloudStoreMigration {
                 byKey[key] = row
             }
         }
-        try cloud.save()
     }
 
-    /// Inserts category preset records into CloudKit store.
+    /// Stages category preset records into the CloudKit store.
     @MainActor
     static func seedPresets(_ names: [String], into cloud: ModelContext) throws {
         let existing = try cloud.fetch(FetchDescriptor<CategoryPreset>())
@@ -122,7 +121,6 @@ enum CloudStoreMigration {
                 cloud.insert(CategoryPreset(name: name, sortOrder: index))
             }
         }
-        try cloud.save()
     }
 
     /// Reads legacy saved entries into snapshots.
@@ -138,7 +136,7 @@ enum CloudStoreMigration {
         }
     }
 
-    /// Migrates saved entry snapshots to CloudKit store.
+    /// Stages saved entry snapshots into the CloudKit store.
     @MainActor
     static func copyEntries(_ snapshots: [EntrySnapshot], into cloud: ModelContext) throws {
         let existing = try cloud.fetch(FetchDescriptor<SavedEntry>())
@@ -162,7 +160,6 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try cloud.save()
     }
 
     // MARK: - Reconciliation Header
@@ -188,7 +185,6 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try cloud.save()
     }
 
     // MARK: - Account Monthly Balances
@@ -225,7 +221,6 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try cloud.save()
     }
 
     // MARK: - Cash Adjustments
@@ -262,7 +257,6 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try cloud.save()
     }
 
     // MARK: - Line Items (Savings, Cards, Income)
@@ -294,7 +288,6 @@ enum CloudStoreMigration {
                 cloud.insert(row); byID[snap.id] = row
             }
         }
-        try cloud.save()
     }
 
     @MainActor
@@ -324,7 +317,6 @@ enum CloudStoreMigration {
                 cloud.insert(row); byID[snap.id] = row
             }
         }
-        try cloud.save()
     }
 
     @MainActor
@@ -354,7 +346,6 @@ enum CloudStoreMigration {
                 cloud.insert(row); byID[snap.id] = row
             }
         }
-        try cloud.save()
     }
 
     // MARK: - Merchant Category Learning
@@ -379,6 +370,5 @@ enum CloudStoreMigration {
                 byKey[snap.merchantNormalized] = row
             }
         }
-        try cloud.save()
     }
 }

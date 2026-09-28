@@ -62,9 +62,10 @@ struct CategoryPresetStore {
     /// Syncs local AppSettings cache with the latest presets; a failed read leaves the cache untouched.
     func refreshCache(cloud: ModelContext, local: ModelContext) {
         do {
-            let names = try currentNames(in: cloud)
-            guard let settings = try local.fetch(FetchDescriptor<AppSettings>()).first else { return }
-            settings.categoryPresets = names
+            // Until presets migrate, the cloud list is not authoritative and the cache still seeds the migration.
+            guard let settings = try local.fetch(FetchDescriptor<AppSettings>()).first,
+                  settings.hasMigratedToCloudStore else { return }
+            settings.categoryPresets = try currentNames(in: cloud)
             try local.save()
         } catch {
             log.error("preset cache refresh failed: \(String(describing: error))")

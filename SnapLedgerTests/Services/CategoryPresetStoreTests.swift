@@ -52,7 +52,7 @@ struct CategoryPresetStoreTests {
     @Test func refreshCacheWritesNamesIntoSettings() throws {
         let cloud = try cloudContext()
         let local = try localContext()
-        let settings = AppSettings(categoryPresets: [])
+        let settings = AppSettings(categoryPresets: [], hasMigratedToCloudStore: true)
         local.insert(settings)
         try local.save()
 
@@ -63,5 +63,18 @@ struct CategoryPresetStoreTests {
 
         let fetched = try local.fetch(FetchDescriptor<AppSettings>()).first
         #expect(fetched?.categoryPresets == ["식비", "카페"])
+    }
+
+    @Test func refreshCacheKeepsCacheUntilPresetsMigrate() throws {
+        // The cache still seeds the migration, so an empty cloud list must not overwrite it.
+        let cloud = try cloudContext()
+        let local = try localContext()
+        local.insert(AppSettings(categoryPresets: ["내 카테고리"]))
+        try local.save()
+
+        CategoryPresetStore().refreshCache(cloud: cloud, local: local)
+
+        let fetched = try local.fetch(FetchDescriptor<AppSettings>()).first
+        #expect(fetched?.categoryPresets == ["내 카테고리"])
     }
 }
