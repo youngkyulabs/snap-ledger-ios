@@ -42,13 +42,13 @@ struct CSVWriter {
         guard !rows.isEmpty else { return }
         let groups = Dictionary(grouping: rows) { monthKey(for: $0.date) }
         for (key, groupRows) in groups {
-            let url = folder.appendingPathComponent("expenses-\(key).csv")
+            let url = folder.appendingPathComponent(Self.filename(forMonthKey: key))
             try appendRows(groupRows, to: url)
         }
     }
 
     func replaceMonth(monthKey key: String, rows: [SavedRow]) throws {
-        let url = folder.appendingPathComponent("expenses-\(key).csv")
+        let url = folder.appendingPathComponent(Self.filename(forMonthKey: key))
         try replaceRows(rows, at: url)
     }
 

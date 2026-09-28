@@ -65,7 +65,7 @@ struct ReconciliationStoreTests {
         )
         try context.save()
 
-        let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        let draft = try ReconciliationStore().loadDraft(for: 202_606, in: context)
 
         // Prior month income carried forward with title and amount
         #expect(draft.incomes.map(\.amount).reduce(0, +) == 3_000_000)
@@ -99,7 +99,7 @@ struct ReconciliationStoreTests {
         try context.save()
 
         // Next month cards prefilled with title and 0 amount
-        let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        let draft = try ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(draft.cards.map(\.title) == ["신한", "현대"])
         #expect(draft.cards.map(\.amount) == [0, 0])
 
@@ -120,7 +120,7 @@ struct ReconciliationStoreTests {
         try context.save()
 
         // Next month income prefilled with title and amount
-        let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        let draft = try ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(draft.incomes.map(\.title) == ["월급", "보너스"])
         #expect(draft.incomes.map(\.amount) == [3_000_000, 500_000])
 
@@ -146,14 +146,14 @@ struct ReconciliationStoreTests {
         try ReconciliationStore().save(draft, month: 202_606, in: context)
 
         // Array order preserved via sortOrder
-        let reloaded = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        let reloaded = try ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(reloaded.adjustments.map(\.title) == ["환급", "전월 카드대금", "가족 송금"])
 
         // Reordering items preserves updated order
         var moved = reloaded
         moved.adjustments.append(moved.adjustments.removeFirst())
         try ReconciliationStore().save(moved, month: 202_606, in: context)
-        let after = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        let after = try ReconciliationStore().loadDraft(for: 202_606, in: context)
         #expect(after.adjustments.map(\.title) == ["전월 카드대금", "가족 송금", "환급"])
     }
 
@@ -164,7 +164,7 @@ struct ReconciliationStoreTests {
         context.insert(AccountMonthlyBalance(monthKey: 202_606, accountName: "통장", openingBalance: 10))
         try context.save()
 
-        let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        let draft = try ReconciliationStore().loadDraft(for: 202_606, in: context)
 
         #expect(draft.incomes.first?.amount == 1)
         #expect(draft.note == "메모")
@@ -219,7 +219,7 @@ struct ReconciliationStoreTests {
         )
         try context.save()
 
-        let draft = ReconciliationStore().loadDraft(for: 202_606, in: context)
+        let draft = try ReconciliationStore().loadDraft(for: 202_606, in: context)
         // Titles and directions carried forward with 0 amount
         #expect(draft.adjustments.map(\.title) == ["전월 카드대금", "환급"])
         #expect(draft.adjustments.map(\.direction) == [.withdrawal, .deposit])
@@ -246,5 +246,31 @@ struct ReconciliationStoreTests {
         #expect(FileManager.default.fileExists(atPath: budgetFile.path))
         let content = try String(contentsOf: budgetFile, encoding: .utf8)
         #expect(content.contains("식비,300000"))
+    }
+
+    @Test func deleteMonthRemovesEveryTableForThatMonthOnly() throws {
+        let context = try makeContext()
+        for month in [202_605, 202_606] {
+            context.insert(MonthlyReconciliation(monthKey: month))
+            context.insert(AccountMonthlyBalance(monthKey: month, accountName: "주거래"))
+            context.insert(CashAdjustment(monthKey: month, title: "환급", direction: .deposit, amount: 1))
+            context.insert(SavingsItem(monthKey: month, title: "적금", amount: 1))
+            context.insert(CardUsageItem(monthKey: month, title: "카드", amount: 1))
+            context.insert(IncomeItem(monthKey: month, title: "월급", amount: 1))
+        }
+        try context.save()
+
+        let store = ReconciliationStore()
+        try store.deleteMonth(202_606, in: context)
+        try context.save()
+
+        let removed = try store.summaryInput(for: 202_606, in: context)
+        #expect(removed.reconciliation == nil)
+        #expect(removed.balances.isEmpty && removed.adjustments.isEmpty && removed.savingsItems.isEmpty)
+        #expect(removed.cardItems.isEmpty && removed.incomeItems.isEmpty)
+        let kept = try store.summaryInput(for: 202_605, in: context)
+        #expect(kept.reconciliation != nil)
+        #expect(kept.balances.count == 1 && kept.adjustments.count == 1 && kept.savingsItems.count == 1)
+        #expect(kept.cardItems.count == 1 && kept.incomeItems.count == 1)
     }
 }

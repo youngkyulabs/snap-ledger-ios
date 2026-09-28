@@ -27,7 +27,7 @@ struct CategoryPresetStoreTests {
         store.add("식비", in: cloud)
         store.add("카페", in: cloud)
         store.add("식비", in: cloud) // Duplicate ignored
-        #expect(store.currentNames(in: cloud) == ["식비", "카페"])
+        #expect(try store.currentNames(in: cloud) == ["식비", "카페"])
     }
 
     @Test func removeDeletesRecord() throws {
@@ -36,7 +36,7 @@ struct CategoryPresetStoreTests {
         store.add("식비", in: cloud)
         store.add("카페", in: cloud)
         store.remove("식비", in: cloud)
-        #expect(store.currentNames(in: cloud) == ["카페"])
+        #expect(try store.currentNames(in: cloud) == ["카페"])
     }
 
     @Test func reorderReassignsSortOrder() throws {
@@ -46,13 +46,13 @@ struct CategoryPresetStoreTests {
         store.add("카페", in: cloud)
         store.add("교통", in: cloud)
         store.reorder(["교통", "식비", "카페"], in: cloud)
-        #expect(store.currentNames(in: cloud) == ["교통", "식비", "카페"])
+        #expect(try store.currentNames(in: cloud) == ["교통", "식비", "카페"])
     }
 
     @Test func refreshCacheWritesNamesIntoSettings() throws {
         let cloud = try cloudContext()
         let local = try localContext()
-        let settings = AppSettings(categoryPresets: [])
+        let settings = AppSettings(categoryPresets: [], hasMigratedToCloudStore: true)
         local.insert(settings)
         try local.save()
 
@@ -63,5 +63,18 @@ struct CategoryPresetStoreTests {
 
         let fetched = try local.fetch(FetchDescriptor<AppSettings>()).first
         #expect(fetched?.categoryPresets == ["식비", "카페"])
+    }
+
+    @Test func refreshCacheKeepsCacheUntilPresetsMigrate() throws {
+        // The cache still seeds the migration, so an empty cloud list must not overwrite it.
+        let cloud = try cloudContext()
+        let local = try localContext()
+        local.insert(AppSettings(categoryPresets: ["내 카테고리"]))
+        try local.save()
+
+        CategoryPresetStore().refreshCache(cloud: cloud, local: local)
+
+        let fetched = try local.fetch(FetchDescriptor<AppSettings>()).first
+        #expect(fetched?.categoryPresets == ["내 카테고리"])
     }
 }

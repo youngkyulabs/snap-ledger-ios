@@ -54,6 +54,10 @@ struct AddExpenseFromImageIntent: AppIntent {
             categoryLearner: CategoryLearner()
         )
         await processor.process(pending, in: context)
+        // A cancelled run leaves the image queued for the next drain.
+        if pending.state == .queued {
+            return .result(value: "검토 목록에 추가했어요. 앱에서 처리할게요.")
+        }
 
         let descriptor = FetchDescriptor<ParsedEntry>(
             predicate: #Predicate { $0.sourceImagePath == filename }

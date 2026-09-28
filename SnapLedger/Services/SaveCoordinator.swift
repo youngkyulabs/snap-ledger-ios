@@ -23,19 +23,22 @@ struct SaveCoordinator {
         in context: ModelContext
     ) throws {
         let monthKey = CSVWriter.monthKey(for: entry.date)
-        // Insert new saved entry and dismiss review item
-        context.insert(
-            SavedEntry(
-                date: entry.date,
-                amount: entry.amount,
-                merchant: entry.merchant,
-                category: entry.category,
-                note: entry.note,
-                csvFile: CSVWriter.filename(forMonthKey: monthKey)
-            )
+        let saved = SavedEntry(
+            date: entry.date,
+            amount: entry.amount,
+            merchant: entry.merchant,
+            category: entry.category,
+            note: entry.note,
+            csvFile: CSVWriter.filename(forMonthKey: monthKey)
         )
+        let previousStatus = entry.status
+        // Insert new saved entry and dismiss review item
+        context.insert(saved)
         entry.status = .dismissed
-        try context.save()
+        try saveOrUndo(context) {
+            context.delete(saved)
+            entry.status = previousStatus
+        }
 
         exportEntryBestEffort(monthKeys: [monthKey], in: context)
         learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
@@ -51,14 +54,21 @@ struct SaveCoordinator {
         let oldKey = CSVWriter.monthKey(for: entry.date)
         let newKey = CSVWriter.monthKey(for: edit.date)
         let affectedKeys = Array(Set([oldKey, newKey]))
+        let previous = SavedEntryEdit(
+            date: entry.date,
+            merchant: entry.merchant,
+            amount: entry.amount,
+            category: entry.category,
+            note: entry.note
+        )
+        let previousFile = entry.csvFile
 
-        entry.date = edit.date
-        entry.merchant = edit.merchant
-        entry.amount = edit.amount
-        entry.category = edit.category
-        entry.note = edit.note
+        apply(edit, to: entry)
         entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
-        try context.save()
+        try saveOrUndo(context) {
+            apply(previous, to: entry)
+            entry.csvFile = previousFile
+        }
 
         exportEntryBestEffort(monthKeys: affectedKeys, in: context)
         learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
@@ -74,7 +84,8 @@ struct SaveCoordinator {
         let affectedKeys = Array(Set([oldKey, currentKey]))
 
         context.delete(entry)
-        try context.save()
+        // SwiftData cannot unstage a single delete, so a failed delete rolls back the whole context.
+        try saveOrUndo(context) { context.rollback() }
 
         exportEntryBestEffort(monthKeys: affectedKeys, in: context)
     }
@@ -86,13 +97,36 @@ struct SaveCoordinator {
     ) throws {
         guard entries.count > 1 else { return }
         let monthKeys = Array(Set(entries.map { CSVWriter.monthKey(for: $0.date) }))
-        let stamps = EntryReorder.descendingTimestamps(from: entries.map(\.savedAt))
+        let previousStamps = entries.map(\.savedAt)
+        let stamps = EntryReorder.descendingTimestamps(from: previousStamps)
         for (entry, stamp) in zip(entries, stamps) {
             entry.savedAt = stamp
         }
-        try context.save()
+        try saveOrUndo(context) {
+            for (entry, stamp) in zip(entries, previousStamps) {
+                entry.savedAt = stamp
+            }
+        }
 
         exportEntryBestEffort(monthKeys: monthKeys, in: context)
+    }
+
+    /// Saves; on failure `undo` reverts only this call's changes, leaving other unsaved edits in the shared context intact.
+    private func saveOrUndo(_ context: ModelContext, undo: () -> Void) throws {
+        do {
+            try context.save()
+        } catch {
+            undo()
+            throw error
+        }
+    }
+
+    private func apply(_ edit: SavedEntryEdit, to entry: SavedEntry) {
+        entry.date = edit.date
+        entry.merchant = edit.merchant
+        entry.amount = edit.amount
+        entry.category = edit.category
+        entry.note = edit.note
     }
 
     /// Rewrites CSV files for affected months best-effort.

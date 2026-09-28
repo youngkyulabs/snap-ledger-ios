@@ -9,6 +9,7 @@ struct MonthlyReconciliationView: View {
 
     @State private var draft = ReconciliationDraft()
     @State private var didLoad = false
+    @State private var loadFailed = false
     @State private var activeSheet: ActiveSheet?
     @State private var resultMessage: String?
 
@@ -40,22 +41,27 @@ struct MonthlyReconciliationView: View {
     }
 
     var body: some View {
-        List {
-            summarySection
-            accountsSection
-            incomeSection
-            savingsSection
-            cardsSection
-            adjustmentsSection
+        Group {
+            if loadFailed {
+                loadFailedView
+            } else {
+                List {
+                    summarySection
+                    accountsSection
+                    incomeSection
+                    savingsSection
+                    cardsSection
+                    adjustmentsSection
+                }
+                .contentMargins(.bottom, 24, for: .scrollContent)
+            }
         }
-        .contentMargins(.bottom, 24, for: .scrollContent)
         .navigationTitle("월 정산")
         .navigationSubtitle(ledgerMonthLabel(month))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard !didLoad else { return }
-            draft = ReconciliationStore().loadDraft(for: month, in: modelContext)
-            didLoad = true
+            load()
         }
         .sheet(item: $activeSheet) { sheet in
             NavigationStack {
@@ -465,11 +471,35 @@ extension MonthlyReconciliationView {
     }
 
     private func save() {
+        guard didLoad else { return }
         do {
             // Auto-save draft silently on each edit.
             try ReconciliationStore().save(draft, month: month, in: modelContext)
         } catch {
             resultMessage = (error as? any LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+}
+
+private extension MonthlyReconciliationView {
+    var loadFailedView: some View {
+        ContentUnavailableView {
+            Label("정산을 불러오지 못했어요", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text("저장된 정산을 덮어쓰지 않도록 편집을 막았어요.")
+        } actions: {
+            Button("다시 시도") { load() }
+        }
+    }
+
+    /// Loads the month; a failed read blocks editing, since every save replaces the whole month.
+    func load() {
+        do {
+            draft = try ReconciliationStore().loadDraft(for: month, in: modelContext)
+            didLoad = true
+            loadFailed = false
+        } catch {
+            loadFailed = true
         }
     }
 }

@@ -10,6 +10,8 @@ struct FileSyncView: View {
     @State private var resultMessage: String?
     @State private var isExporting = false
     @State private var folderReachable = true
+    @State private var staleCount = 0
+    @State private var confirmingPrune = false
 
     private var hasFolder: Bool {
         settingsList.first?.csvFolderBookmark != nil
@@ -69,13 +71,24 @@ struct FileSyncView: View {
         } message: { message in
             Text(message)
         }
+        .confirmationDialog(
+            "기록이 없는 달의 파일 \(staleCount)개",
+            isPresented: $confirmingPrune,
+            titleVisibility: .visible
+        ) {
+            Button("내보내고 \(staleCount)개 삭제", role: .destructive) { exportAll(prune: true) }
+            Button("내보내기만") { exportAll(prune: false) }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("이 폴더에 앱에 기록이 없는 달의 CSV가 있어요. 새 기기라면 iCloud 동기화가 끝난 뒤에 삭제하세요.")
+        }
     }
 
     private var listContent: some View {
         List {
             Section {
                 Button {
-                    exportAll()
+                    startExportAll()
                 } label: {
                     Label("전체 내보내기", systemImage: "square.and.arrow.up")
                         .foregroundStyle(.primary)
@@ -83,7 +96,7 @@ struct FileSyncView: View {
                 .disabled(isExporting)
             } footer: {
                 Text("앱에 있는 모든 지출·정산을 이 폴더의 월별 CSV로 다시 써요. "
-                    + "평소 저장할 때도 자동으로 내보내지므로 보통은 필요 없어요.")
+                    + "앱에 기록이 없는 달의 파일이 있으면 지우기 전에 물어봐요.")
             }
 
             Section {
@@ -107,21 +120,34 @@ struct FileSyncView: View {
             folderError = nil
             folderReachable = true
             // Backfill existing data to newly selected folder.
-            try? SyncCoordinator().exportAll(in: modelContext)
+            try? SyncCoordinator().exportAll(in: modelContext, pruneStale: false)
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
         }
     }
 
-    private func exportAll() {
+    private func startExportAll() {
+        // Ask before deleting; when nothing is stale or the listing fails, export without pruning.
+        let stale = (try? SyncCoordinator().staleExports(in: modelContext)) ?? []
+        if stale.isEmpty {
+            exportAll(prune: false)
+        } else {
+            staleCount = stale.count
+            confirmingPrune = true
+        }
+    }
+
+    private func exportAll(prune: Bool) {
         isExporting = true
         // Yield to allow UI to update disabled state before running export.
         Task {
             defer { isExporting = false }
             await Task.yield()
             do {
-                try SyncCoordinator().exportAll(in: modelContext)
-                resultMessage = "앱의 모든 지출·정산을 폴더로 내보냈어요."
+                try SyncCoordinator().exportAll(in: modelContext, pruneStale: prune)
+                resultMessage = prune
+                    ? "앱의 모든 지출·정산을 폴더로 내보내고, 기록이 없는 달의 파일을 삭제했어요."
+                    : "앱의 모든 지출·정산을 폴더로 내보냈어요."
             } catch {
                 resultMessage = (error as? any LocalizedError)?.errorDescription ?? error.localizedDescription
             }

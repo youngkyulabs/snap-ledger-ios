@@ -78,12 +78,15 @@ SnapLedger/                          # Main app target (synchronized root group)
 
   Services/                          # Business logic (fully unit-testable)
     OCRService.swift                 # protocol + VisionKitOCRService (Korean/English accurate)
+    ResumeOnce.swift                 # Resumes a checked continuation at most once (Vision can report one failure twice)
     CandidateHeuristics.swift        # Payment signal scoring on OCR text (blocks hallucinations on scenery photos)
     ExtractionService.swift          # protocol + FoundationModelsExtractionService (dynamic prompt, multi-transaction)
     PaymentExtraction.swift          # @Generable PaymentExtraction(transactions:[Transaction])
     AppleIntelligenceStatus.swift    # FM availability → user-friendly copy (shared entry point for Settings/Onboarding/Review)
     PendingProcessor.swift           # @MainActor pipeline: reconcile inbox → OCR (images) / read text (.txt) → heuristic → extract → ParsedEntry
+                                     #            + DrainState (shared per process): drain serialization, rerun-on-request, in-flight set that requeue skips
     SaveCoordinator.swift            # Confirm review → CSV append + SavedEntry creation + category learning
+                                     #            + a failed save undoes only its own changes (the review editor edits entries in place)
     CategoryLearner.swift            # Merchant → category learning & lookup
     CategoryValidation.swift         # Determines if a category is off-list (warning only, pure)
     ImageImporter.swift              # Normalize imports from + menu (photos, clipboard, files, drop) → inbox
@@ -94,7 +97,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     ReviewDateStatus.swift           # Flags dates outside normal range (today/yesterday) → tooOld/future warnings (pure, relative to entry.createdAt)
     ReconciledMonthWarning.swift     # Warns before adding an entry to a closed, already-reconciled month (pure) + ReconciledMonthGuard (fetches that month's rows at save time)
     SyncCoordinator.swift            # CSV one-way export orchestration (expenses + reconciliation + budget) + folder reachability check (isFolderReachable)
-    SyncCoordinator+Files.swift      # Filename ↔ monthKey boundary helpers
+    SyncCoordinator+Files.swift      # Filename ↔ monthKey boundary helpers + staleExportNames (pure: which monthly files Export All may prune)
     SyncCoordinator+Reconciliation.swift # Reconciliation CSV export & monthKeys (domain → ReconciliationCSV)
     SyncCoordinator+Budget.swift     # Budget CSV export & month range calculation (flattens carryover via resolveAll → BudgetCSV)
     SyncFileKind.swift               # Target export file type (.expenses / .reconciliation) distinction
@@ -102,6 +105,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     CSVRowParser.swift               # Expense CSV row ↔ domain field parsing (shared between save & sync)
     CategoryBudgetStore.swift        # Category limit CRUD + effectiveLimit carryover calculation (monthKey helpers)
     ReconciliationStore.swift        # Monthly reconciliation draft load/save/delete, carry-forward, CSV row generation
+                                     #            + loadDraft throws on a failed read, and the view then blocks editing (every save replaces the whole month)
     ReconciliationSummary.swift      # Reconciliation summary calculation (actual spending / recorded spending / discrepancy, isReconciled status) — pure
 
   Storage/                           # File, clipboard, and bookmark IO
@@ -112,6 +116,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     ClipboardExporter.swift          # Exports review/history entries to TSV (+HTML) payload (for pasting into Numbers)
     ReconciliationCSV.swift          # Monthly reconciliation CSV (reconciliations-YYYY-MM.csv) writer/parser — AI-friendly export
     BudgetCSV.swift                  # Monthly budget CSV (budgets-YYYY-MM.csv) writer (category, limit) — AI-friendly export
+    ExportFolderFiles.swift          # Lists the storage folder and deletes a file under coordination (Export All pruning)
 
   Features/                          # UI views
     MonthNavigationRow.swift         # ◀ Current Month (menu) ▶ month selection row (owned by LedgerTabView) + ledgerMonthLabel(YYYYMM → "2026년 9월")
@@ -177,12 +182,12 @@ SnapLedgerTests/                     # Swift Testing — mirrors source structur
 7. **CSV is a One-Way Export Backup (`SyncCoordinator`) — CloudKit as Source of Truth (Phases 1–4)**
    CloudKit-backed SwiftData is the sole source of truth for all persistent data. CSVs are **export-only backups across 3 kinds (expenses, reconciliation, budget)**, not a source of truth. Consequently, file-to-app import, external modification detection, conflict resolution UI, `CSVFileState` fingerprints, and `FileFingerprint` have all been removed.
    - **Export (App → File)**: Save, edit, delete, and reorder operations trigger a **best-effort** rewrite of the affected month's CSV. If no folder is configured or writing fails, the commit remains successful — `SaveCoordinator.exportEntryBestEffort` (expenses + that month's budget) / `ReconciliationStore.exportBestEffort` (reconciliation + that month's budget) / `CategoryBudgetStore.exportBestEffort` (budget edits). CSV export is completely optional, so data remains secure in CloudKit even without a configured folder.
-   - **Entry Point**: **Settings → Storage Folder row** → `FileSyncView` ("Storage Folder"). Offers **Export All** (`SyncCoordinator.exportAll`, backfilling all app months for expenses, reconciliations, and budgets into the folder) and **Change Folder**. Selecting a new folder automatically runs a full backfill export.
+   - **Entry Point**: **Settings → Storage Folder row** → `FileSyncView` ("Storage Folder"). Offers **Export All** (`SyncCoordinator.exportAll`, backfilling all app months for expenses, reconciliations, and budgets into the folder) and **Change Folder**. Export All first lists `expenses|reconciliations|budgets-YYYY-MM.csv` files whose month has no data (`staleExports`); when there are any, a confirmation dialog offers to delete them (`pruneStale: true`) or to export only. A kind with no data at all is never pruned (`staleExportNames`), because a store that has not synced yet looks empty; months of a partly synced kind can still be listed, which the dialog warns about. Selecting a new folder backfills **without** pruning. Every fetch on the export path throws on failure (never `(try? fetch) ?? []`), because the writers delete a month's file when given no rows.
    - **Deleted / Moved Folder Handling**: Even if a security-scoped bookmark resolves, the physical directory may no longer exist → verified via `SyncCoordinator.isFolderReachable` (`BookmarkStore.isReachableDirectory`). `FileSyncView` presents a "Folder not found + Change Folder" banner. Export routines quietly skip missing/unreachable folders (best-effort).
 
 8. **Category Budgets Auto-Carry Forward via `effectiveFrom` (`CategoryBudget` / `CategoryBudgetStore`)**
    Budgets do not create rows for every month. `CategoryBudget(category, monthlyLimit, effectiveFrom)` automatically repeats each month from `effectiveFrom` until the next change. The effective limit for a month is the latest row where `effectiveFrom <= month` (`CategoryBudgetStore.resolveLimit`). Clearing a limit is represented by a `monthlyLimit = 0` tombstone starting in that month (preserving historical limits). The Budget tab restricts navigation to months up to the current month because future months are not locked.
-   - **Budget CSV is a Monthly Effective Limit Snapshot (`budgets-YYYY-MM.csv`)**: Header `카테고리,한도`, UTF-8 with BOM. `CategoryBudgetStore.resolveAll` flattens carryover at export time and writes only categories with an effective limit > 0 in preset order (off-list items alphabetical at the end). One-way best-effort export (piggybacking on expense/reconciliation saves and budget edits; `SyncCoordinator.exportAll` backfills `[earliest effectiveFrom ... current month]`). Does not store actual spending or usage percentages — AI calculates those by joining with `expenses-*.csv`. If a month has no active limits, no file is written and any existing file is deleted.
+   - **Budget CSV is a Monthly Effective Limit Snapshot (`budgets-YYYY-MM.csv`)**: Header `카테고리,한도`, UTF-8 with BOM. `CategoryBudgetStore.resolveAll` flattens carryover at export time and writes only categories with an effective limit > 0 in preset order (off-list items alphabetical at the end). One-way best-effort export (piggybacking on expense/reconciliation saves and budget edits; `SyncCoordinator.exportAll` backfills `[earliest effectiveFrom ... current month]`, extended to the latest entry's month because saving a future-dated entry writes that month's file). Does not store actual spending or usage percentages — AI calculates those by joining with `expenses-*.csv`. If a month has no active limits, no file is written and any existing file is deleted.
 
 9. **Monthly Reconciliation Splits Header + Item Models, Round-Trips to CSV (`MonthlyReconciliation` + 5 item models / `ReconciliationStore` / `ReconciliationCSV`)**
    A monthly reconciliation uses `MonthlyReconciliation` (monthKey + monthly note) as the header, with amounts split into `IncomeItem`, `CardUsageItem`, `SavingsItem`, `AccountMonthlyBalance`, and `CashAdjustment`. On entering the view, `ReconciliationStore.carryForwardDraft` prefills stable values from the prior month (account names & baseline balance, income/savings names + amounts; adjustments prefill names with 0 amounts; cards prefill this month's amount with 0 and `previousAmount` with last month's usage, since that bill is withdrawn this month).

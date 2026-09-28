@@ -10,6 +10,9 @@ final class ShareViewController: UIViewController {
     /// Kept in sync with `InboxPayload.extractionCharacterLimit` in the app target, which cannot be
     /// imported from here.
     private static let maxTextLength = 2_000
+    /// Upper bound on bytes read from a shared text file or blob before clipping to `maxTextLength`;
+    /// reading a whole file first would blow the extension's memory limit on large shares.
+    nonisolated private static let maxTextBytes = 64 * 1024
 
     private let spinner = UIActivityIndicatorView(style: .large)
     private let statusIcon = UIImageView()
@@ -149,15 +152,33 @@ final class ShareViewController: UIViewController {
                 case let attributed as NSAttributedString:
                     continuation.resume(returning: attributed.string)
                 case let data as Data:
-                    continuation.resume(returning: String(data: data, encoding: .utf8))
+                    continuation.resume(returning: Self.decodeBounded(data))
                 // Files (and any app vending a file representation) hand back a URL, not a string.
                 case let url as URL where url.isFileURL:
-                    continuation.resume(returning: try? String(contentsOf: url, encoding: .utf8))
+                    continuation.resume(returning: Self.readBoundedText(at: url))
                 default:
                     continuation.resume(returning: nil)
                 }
             }
         }
+    }
+
+    /// Reads at most `maxTextBytes` from the file; the tail past the limit is never needed.
+    nonisolated private static func readBoundedText(at url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: maxTextBytes) else { return nil }
+        return decodeBounded(data)
+    }
+
+    nonisolated private static func decodeBounded(_ data: Data) -> String? {
+        var slice = data.prefix(maxTextBytes)
+        // A cut inside a multi-byte character fails the whole decode; trim up to three bytes.
+        for _ in 0..<4 {
+            if let text = String(bytes: slice, encoding: .utf8) { return text }
+            slice = slice.dropLast()
+        }
+        return nil
     }
 
     private static func saveText(_ text: String, to inboxURL: URL) -> Bool {

@@ -309,7 +309,7 @@ struct SettingsView: View {
             try FolderBookmarkHelper.apply(url: url, to: settings, context: modelContext)
             folderError = nil
             // Backfill existing data to newly selected folder.
-            try? SyncCoordinator().exportAll(in: modelContext)
+            try? SyncCoordinator().exportAll(in: modelContext, pruneStale: false)
         } catch {
             folderError = "폴더를 등록하지 못했어요: \(error.localizedDescription)"
         }

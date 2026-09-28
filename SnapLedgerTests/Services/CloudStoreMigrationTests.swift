@@ -27,7 +27,7 @@ struct CloudStoreMigrationTests {
         source.insert(CategoryBudget(category: "카페", monthlyLimit: 50_000, effectiveFrom: 202_605))
         try source.save()
 
-        let snaps = CloudStoreMigration.snapshotBudgets(from: source)
+        let snaps = try CloudStoreMigration.snapshotBudgets(from: source)
         #expect(snaps.count == 2)
         #expect(snaps.contains { $0.category == "식비" && $0.monthlyLimit == 300_000 && $0.effectiveFrom == 202_606 })
     }
@@ -37,8 +37,8 @@ struct CloudStoreMigrationTests {
         let snaps = [
             BudgetSnapshot(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_606, updatedAt: .now),
         ]
-        CloudStoreMigration.copyBudgets(snaps, into: cloud)
-        CloudStoreMigration.copyBudgets(snaps, into: cloud) // Idempotent execution
+        try CloudStoreMigration.copyBudgets(snaps, into: cloud)
+        try CloudStoreMigration.copyBudgets(snaps, into: cloud) // Idempotent execution
         let all = try cloud.fetch(FetchDescriptor<CategoryBudget>())
         #expect(all.count == 1)
         #expect(all.first?.monthlyLimit == 300_000)
@@ -46,7 +46,7 @@ struct CloudStoreMigrationTests {
 
     @Test func seedPresetsCreatesOrderedRecords() throws {
         let cloud = try makeContext([CategoryPreset.self])
-        CloudStoreMigration.seedPresets(["식비", "카페", "교통"], into: cloud)
+        try CloudStoreMigration.seedPresets(["식비", "카페", "교통"], into: cloud)
         let sorted = try cloud.fetch(FetchDescriptor<CategoryPreset>()).sorted { $0.sortOrder < $1.sortOrder }
         #expect(sorted.map(\.name) == ["식비", "카페", "교통"])
         #expect(sorted.map(\.sortOrder) == [0, 1, 2])
@@ -54,8 +54,8 @@ struct CloudStoreMigrationTests {
 
     @Test func seedPresetsIsIdempotent() throws {
         let cloud = try makeContext([CategoryPreset.self])
-        CloudStoreMigration.seedPresets(["식비", "카페"], into: cloud)
-        CloudStoreMigration.seedPresets(["식비", "카페"], into: cloud)
+        try CloudStoreMigration.seedPresets(["식비", "카페"], into: cloud)
+        try CloudStoreMigration.seedPresets(["식비", "카페"], into: cloud)
         let all = try cloud.fetch(FetchDescriptor<CategoryPreset>())
         #expect(all.count == 2)
     }
@@ -79,7 +79,7 @@ struct CloudStoreMigrationTests {
             note: nil, savedAt: Date(timeIntervalSince1970: 1_700_000_100),
             csvFile: "expenses-2023-11.csv"
         )
-        CloudStoreMigration.copyEntries([snap], into: cloud)
+        try CloudStoreMigration.copyEntries([snap], into: cloud)
         let rows = try cloud.fetch(FetchDescriptor<SavedEntry>())
         #expect(rows.count == 1)
         #expect(rows.first?.merchant == "스타벅스")
@@ -93,13 +93,13 @@ struct CloudStoreMigrationTests {
             id: id, date: .now, amount: 1000, merchant: "A",
             category: nil, note: nil, savedAt: .now, csvFile: "expenses-2026-06.csv"
         )
-        CloudStoreMigration.copyEntries([snap], into: cloud)
+        try CloudStoreMigration.copyEntries([snap], into: cloud)
         // Re-running updates existing records without duplication.
         let updated = EntrySnapshot(
             id: id, date: snap.date, amount: 2000, merchant: "A",
             category: nil, note: nil, savedAt: snap.savedAt, csvFile: snap.csvFile
         )
-        CloudStoreMigration.copyEntries([updated], into: cloud)
+        try CloudStoreMigration.copyEntries([updated], into: cloud)
         let rows = try cloud.fetch(FetchDescriptor<SavedEntry>())
         #expect(rows.count == 1)
         #expect(rows.first?.amount == 2000)
@@ -113,7 +113,7 @@ struct CloudStoreMigrationTests {
             note: "할인", csvFile: "expenses-2023-11.csv"
         ))
         try source.save()
-        let snaps = CloudStoreMigration.snapshotEntries(from: source)
+        let snaps = try CloudStoreMigration.snapshotEntries(from: source)
         #expect(snaps.count == 1)
         #expect(snaps.first?.merchant == "편의점")
         #expect(snaps.first?.note == "할인")
@@ -132,23 +132,23 @@ struct CloudStoreMigrationTests {
 
     @Test func copiesAllReconciliationModels() throws {
         let cloud = try makeContext()
-        CloudStoreMigration.copyReconciliations(
+        try CloudStoreMigration.copyReconciliations(
             [ReconciliationSnapshot(id: UUID(), monthKey: 202_606, note: "메모", updatedAt: .now)], into: cloud)
         let balance = AccountBalanceSnapshot(
             id: UUID(), monthKey: 202_606, accountName: "주거래",
             sortOrder: 0, openingBalance: 100, closingBalance: 200, interestAmount: 5
         )
-        CloudStoreMigration.copyAccountBalances([balance], into: cloud)
+        try CloudStoreMigration.copyAccountBalances([balance], into: cloud)
         let cash = CashAdjustmentSnapshot(
             id: UUID(), monthKey: 202_606, title: "환급",
             direction: .deposit, amount: 3000, sortOrder: 0, note: nil
         )
-        CloudStoreMigration.copyCashAdjustments([cash], into: cloud)
-        CloudStoreMigration.copySavings(
+        try CloudStoreMigration.copyCashAdjustments([cash], into: cloud)
+        try CloudStoreMigration.copySavings(
             [LineItemSnapshot(id: UUID(), monthKey: 202_606, title: "적금", amount: 100_000, sortOrder: 0, updatedAt: .now)], into: cloud)
-        CloudStoreMigration.copyCardUsage(
+        try CloudStoreMigration.copyCardUsage(
             [LineItemSnapshot(id: UUID(), monthKey: 202_606, title: "신용카드", amount: 250_000, sortOrder: 0, updatedAt: .now)], into: cloud)
-        CloudStoreMigration.copyIncome(
+        try CloudStoreMigration.copyIncome(
             [LineItemSnapshot(id: UUID(), monthKey: 202_606, title: "급여", amount: 3_000_000, sortOrder: 0, updatedAt: .now)], into: cloud)
 
         #expect(try cloud.fetch(FetchDescriptor<MonthlyReconciliation>()).count == 1)
@@ -162,9 +162,9 @@ struct CloudStoreMigrationTests {
     @Test func copyReconciliationIsIdempotentByID() throws {
         let cloud = try makeContext()
         let id = UUID()
-        CloudStoreMigration.copyReconciliations(
+        try CloudStoreMigration.copyReconciliations(
             [ReconciliationSnapshot(id: id, monthKey: 202_606, note: "v1", updatedAt: .now)], into: cloud)
-        CloudStoreMigration.copyReconciliations(
+        try CloudStoreMigration.copyReconciliations(
             [ReconciliationSnapshot(id: id, monthKey: 202_606, note: "v2", updatedAt: .now)], into: cloud)
         let rows = try cloud.fetch(FetchDescriptor<MonthlyReconciliation>())
         #expect(rows.count == 1)
@@ -176,8 +176,8 @@ struct CloudStoreMigrationTests {
         source.insert(MonthlyReconciliation(monthKey: 202_606, note: "원본"))
         source.insert(IncomeItem(monthKey: 202_606, title: "급여", amount: 100, sortOrder: 1))
         try source.save()
-        #expect(CloudStoreMigration.snapshotReconciliations(from: source).first?.note == "원본")
-        #expect(CloudStoreMigration.snapshotIncome(from: source).first?.title == "급여")
+        #expect(try CloudStoreMigration.snapshotReconciliations(from: source).first?.note == "원본")
+        #expect(try CloudStoreMigration.snapshotIncome(from: source).first?.title == "급여")
     }
 }
 
@@ -193,9 +193,9 @@ struct CloudStoreMigrationTests {
 
     @Test func copyMerchantsIsIdempotentByNormalized() throws {
         let cloud = try makeContext()
-        CloudStoreMigration.copyMerchants(
+        try CloudStoreMigration.copyMerchants(
             [MerchantSnapshot(merchantNormalized: "스타벅스", category: "카페", updatedAt: .now)], into: cloud)
-        CloudStoreMigration.copyMerchants(
+        try CloudStoreMigration.copyMerchants(
             [MerchantSnapshot(merchantNormalized: "스타벅스", category: "간식", updatedAt: .now)], into: cloud)
         let rows = try cloud.fetch(FetchDescriptor<MerchantCategory>())
         #expect(rows.count == 1)
@@ -206,7 +206,7 @@ struct CloudStoreMigrationTests {
         let source = try makeContext()
         source.insert(MerchantCategory(merchantNormalized: "편의점", category: "간식"))
         try source.save()
-        let snaps = CloudStoreMigration.snapshotMerchants(from: source)
+        let snaps = try CloudStoreMigration.snapshotMerchants(from: source)
         #expect(snaps.first?.merchantNormalized == "편의점")
         #expect(snaps.first?.category == "간식")
     }

@@ -4,12 +4,25 @@ import SwiftData
 
 private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "pending")
 
+/// Drain bookkeeping shared by every processor in the process.
+@MainActor
+final class DrainState {
+    static let shared = DrainState()
+    /// Prevents concurrent drain executions.
+    var isDraining = false
+    /// Set when a drain is requested while one is running, so the running drain loops once more.
+    var rerunRequested = false
+    /// Images currently inside `process`; requeue leaves these alone.
+    var inFlight: Set<UUID> = []
+}
+
 @MainActor
 struct PendingProcessor {
     let inboxURL: URL
     let ocrService: any OCRService
     let extractionService: any ExtractionService
     let categoryLearner: CategoryLearner
+    var drainState: DrainState = .shared
 
     static func make(in context: ModelContext) -> PendingProcessor {
         PendingProcessor(
@@ -23,21 +36,26 @@ struct PendingProcessor {
         )
     }
 
-    /// Prevents concurrent drain executions.
-    private static var isDraining = false
-
     func drain(in context: ModelContext) async {
         guard extractionService.isAvailable else {
             log.info("drain skipped: extraction service unavailable")
             return
         }
-        guard !Self.isDraining else {
-            log.info("drain skipped: already running")
+        if drainState.isDraining {
+            log.info("drain already running: rerun requested")
+            drainState.rerunRequested = true
             return
         }
-        Self.isDraining = true
-        defer { Self.isDraining = false }
+        drainState.isDraining = true
+        defer { drainState.isDraining = false }
 
+        repeat {
+            drainState.rerunRequested = false
+            await drainOnce(in: context)
+        } while drainState.rerunRequested && !Task.isCancelled
+    }
+
+    private func drainOnce(in context: ModelContext) async {
         reconcileInbox(in: context)
         requeueStaleProcessing(in: context)
         let all: [PendingImage]
@@ -48,6 +66,8 @@ struct PendingProcessor {
             return
         }
         for pending in all where pending.state == .queued {
+            // A BGTask expiry cancels the drain; leave the rest queued for the next run.
+            if Task.isCancelled { break }
             await process(pending, in: context)
         }
         cleanupResolvedImages(in: context)
@@ -58,7 +78,7 @@ struct PendingProcessor {
         let stale: [PendingImage]
         do {
             stale = try context.fetch(FetchDescriptor<PendingImage>())
-                .filter { $0.state == .processing }
+                .filter { $0.state == .processing && !drainState.inFlight.contains($0.id) }
         } catch {
             log.error("requeue fetch failed: \(String(describing: error))")
             return
@@ -112,8 +132,9 @@ struct PendingProcessor {
         do {
             existingNames = try context.fetch(FetchDescriptor<PendingImage>()).map(\.filename)
         } catch {
+            // Treating a failed read as empty would add a second row for every file.
             log.error("reconcile fetch failed: \(String(describing: error))")
-            existingNames = []
+            return
         }
         let existing = Set(existingNames)
         var inserted = false
@@ -131,11 +152,14 @@ struct PendingProcessor {
     }
 
     func process(_ pending: PendingImage, in context: ModelContext) async {
+        drainState.inFlight.insert(pending.id)
+        defer { drainState.inFlight.remove(pending.id) }
         pending.state = .processing
         try? context.save()
 
         let sourceURL = inboxURL.appendingPathComponent(pending.filename)
         let isText = InboxPayload.isText(filename: pending.filename)
+        var inserted: [ParsedEntry] = []
         do {
             // Shared text is already text; only images need OCR. Clamp it to what the
             // extraction prompt can carry — a long share would otherwise overflow the
@@ -143,6 +167,8 @@ struct PendingProcessor {
             let sourceText = isText
                 ? InboxPayload.clampForExtraction(try InboxPayload.readText(at: sourceURL))
                 : try await ocrService.recognize(imageURL: sourceURL)
+            // OCR does not observe cancellation; stop here before starting a model request.
+            try Task.checkCancellation()
             // Skip extraction if no payment signals are detected in the source text
             let extraction: PaymentExtraction
             if CandidateHeuristics.hasPaymentSignal(sourceText) {
@@ -167,11 +193,22 @@ struct PendingProcessor {
             for entry in entries {
                 context.insert(entry)
             }
+            inserted = entries
             pending.state = .done
             try context.save()
         } catch {
-            pending.state = .failed
-            pending.failureMessage = String(describing: error)
+            // Undo only this item's inserts; the shared context may hold unrelated edits.
+            for entry in inserted {
+                context.delete(entry)
+            }
+            // Judge by the task, not the error type: a cancelled request may surface as any error.
+            if Task.isCancelled {
+                pending.state = .queued
+                pending.failureMessage = nil
+            } else {
+                pending.state = .failed
+                pending.failureMessage = String(describing: error)
+            }
             try? context.save()
         }
     }

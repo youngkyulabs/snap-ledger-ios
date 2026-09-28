@@ -46,6 +46,6 @@ enum BackgroundRefresh {
         }
 
         await processingTask.value
-        task.setTaskCompleted(success: true)
+        task.setTaskCompleted(success: !processingTask.isCancelled)
     }
 }
