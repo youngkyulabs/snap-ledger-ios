@@ -27,9 +27,9 @@ enum CSVFolderAccess {
         let didStart = resolved.url.startAccessingSecurityScopedResource()
         defer { if didStart { resolved.url.stopAccessingSecurityScopedResource() } }
         try ensureReachable(resolved.url)
-        let result = try body(resolved.url)
+        // Renew before the body so a failing export does not leave the stale bookmark in place.
         resolved.refreshStaleBookmarkIfNeeded(in: context)
-        return result
+        return try body(resolved.url)
     }
 
     /// Validated folder URL and security-scope context.
