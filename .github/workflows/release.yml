@@ -130,3 +130,72 @@ jobs:
       - name: Remove credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/asc_key.p8" "$RUNNER_TEMP/asc_key.json"
+
+  bump:
+    name: Next version PR
+    # Only after a clean release: a tag that failed preflight is already spent,
+    # and the next version is then a manual patch decision.
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          # main may have moved past the tagged commit; branching from the tag
+          # would conflict with whatever landed since.
+          ref: main
+
+      - name: Move MARKETING_VERSION past the release
+        id: bump
+        run: |
+          set -euo pipefail
+          next=$(python3 -m scripts.version_bump --tag "${GITHUB_REF_NAME}")
+          echo "version=${next}" >> "$GITHUB_OUTPUT"
+
+      - name: Open the bump PR and run CI on it
+        if: steps.bump.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          set -euo pipefail
+          branch="chore/bump-version-${NEXT_VERSION}"
+          # A re-run finds the branch, and the PR if the first run got that far.
+          if ! git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$branch"
+            git commit -am "chore: bump version to ${NEXT_VERSION}"
+            git push origin "$branch"
+          fi
+          if [ -z "$(gh pr list --head "$branch" --state all --json number --jq '.[].number')" ]; then
+            body="$RUNNER_TEMP/bump-pr.md"
+            cat > "$body" <<EOF
+          ## 작업 내용
+
+          \`${GITHUB_REF_NAME}\` 릴리즈 후속으로 \`MARKETING_VERSION\`을 올립니다 (\`${GITHUB_REF_NAME#v}\` → \`${NEXT_VERSION}\`). Release 워크플로가 자동으로 연 PR입니다.
+
+          ## 평가
+
+          App Store Connect는 마지막으로 승인된 버전보다 높은 버전의 빌드만 받습니다. \`${GITHUB_REF_NAME}\` 승인 뒤에는 이 PR을 머지하기 전까지 main push의 TestFlight 빌드가 실패합니다.
+
+          ## 알려진 한계/리스크
+
+          - 다음 릴리즈를 패치나 메이저로 낼 거라면 머지 전에 이 브랜치에서 버전을 고치세요.
+          - 머지하면 main 빌드 버전이 올라가서, 심사 중인 \`${GITHUB_REF_NAME}\` 바이너리를 main에서 같은 버전으로 다시 빌드할 수 없습니다.
+
+          ## 검증
+
+          - CI는 Release 워크플로가 \`workflow_dispatch\`로 돌립니다. \`GITHUB_TOKEN\`으로 연 PR에서는 \`pull_request\` 실행이 생기지 않습니다.
+          EOF
+            gh pr create --base main --head "$branch" \
+              --title "chore: 버전 ${NEXT_VERSION} 상향" \
+              --body-file "$body"
+          fi
+          gh workflow run ci.yml --ref "$branch"

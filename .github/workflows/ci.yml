@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The release workflow dispatches this on its version-bump branch: a PR opened
+  # with GITHUB_TOKEN starts no pull_request run, so its required checks would
+  # never report otherwise.
+  workflow_dispatch:
 
 permissions:
   contents: read
