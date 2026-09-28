@@ -66,18 +66,18 @@ struct AdjustmentDraft: Identifiable, Equatable {
 struct ReconciliationStore {
     // MARK: - Load (DB -> Draft)
 
-    /// Loads or carries forward draft state for the given month.
-    func loadDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
-        let reconciliation = (try? fetchReconciliation(month, in: context)).flatMap { $0 }
-        let balances = (try? fetchBalances(month, in: context)) ?? []
-        let adjustments = (try? fetchAdjustments(month, in: context)) ?? []
-        let savingsItems = (try? fetchSavings(month, in: context)) ?? []
-        let cardItems = (try? fetchCards(month, in: context)) ?? []
-        let incomeItems = (try? fetchIncomes(month, in: context)) ?? []
+    /// Loads or carries forward draft state for the given month; a failed read throws, because saving a draft replaces the whole month.
+    func loadDraft(for month: Int, in context: ModelContext) throws -> ReconciliationDraft {
+        let reconciliation = try fetchReconciliation(month, in: context)
+        let balances = try fetchBalances(month, in: context)
+        let adjustments = try fetchAdjustments(month, in: context)
+        let savingsItems = try fetchSavings(month, in: context)
+        let cardItems = try fetchCards(month, in: context)
+        let incomeItems = try fetchIncomes(month, in: context)
 
         if reconciliation == nil, balances.isEmpty, adjustments.isEmpty,
            savingsItems.isEmpty, cardItems.isEmpty, incomeItems.isEmpty {
-            return carryForwardDraft(for: month, in: context)
+            return try carryForwardDraft(for: month, in: context)
         }
 
         var draft = ReconciliationDraft()
@@ -111,19 +111,19 @@ struct ReconciliationStore {
     }
 
     /// Prefills draft state using previous month balances and items.
-    private func carryForwardDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
+    private func carryForwardDraft(for month: Int, in context: ModelContext) throws -> ReconciliationDraft {
         let previous = Self.previousMonthKey(month)
         var draft = ReconciliationDraft()
-        draft.incomes = incomeDrafts(items: (try? fetchIncomes(previous, in: context)) ?? [])
+        draft.incomes = incomeDrafts(items: try fetchIncomes(previous, in: context))
         // Carry forward card item titles with 0 amounts
         // Last month's usage becomes this month's expected bill; the user corrects it if it differs.
-        draft.cards = ((try? fetchCards(previous, in: context)) ?? []).map {
+        draft.cards = try fetchCards(previous, in: context).map {
             CardUsageItemDraft(
                 title: $0.title, amount: 0, previousAmount: $0.amount, sortOrder: $0.sortOrder
             )
         }
         // Carry forward adjustment titles with 0 amounts
-        draft.adjustments = ((try? fetchAdjustments(previous, in: context)) ?? []).map {
+        draft.adjustments = try fetchAdjustments(previous, in: context).map {
             AdjustmentDraft(
                 title: $0.title,
                 direction: $0.direction,
@@ -132,10 +132,10 @@ struct ReconciliationStore {
                 sortOrder: $0.sortOrder
             )
         }
-        draft.savings = ((try? fetchSavings(previous, in: context)) ?? []).map {
+        draft.savings = try fetchSavings(previous, in: context).map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
         }
-        draft.balances = ((try? fetchBalances(previous, in: context)) ?? []).map {
+        draft.balances = try fetchBalances(previous, in: context).map {
             BalanceDraft(
                 accountName: $0.accountName,
                 sortOrder: $0.sortOrder,
@@ -265,26 +265,21 @@ struct ReconciliationStore {
         return rows
     }
 
-    /// Deletes all reconciliation and item records for the month.
+    /// Deletes all reconciliation and item records for the month; every table is read first, so a failed read stages nothing.
     func deleteMonth(_ month: Int, in context: ModelContext) throws {
-        for item in try fetchAllReconciliations(in: context) where item.monthKey == month {
-            context.delete(item)
-        }
-        for item in try fetchAllBalances(in: context) where item.monthKey == month {
-            context.delete(item)
-        }
-        for item in try fetchAllAdjustments(in: context) where item.monthKey == month {
-            context.delete(item)
-        }
-        for item in try fetchAllSavings(in: context) where item.monthKey == month {
-            context.delete(item)
-        }
-        for item in try fetchAllCards(in: context) where item.monthKey == month {
-            context.delete(item)
-        }
-        for item in try fetchAllIncomes(in: context) where item.monthKey == month {
-            context.delete(item)
-        }
+        let reconciliations = try fetchAllReconciliations(in: context).filter { $0.monthKey == month }
+        let balances = try fetchAllBalances(in: context).filter { $0.monthKey == month }
+        let adjustments = try fetchAllAdjustments(in: context).filter { $0.monthKey == month }
+        let savings = try fetchAllSavings(in: context).filter { $0.monthKey == month }
+        let cards = try fetchAllCards(in: context).filter { $0.monthKey == month }
+        let incomes = try fetchAllIncomes(in: context).filter { $0.monthKey == month }
+
+        reconciliations.forEach { context.delete($0) }
+        balances.forEach { context.delete($0) }
+        adjustments.forEach { context.delete($0) }
+        savings.forEach { context.delete($0) }
+        cards.forEach { context.delete($0) }
+        incomes.forEach { context.delete($0) }
     }
 
     static func monthString(from key: Int) -> String {
