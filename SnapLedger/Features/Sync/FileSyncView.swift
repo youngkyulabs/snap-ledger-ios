@@ -120,7 +120,7 @@ struct FileSyncView: View {
             defer { isExporting = false }
             await Task.yield()
             do {
-                try SyncCoordinator().exportAll(in: modelContext)
+                try SyncCoordinator().exportAll(in: modelContext, pruneStale: true)
                 resultMessage = "앱의 모든 지출·정산을 폴더로 내보냈어요."
             } catch {
                 resultMessage = (error as? any LocalizedError)?.errorDescription ?? error.localizedDescription

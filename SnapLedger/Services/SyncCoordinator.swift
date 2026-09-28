@@ -37,14 +37,16 @@ struct SyncCoordinator {
     // MARK: - Export (App -> Files, One-way)
 
     /// Backfills all months to CSV files in the storage folder.
-    func exportAll(in context: ModelContext) throws {
+    /// `pruneStale` also removes monthly files whose month has no data; folder selection leaves it off
+    /// so picking an old backup folder from a fresh or unsynced store never wipes it.
+    func exportAll(in context: ModelContext, pruneStale: Bool = false) throws {
         let savedKeys = Set(
             try context.fetch(FetchDescriptor<SavedEntry>())
                 .map { CSVWriter.monthKey(for: $0.date) }
         )
         let reconciliationKeys = try reconciliationMonthKeys(in: context)
         let budgetKeys = try budgetMonthKeys(in: context)
-        // Fetches above throw on failure, so an empty key set really means "no data" and pruning is safe.
+        // Fetches above throw on failure, so an empty key set means the store is empty, not that a read failed.
         let keep = Set(savedKeys.map(CSVWriter.filename(forMonthKey:)))
             .union(reconciliationKeys.map(ReconciliationCSVWriter.filename(forMonthKey:)))
             .union(budgetKeys.map(BudgetCSVWriter.filename(forMonthKey:)))
@@ -52,7 +54,9 @@ struct SyncCoordinator {
             try exportMonths(Array(savedKeys), folderURL: folderURL, in: ctx)
             try exportReconciliationMonths(Array(reconciliationKeys), folderURL: folderURL, in: ctx)
             try exportBudgetMonths(Array(budgetKeys), folderURL: folderURL, in: ctx)
-            try pruneMonthlyExports(in: folderURL, keeping: keep)
+            if pruneStale, !keep.isEmpty {
+                try pruneMonthlyExports(in: folderURL, keeping: keep)
+            }
             try ctx.save()
         }
     }

@@ -80,11 +80,53 @@ struct SyncCoordinatorTests {
         try Data("x".utf8).write(to: stale)
         try Data("x".utf8).write(to: foreign)
 
-        try SyncCoordinator().exportAll(in: context)
+        try SyncCoordinator().exportAll(in: context, pruneStale: true)
 
         #expect(!FileManager.default.fileExists(atPath: stale.path))
         #expect(FileManager.default.fileExists(atPath: foreign.path))
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("expenses-2026-05.csv").path))
+    }
+
+    @Test func exportAllKeepsStaleFilesUnlessPruneRequested() throws {
+        // Folder selection backfills without pruning, so an old backup is never wiped by picking it.
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        insertEntry(context, day: 3, amount: 1000, merchant: "A")
+        try context.save()
+        let stale = dir.appendingPathComponent("expenses-2020-01.csv")
+        try Data("x".utf8).write(to: stale)
+
+        try SyncCoordinator().exportAll(in: context)
+
+        #expect(FileManager.default.fileExists(atPath: stale.path))
+    }
+
+    @Test func pruneIsSkippedWhenStoreHasNoData() throws {
+        // A fresh install or unsynced store must not delete the user's only CSV history.
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let stale = dir.appendingPathComponent("expenses-2020-01.csv")
+        try Data("x".utf8).write(to: stale)
+
+        try SyncCoordinator().exportAll(in: context, pruneStale: true)
+
+        #expect(FileManager.default.fileExists(atPath: stale.path))
+    }
+
+    @Test func pruneKeepsReconciliationOnlyAndBudgetOnlyMonths() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        context.insert(MonthlyReconciliation(monthKey: 202_603, note: "메모"))
+        context.insert(CategoryBudget(category: "식비", monthlyLimit: 1000, effectiveFrom: 202_604))
+        try context.save()
+
+        try SyncCoordinator().exportAll(in: context, pruneStale: true)
+
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("reconciliations-2026-03.csv").path))
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("budgets-2026-04.csv").path))
     }
 
     @Test func exportWithoutFolderThrows() throws {
