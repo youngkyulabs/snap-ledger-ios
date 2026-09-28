@@ -135,53 +135,37 @@ private extension SnapLedgerApp {
         let needMerchants = settings?.hasMigratedMerchantsToCloudStore != true
         guard needBudgets || needEntries || needReconciliation || needMerchants else { return nil }
 
-        let budgets = needBudgets ? CloudStoreMigration.snapshotBudgets(from: context) : []
-        let presetsRaw = settings?.categoryPresets ?? AppSettings.defaultPresets
-        let presets = presetsRaw.isEmpty ? AppSettings.defaultPresets : presetsRaw
-        let entries = needEntries ? CloudStoreMigration.snapshotEntries(from: context) : []
-
-        let reconciliations = needReconciliation ? CloudStoreMigration.snapshotReconciliations(from: context) : []
-        let accountBalances = needReconciliation ? CloudStoreMigration.snapshotAccountBalances(from: context) : []
-        let cashAdjustments = needReconciliation ? CloudStoreMigration.snapshotCashAdjustments(from: context) : []
-        let savings = needReconciliation ? CloudStoreMigration.snapshotSavings(from: context) : []
-        let cardUsage = needReconciliation ? CloudStoreMigration.snapshotCardUsage(from: context) : []
-        let income = needReconciliation ? CloudStoreMigration.snapshotIncome(from: context) : []
-        let merchants = needMerchants ? CloudStoreMigration.snapshotMerchants(from: context) : []
-
-        return LegacySnapshot(
-            budgets: budgets, presets: presets, entries: entries,
-            reconciliations: reconciliations, accountBalances: accountBalances,
-            cashAdjustments: cashAdjustments, savings: savings, cardUsage: cardUsage,
-            income: income, merchants: merchants,
-            migrateBudgets: needBudgets, migrateEntries: needEntries,
-            migrateReconciliation: needReconciliation, migrateMerchants: needMerchants
-        )
+        do {
+            let budgets = needBudgets ? try CloudStoreMigration.snapshotBudgets(from: context) : []
+            let presetsRaw = settings?.categoryPresets ?? AppSettings.defaultPresets
+            let presets = presetsRaw.isEmpty ? AppSettings.defaultPresets : presetsRaw
+            let entries = needEntries ? try CloudStoreMigration.snapshotEntries(from: context) : []
+            let reconciliations = needReconciliation ? try CloudStoreMigration.snapshotReconciliations(from: context) : []
+            let accountBalances = needReconciliation ? try CloudStoreMigration.snapshotAccountBalances(from: context) : []
+            let cashAdjustments = needReconciliation ? try CloudStoreMigration.snapshotCashAdjustments(from: context) : []
+            let savings = needReconciliation ? try CloudStoreMigration.snapshotSavings(from: context) : []
+            let cardUsage = needReconciliation ? try CloudStoreMigration.snapshotCardUsage(from: context) : []
+            let income = needReconciliation ? try CloudStoreMigration.snapshotIncome(from: context) : []
+            let merchants = needMerchants ? try CloudStoreMigration.snapshotMerchants(from: context) : []
+            return LegacySnapshot(
+                budgets: budgets, presets: presets, entries: entries,
+                reconciliations: reconciliations, accountBalances: accountBalances,
+                cashAdjustments: cashAdjustments, savings: savings, cardUsage: cardUsage,
+                income: income, merchants: merchants,
+                migrateBudgets: needBudgets, migrateEntries: needEntries,
+                migrateReconciliation: needReconciliation, migrateMerchants: needMerchants
+            )
+        } catch {
+            // Nothing is marked migrated, so the next launch retries.
+            logger.error("레거시 스냅샷 읽기 실패 — 이번 실행에서는 마이그레이션을 건너뜁니다: \(String(describing: error))")
+            return nil
+        }
     }
 
     /// Migrates snapshot data into new stores and sets completion flags.
     @MainActor
     static func runMigration(_ legacy: LegacySnapshot, in container: ModelContainer) {
         let context = ModelContext(container)
-        if legacy.migrateBudgets {
-            CloudStoreMigration.copyBudgets(legacy.budgets, into: context)
-            CloudStoreMigration.seedPresets(legacy.presets, into: context)
-        }
-        if legacy.migrateEntries {
-            CloudStoreMigration.copyEntries(legacy.entries, into: context)
-        }
-        if legacy.migrateReconciliation {
-            CloudStoreMigration.copyReconciliations(legacy.reconciliations, into: context)
-            CloudStoreMigration.copyAccountBalances(legacy.accountBalances, into: context)
-            CloudStoreMigration.copyCashAdjustments(legacy.cashAdjustments, into: context)
-            CloudStoreMigration.copySavings(legacy.savings, into: context)
-            CloudStoreMigration.copyCardUsage(legacy.cardUsage, into: context)
-            CloudStoreMigration.copyIncome(legacy.income, into: context)
-        }
-        if legacy.migrateMerchants {
-            CloudStoreMigration.copyMerchants(legacy.merchants, into: context)
-        }
-
-        // Persist migration completion flag in local settings.
         let settings: AppSettings
         if let existing = try? context.fetch(FetchDescriptor<AppSettings>()).first {
             settings = existing
@@ -189,10 +173,49 @@ private extension SnapLedgerApp {
             settings = AppSettings()
             context.insert(settings)
         }
-        if legacy.migrateBudgets { settings.hasMigratedToCloudStore = true }
-        if legacy.migrateEntries { settings.hasMigratedEntriesToCloudStore = true }
-        if legacy.migrateReconciliation { settings.hasMigratedReconciliationToCloudStore = true }
-        if legacy.migrateMerchants { settings.hasMigratedMerchantsToCloudStore = true }
-        try? context.save()
+        // Each group is marked migrated only when its copy succeeded, so a failed group retries next launch.
+        if legacy.migrateBudgets {
+            do {
+                try CloudStoreMigration.copyBudgets(legacy.budgets, into: context)
+                try CloudStoreMigration.seedPresets(legacy.presets, into: context)
+                settings.hasMigratedToCloudStore = true
+            } catch {
+                logger.error("예산 마이그레이션 실패: \(String(describing: error))")
+            }
+        }
+        if legacy.migrateEntries {
+            do {
+                try CloudStoreMigration.copyEntries(legacy.entries, into: context)
+                settings.hasMigratedEntriesToCloudStore = true
+            } catch {
+                logger.error("지출 마이그레이션 실패: \(String(describing: error))")
+            }
+        }
+        if legacy.migrateReconciliation {
+            do {
+                try CloudStoreMigration.copyReconciliations(legacy.reconciliations, into: context)
+                try CloudStoreMigration.copyAccountBalances(legacy.accountBalances, into: context)
+                try CloudStoreMigration.copyCashAdjustments(legacy.cashAdjustments, into: context)
+                try CloudStoreMigration.copySavings(legacy.savings, into: context)
+                try CloudStoreMigration.copyCardUsage(legacy.cardUsage, into: context)
+                try CloudStoreMigration.copyIncome(legacy.income, into: context)
+                settings.hasMigratedReconciliationToCloudStore = true
+            } catch {
+                logger.error("정산 마이그레이션 실패: \(String(describing: error))")
+            }
+        }
+        if legacy.migrateMerchants {
+            do {
+                try CloudStoreMigration.copyMerchants(legacy.merchants, into: context)
+                settings.hasMigratedMerchantsToCloudStore = true
+            } catch {
+                logger.error("가맹점 학습 마이그레이션 실패: \(String(describing: error))")
+            }
+        }
+        do {
+            try context.save()
+        } catch {
+            logger.error("마이그레이션 완료 플래그 저장 실패: \(String(describing: error))")
+        }
     }
 }

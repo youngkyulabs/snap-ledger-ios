@@ -72,8 +72,8 @@ struct MerchantSnapshot: Equatable {
 enum CloudStoreMigration {
     /// Reads legacy budget data into snapshots.
     @MainActor
-    static func snapshotBudgets(from source: ModelContext) -> [BudgetSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<CategoryBudget>())) ?? []
+    static func snapshotBudgets(from source: ModelContext) throws -> [BudgetSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<CategoryBudget>())
         return rows.map {
             BudgetSnapshot(
                 category: $0.category,
@@ -86,8 +86,8 @@ enum CloudStoreMigration {
 
     /// Migrates budget snapshots to CloudKit store.
     @MainActor
-    static func copyBudgets(_ snapshots: [BudgetSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<CategoryBudget>())) ?? []
+    static func copyBudgets(_ snapshots: [BudgetSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<CategoryBudget>())
         var byKey = Dictionary(
             existing.map { ("\($0.category)|\($0.effectiveFrom)", $0) }
         ) { first, _ in first }
@@ -107,13 +107,13 @@ enum CloudStoreMigration {
                 byKey[key] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     /// Inserts category preset records into CloudKit store.
     @MainActor
-    static func seedPresets(_ names: [String], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<CategoryPreset>())) ?? []
+    static func seedPresets(_ names: [String], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<CategoryPreset>())
         let byName = Dictionary(existing.map { ($0.name, $0) }) { first, _ in first }
         for (index, name) in names.enumerated() {
             if let preset = byName[name] {
@@ -122,13 +122,13 @@ enum CloudStoreMigration {
                 cloud.insert(CategoryPreset(name: name, sortOrder: index))
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     /// Reads legacy saved entries into snapshots.
     @MainActor
-    static func snapshotEntries(from source: ModelContext) -> [EntrySnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<SavedEntry>())) ?? []
+    static func snapshotEntries(from source: ModelContext) throws -> [EntrySnapshot] {
+        let rows = try source.fetch(FetchDescriptor<SavedEntry>())
         return rows.map {
             EntrySnapshot(
                 id: $0.id, date: $0.date, amount: $0.amount,
@@ -140,8 +140,8 @@ enum CloudStoreMigration {
 
     /// Migrates saved entry snapshots to CloudKit store.
     @MainActor
-    static func copyEntries(_ snapshots: [EntrySnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<SavedEntry>())) ?? []
+    static func copyEntries(_ snapshots: [EntrySnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<SavedEntry>())
         var byID = Dictionary(existing.map { ($0.id, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byID[snap.id] {
@@ -162,20 +162,20 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     // MARK: - Reconciliation Header
 
     @MainActor
-    static func snapshotReconciliations(from source: ModelContext) -> [ReconciliationSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<MonthlyReconciliation>())) ?? []
+    static func snapshotReconciliations(from source: ModelContext) throws -> [ReconciliationSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<MonthlyReconciliation>())
         return rows.map { ReconciliationSnapshot(id: $0.id, monthKey: $0.monthKey, note: $0.note, updatedAt: $0.updatedAt) }
     }
 
     @MainActor
-    static func copyReconciliations(_ snapshots: [ReconciliationSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<MonthlyReconciliation>())) ?? []
+    static func copyReconciliations(_ snapshots: [ReconciliationSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<MonthlyReconciliation>())
         var byID = Dictionary(existing.map { ($0.id, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byID[snap.id] {
@@ -188,14 +188,14 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     // MARK: - Account Monthly Balances
 
     @MainActor
-    static func snapshotAccountBalances(from source: ModelContext) -> [AccountBalanceSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<AccountMonthlyBalance>())) ?? []
+    static func snapshotAccountBalances(from source: ModelContext) throws -> [AccountBalanceSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<AccountMonthlyBalance>())
         return rows.map {
             AccountBalanceSnapshot(
                 id: $0.id, monthKey: $0.monthKey, accountName: $0.accountName, sortOrder: $0.sortOrder,
@@ -205,8 +205,8 @@ enum CloudStoreMigration {
     }
 
     @MainActor
-    static func copyAccountBalances(_ snapshots: [AccountBalanceSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<AccountMonthlyBalance>())) ?? []
+    static func copyAccountBalances(_ snapshots: [AccountBalanceSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<AccountMonthlyBalance>())
         var byID = Dictionary(existing.map { ($0.id, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byID[snap.id] {
@@ -225,14 +225,14 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     // MARK: - Cash Adjustments
 
     @MainActor
-    static func snapshotCashAdjustments(from source: ModelContext) -> [CashAdjustmentSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<CashAdjustment>())) ?? []
+    static func snapshotCashAdjustments(from source: ModelContext) throws -> [CashAdjustmentSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<CashAdjustment>())
         return rows.map {
             CashAdjustmentSnapshot(
                 id: $0.id, monthKey: $0.monthKey, title: $0.title,
@@ -242,8 +242,8 @@ enum CloudStoreMigration {
     }
 
     @MainActor
-    static func copyCashAdjustments(_ snapshots: [CashAdjustmentSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<CashAdjustment>())) ?? []
+    static func copyCashAdjustments(_ snapshots: [CashAdjustmentSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<CashAdjustment>())
         var byID = Dictionary(existing.map { ($0.id, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byID[snap.id] {
@@ -262,14 +262,14 @@ enum CloudStoreMigration {
                 byID[snap.id] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     // MARK: - Line Items (Savings, Cards, Income)
 
     @MainActor
-    static func snapshotSavings(from source: ModelContext) -> [LineItemSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<SavingsItem>())) ?? []
+    static func snapshotSavings(from source: ModelContext) throws -> [LineItemSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<SavingsItem>())
         return rows.map {
             LineItemSnapshot(
                 id: $0.id, monthKey: $0.monthKey, title: $0.title,
@@ -279,8 +279,8 @@ enum CloudStoreMigration {
     }
 
     @MainActor
-    static func copySavings(_ snapshots: [LineItemSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<SavingsItem>())) ?? []
+    static func copySavings(_ snapshots: [LineItemSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<SavingsItem>())
         var byID = Dictionary(existing.map { ($0.id, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byID[snap.id] {
@@ -294,12 +294,12 @@ enum CloudStoreMigration {
                 cloud.insert(row); byID[snap.id] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     @MainActor
-    static func snapshotCardUsage(from source: ModelContext) -> [LineItemSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<CardUsageItem>())) ?? []
+    static func snapshotCardUsage(from source: ModelContext) throws -> [LineItemSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<CardUsageItem>())
         return rows.map {
             LineItemSnapshot(
                 id: $0.id, monthKey: $0.monthKey, title: $0.title,
@@ -309,8 +309,8 @@ enum CloudStoreMigration {
     }
 
     @MainActor
-    static func copyCardUsage(_ snapshots: [LineItemSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<CardUsageItem>())) ?? []
+    static func copyCardUsage(_ snapshots: [LineItemSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<CardUsageItem>())
         var byID = Dictionary(existing.map { ($0.id, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byID[snap.id] {
@@ -324,12 +324,12 @@ enum CloudStoreMigration {
                 cloud.insert(row); byID[snap.id] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     @MainActor
-    static func snapshotIncome(from source: ModelContext) -> [LineItemSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<IncomeItem>())) ?? []
+    static func snapshotIncome(from source: ModelContext) throws -> [LineItemSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<IncomeItem>())
         return rows.map {
             LineItemSnapshot(
                 id: $0.id, monthKey: $0.monthKey, title: $0.title,
@@ -339,8 +339,8 @@ enum CloudStoreMigration {
     }
 
     @MainActor
-    static func copyIncome(_ snapshots: [LineItemSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<IncomeItem>())) ?? []
+    static func copyIncome(_ snapshots: [LineItemSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<IncomeItem>())
         var byID = Dictionary(existing.map { ($0.id, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byID[snap.id] {
@@ -354,20 +354,20 @@ enum CloudStoreMigration {
                 cloud.insert(row); byID[snap.id] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 
     // MARK: - Merchant Category Learning
 
     @MainActor
-    static func snapshotMerchants(from source: ModelContext) -> [MerchantSnapshot] {
-        let rows = (try? source.fetch(FetchDescriptor<MerchantCategory>())) ?? []
+    static func snapshotMerchants(from source: ModelContext) throws -> [MerchantSnapshot] {
+        let rows = try source.fetch(FetchDescriptor<MerchantCategory>())
         return rows.map { MerchantSnapshot(merchantNormalized: $0.merchantNormalized, category: $0.category, updatedAt: $0.updatedAt) }
     }
 
     @MainActor
-    static func copyMerchants(_ snapshots: [MerchantSnapshot], into cloud: ModelContext) {
-        let existing = (try? cloud.fetch(FetchDescriptor<MerchantCategory>())) ?? []
+    static func copyMerchants(_ snapshots: [MerchantSnapshot], into cloud: ModelContext) throws {
+        let existing = try cloud.fetch(FetchDescriptor<MerchantCategory>())
         var byKey = Dictionary(existing.map { ($0.merchantNormalized, $0) }) { first, _ in first }
         for snap in snapshots {
             if let row = byKey[snap.merchantNormalized] {
@@ -379,6 +379,6 @@ enum CloudStoreMigration {
                 byKey[snap.merchantNormalized] = row
             }
         }
-        try? cloud.save()
+        try cloud.save()
     }
 }
