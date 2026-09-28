@@ -12,7 +12,7 @@ final class ShareViewController: UIViewController {
     private static let maxTextLength = 2_000
     /// Upper bound on bytes read from a shared text file or blob before clipping to `maxTextLength`;
     /// reading a whole file first would blow the extension's memory limit on large shares.
-    private static let maxTextBytes = 64 * 1024
+    nonisolated private static let maxTextBytes = 64 * 1024
 
     private let spinner = UIActivityIndicatorView(style: .large)
     private let statusIcon = UIImageView()
