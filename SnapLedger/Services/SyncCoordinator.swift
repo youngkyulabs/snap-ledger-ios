@@ -36,29 +36,44 @@ struct SyncCoordinator {
 
     // MARK: - Export (App -> Files, One-way)
 
-    /// Backfills all months to CSV files in the storage folder.
-    /// `pruneStale` also removes monthly files whose month has no data; folder selection leaves it off
-    /// so picking an old backup folder from a fresh or unsynced store never wipes it.
-    func exportAll(in context: ModelContext, pruneStale: Bool = false) throws {
-        let savedKeys = Set(
-            try context.fetch(FetchDescriptor<SavedEntry>())
-                .map { CSVWriter.monthKey(for: $0.date) }
-        )
-        let reconciliationKeys = try reconciliationMonthKeys(in: context)
-        let budgetKeys = try budgetMonthKeys(in: context)
-        // Fetches above throw on failure, so an empty key set means the store is empty, not that a read failed.
-        let keep = Set(savedKeys.map(CSVWriter.filename(forMonthKey:)))
-            .union(reconciliationKeys.map(ReconciliationCSVWriter.filename(forMonthKey:)))
-            .union(budgetKeys.map(BudgetCSVWriter.filename(forMonthKey:)))
+    /// Backfills all months to CSV files in the storage folder; `pruneStale` then deletes the `staleExports` files.
+    func exportAll(in context: ModelContext, pruneStale: Bool) throws {
+        let months = try monthsWithData(in: context)
         try withFolder(in: context) { folderURL, ctx in
-            try exportMonths(Array(savedKeys), folderURL: folderURL, in: ctx)
-            try exportReconciliationMonths(Array(reconciliationKeys), folderURL: folderURL, in: ctx)
-            try exportBudgetMonths(Array(budgetKeys), folderURL: folderURL, in: ctx)
-            if pruneStale, !keep.isEmpty {
-                try pruneMonthlyExports(in: folderURL, keeping: keep)
+            try exportMonths(Array(months.expenses), folderURL: folderURL, in: ctx)
+            try exportReconciliationMonths(Array(months.reconciliations), folderURL: folderURL, in: ctx)
+            try exportBudgetMonths(Array(months.budgets), folderURL: folderURL, in: ctx)
+            if pruneStale {
+                for name in try Self.staleExportNames(ExportFolderFiles.names(in: folderURL), months: months) {
+                    try ExportFolderFiles.remove(folderURL.appendingPathComponent(name))
+                }
             }
             try ctx.save()
         }
+    }
+
+    /// Monthly export files in the folder that `exportAll(pruneStale: true)` would delete.
+    func staleExports(in context: ModelContext) throws -> [String] {
+        let months = try monthsWithData(in: context)
+        return try withFolder(in: context) { folderURL, _ in
+            try Self.staleExportNames(ExportFolderFiles.names(in: folderURL), months: months)
+        }
+    }
+
+    /// Months with data per export kind; every read throws, so a failed fetch is never mistaken for no data.
+    func monthsWithData(in context: ModelContext) throws -> ExportMonths {
+        let expenses = Set(
+            try context.fetch(FetchDescriptor<SavedEntry>())
+                .map { CSVWriter.monthKey(for: $0.date) }
+        )
+        // Entry saves also write the budget file of a future month, so the range reaches the latest entry.
+        let current = CategoryBudgetStore.monthKey(from: Date())
+        let latestEntry = expenses.map(Self.intMonthKey(from:)).max() ?? current
+        return ExportMonths(
+            expenses: expenses,
+            reconciliations: try reconciliationMonthKeys(in: context),
+            budgets: try budgetMonthKeys(asOf: max(current, latestEntry), in: context)
+        )
     }
 
     /// Rewrites expense CSV files for specified months.

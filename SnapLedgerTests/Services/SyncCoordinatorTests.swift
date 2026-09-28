@@ -60,7 +60,7 @@ struct SyncCoordinatorTests {
         insertEntry(context, day: 17, amount: 5500, merchant: "스타벅스", category: "카페")
         try context.save()
 
-        try SyncCoordinator().exportAll(in: context)
+        try SyncCoordinator().exportAll(in: context, pruneStale: false)
 
         let file = dir.appendingPathComponent("expenses-2026-05.csv")
         #expect(FileManager.default.fileExists(atPath: file.path))
@@ -97,7 +97,7 @@ struct SyncCoordinatorTests {
         let stale = dir.appendingPathComponent("expenses-2020-01.csv")
         try Data("x".utf8).write(to: stale)
 
-        try SyncCoordinator().exportAll(in: context)
+        try SyncCoordinator().exportAll(in: context, pruneStale: false)
 
         #expect(FileManager.default.fileExists(atPath: stale.path))
     }
@@ -129,12 +129,61 @@ struct SyncCoordinatorTests {
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("budgets-2026-04.csv").path))
     }
 
+    @Test func pruneLeavesKindsWithNoDataAlone() throws {
+        // A budget row that synced first must not wipe expense or reconciliation backups that have not.
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        context.insert(CategoryBudget(category: "식비", monthlyLimit: 1000, effectiveFrom: 202_604))
+        try context.save()
+        let expenses = dir.appendingPathComponent("expenses-2020-01.csv")
+        let reconciliations = dir.appendingPathComponent("reconciliations-2020-01.csv")
+        try Data("x".utf8).write(to: expenses)
+        try Data("x".utf8).write(to: reconciliations)
+
+        try SyncCoordinator().exportAll(in: context, pruneStale: true)
+
+        #expect(FileManager.default.fileExists(atPath: expenses.path))
+        #expect(FileManager.default.fileExists(atPath: reconciliations.path))
+    }
+
+    @Test func staleExportsListsWhatPruneWouldDelete() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        insertEntry(context, day: 3, amount: 1000, merchant: "A")
+        try context.save()
+        try Data("x".utf8).write(to: dir.appendingPathComponent("expenses-2020-01.csv"))
+        try Data("x".utf8).write(to: dir.appendingPathComponent("notes.csv"))
+
+        #expect(try SyncCoordinator().staleExports(in: context) == ["expenses-2020-01.csv"])
+    }
+
+    @Test func exportAllKeepsBudgetFileForFutureEntryMonth() throws {
+        // Saving a future-dated entry writes that month's budget file, so Export All must write and keep it too.
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        let noon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date()) ?? Date()
+        let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: noon) ?? noon
+        context.insert(SavedEntry(date: nextMonth, amount: 1000, merchant: "A", csvFile: "future.csv"))
+        context.insert(
+            CategoryBudget(category: "식비", monthlyLimit: 1000, effectiveFrom: CategoryBudgetStore.monthKey(from: noon))
+        )
+        try context.save()
+
+        try SyncCoordinator().exportAll(in: context, pruneStale: true)
+
+        let budgetFile = BudgetCSVWriter.filename(forMonthKey: CSVWriter.monthKey(for: nextMonth))
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent(budgetFile).path))
+    }
+
     @Test func exportWithoutFolderThrows() throws {
         let context = try makeContext()
         insertEntry(context, day: 1, amount: 100, merchant: "A")
         try context.save()
         #expect(throws: SyncCoordinator.SyncError.self) {
-            try SyncCoordinator().exportAll(in: context)
+            try SyncCoordinator().exportAll(in: context, pruneStale: false)
         }
     }
 

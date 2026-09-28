@@ -94,7 +94,7 @@ struct SyncCoordinatorBudgetTests {
         context.insert(CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: prev))
         try context.save()
 
-        try sync.exportAll(in: context)
+        try sync.exportAll(in: context, pruneStale: false)
 
         // Files generated for both previous and current carried over months
         let prevFile = dir.appendingPathComponent("budgets-\(SyncCoordinator.monthKeyString(from: prev)).csv")

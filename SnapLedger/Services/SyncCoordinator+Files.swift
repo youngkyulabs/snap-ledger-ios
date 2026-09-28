@@ -17,31 +17,25 @@ extension SyncCoordinator {
 }
 
 extension SyncCoordinator {
-    /// True for expenses-YYYY-MM.csv, reconciliations-YYYY-MM.csv and budgets-YYYY-MM.csv.
-    nonisolated static func isMonthlyExportFilename(_ name: String) -> Bool {
-        name.wholeMatch(of: /^(expenses|reconciliations|budgets)-\d{4}-\d{2}\.csv$/) != nil
+    /// Month keys ("YYYY-MM") that have data, per export kind.
+    nonisolated struct ExportMonths: Equatable {
+        var expenses: Set<String> = []
+        var reconciliations: Set<String> = []
+        var budgets: Set<String> = []
     }
 
-    /// Deletes monthly export files in the folder whose names are not in `keep`.
-    func pruneMonthlyExports(in folderURL: URL, keeping keep: Set<String>) throws {
-        let names = try FileManager.default.contentsOfDirectory(atPath: folderURL.path)
-        for name in names where Self.isMonthlyExportFilename(name) && !keep.contains(name) {
-            try Self.delete(folderURL.appendingPathComponent(name))
-        }
-    }
-
-    private static func delete(_ url: URL) throws {
-        let coordinator = NSFileCoordinator(filePresenter: nil)
-        var coordinationError: NSError?
-        var thrown: (any Error)?
-        unsafe coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &coordinationError) { coordinatedURL in
-            do {
-                try FileManager.default.removeItem(at: coordinatedURL)
-            } catch {
-                thrown = error
+    /// Monthly export files whose month has no data; a kind with no data at all is left alone, since an unsynced store looks empty.
+    nonisolated static func staleExportNames(_ names: [String], months: ExportMonths) -> [String] {
+        names.filter { name in
+            guard let match = name.wholeMatch(of: /(expenses|reconciliations|budgets)-([0-9]{4}-[0-9]{2})\.csv/) else {
+                return false
             }
+            let kept = switch match.output.1 {
+            case "expenses": months.expenses
+            case "reconciliations": months.reconciliations
+            default: months.budgets
+            }
+            return !kept.isEmpty && !kept.contains(String(match.output.2))
         }
-        if let err = coordinationError { throw err }
-        if let err = thrown { throw err }
     }
 }
