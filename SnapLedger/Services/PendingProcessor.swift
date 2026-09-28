@@ -4,12 +4,23 @@ import SwiftData
 
 private let log = Logger(subsystem: "com.youngkyu.snapledger", category: "pending")
 
+/// Drain bookkeeping shared by every processor in the process.
+@MainActor
+final class DrainState {
+    static let shared = DrainState()
+    /// Prevents concurrent drain executions.
+    var isDraining = false
+    /// Set when a drain is requested while one is running, so the running drain loops once more.
+    var rerunRequested = false
+}
+
 @MainActor
 struct PendingProcessor {
     let inboxURL: URL
     let ocrService: any OCRService
     let extractionService: any ExtractionService
     let categoryLearner: CategoryLearner
+    var drainState: DrainState = .shared
 
     static func make(in context: ModelContext) -> PendingProcessor {
         PendingProcessor(
@@ -23,21 +34,26 @@ struct PendingProcessor {
         )
     }
 
-    /// Prevents concurrent drain executions.
-    private static var isDraining = false
-
     func drain(in context: ModelContext) async {
         guard extractionService.isAvailable else {
             log.info("drain skipped: extraction service unavailable")
             return
         }
-        guard !Self.isDraining else {
-            log.info("drain skipped: already running")
+        if drainState.isDraining {
+            log.info("drain already running: rerun requested")
+            drainState.rerunRequested = true
             return
         }
-        Self.isDraining = true
-        defer { Self.isDraining = false }
+        drainState.isDraining = true
+        defer { drainState.isDraining = false }
 
+        repeat {
+            drainState.rerunRequested = false
+            await drainOnce(in: context)
+        } while drainState.rerunRequested && !Task.isCancelled
+    }
+
+    private func drainOnce(in context: ModelContext) async {
         reconcileInbox(in: context)
         requeueStaleProcessing(in: context)
         let all: [PendingImage]
