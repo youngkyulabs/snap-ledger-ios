@@ -164,15 +164,21 @@ final class ShareViewController: UIViewController {
     }
 
     /// Reads at most `maxTextBytes` from the file; the tail past the limit is never needed.
-    private static func readBoundedText(at url: URL) -> String? {
+    nonisolated private static func readBoundedText(at url: URL) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         guard let data = try? handle.read(upToCount: maxTextBytes) else { return nil }
         return decodeBounded(data)
     }
 
-    private static func decodeBounded(_ data: Data) -> String {
-        String(decoding: data.prefix(maxTextBytes), as: UTF8.self)
+    nonisolated private static func decodeBounded(_ data: Data) -> String? {
+        var slice = data.prefix(maxTextBytes)
+        // A cut inside a multi-byte character fails the whole decode; trim up to three bytes.
+        for _ in 0..<4 {
+            if let text = String(bytes: slice, encoding: .utf8) { return text }
+            slice = slice.dropLast()
+        }
+        return nil
     }
 
     private static func saveText(_ text: String, to inboxURL: URL) -> Bool {
