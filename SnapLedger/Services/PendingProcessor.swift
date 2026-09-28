@@ -48,6 +48,8 @@ struct PendingProcessor {
             return
         }
         for pending in all where pending.state == .queued {
+            // A BGTask expiry cancels the drain; leave the rest queued for the next run.
+            if Task.isCancelled { break }
             await process(pending, in: context)
         }
         cleanupResolvedImages(in: context)
