@@ -12,6 +12,8 @@ final class DrainState {
     var isDraining = false
     /// Set when a drain is requested while one is running, so the running drain loops once more.
     var rerunRequested = false
+    /// Images currently inside `process`; requeue leaves these alone.
+    var inFlight: Set<UUID> = []
 }
 
 @MainActor
@@ -75,8 +77,8 @@ struct PendingProcessor {
     func requeueStaleProcessing(in context: ModelContext) {
         let stale: [PendingImage]
         do {
-            stale = try context.fetch(FetchDescriptor<PendingImage>())
-                .filter { $0.state == .processing }
+                stale = try context.fetch(FetchDescriptor<PendingImage>())
+                .filter { $0.state == .processing && !drainState.inFlight.contains($0.id) }
         } catch {
             log.error("requeue fetch failed: \(String(describing: error))")
             return
@@ -149,6 +151,8 @@ struct PendingProcessor {
     }
 
     func process(_ pending: PendingImage, in context: ModelContext) async {
+        drainState.inFlight.insert(pending.id)
+        defer { drainState.inFlight.remove(pending.id) }
         pending.state = .processing
         try? context.save()
 

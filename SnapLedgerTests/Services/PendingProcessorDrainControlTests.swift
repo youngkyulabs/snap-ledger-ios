@@ -133,4 +133,31 @@ struct PendingProcessorDrainControlTests {
         #expect(states.count == 2)
         #expect(states.allSatisfy { $0 == .done })
     }
+
+    @Test func requeueSkipsItemCurrentlyProcessing() async throws {
+        let ctx = ModelContext(try makeContainer())
+        let inbox = try makeInbox()
+        let pending = PendingImage(filename: try writeFakeImage("busy.jpg", in: inbox))
+        ctx.insert(pending)
+        try ctx.save()
+        let gate = OCRGate()
+        let processor = PendingProcessor(
+            inboxURL: inbox,
+            ocrService: GatedOCRService(gate: gate, text: "5,000원 일시불"),
+            extractionService: StubExtractionService(result: oneTransaction),
+            categoryLearner: CategoryLearner(),
+            drainState: DrainState()
+        )
+
+        let work = Task { await processor.process(pending, in: ctx) }
+        await gate.waitStarted()
+        // A foreground drain must not steal an item another caller is mid-way through.
+        processor.requeueStaleProcessing(in: ctx)
+        #expect(pending.state == .processing)
+
+        await gate.release()
+        await work.value
+        #expect(pending.state == .done)
+        #expect(try ctx.fetch(FetchDescriptor<ParsedEntry>()).count == 1)
+    }
 }
