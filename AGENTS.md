@@ -78,11 +78,13 @@ SnapLedger/                          # Main app target (synchronized root group)
 
   Services/                          # Business logic (fully unit-testable)
     OCRService.swift                 # protocol + VisionKitOCRService (Korean/English accurate)
+    ResumeOnce.swift                 # Resumes a checked continuation at most once (Vision can report one failure twice)
     CandidateHeuristics.swift        # Payment signal scoring on OCR text (blocks hallucinations on scenery photos)
     ExtractionService.swift          # protocol + FoundationModelsExtractionService (dynamic prompt, multi-transaction)
     PaymentExtraction.swift          # @Generable PaymentExtraction(transactions:[Transaction])
     AppleIntelligenceStatus.swift    # FM availability → user-friendly copy (shared entry point for Settings/Onboarding/Review)
     PendingProcessor.swift           # @MainActor pipeline: reconcile inbox → OCR (images) / read text (.txt) → heuristic → extract → ParsedEntry
+                                     #            + DrainState (shared per process): drain serialization, rerun-on-request, in-flight set that requeue skips
     SaveCoordinator.swift            # Confirm review → CSV append + SavedEntry creation + category learning
     CategoryLearner.swift            # Merchant → category learning & lookup
     CategoryValidation.swift         # Determines if a category is off-list (warning only, pure)
@@ -177,7 +179,7 @@ SnapLedgerTests/                     # Swift Testing — mirrors source structur
 7. **CSV is a One-Way Export Backup (`SyncCoordinator`) — CloudKit as Source of Truth (Phases 1–4)**
    CloudKit-backed SwiftData is the sole source of truth for all persistent data. CSVs are **export-only backups across 3 kinds (expenses, reconciliation, budget)**, not a source of truth. Consequently, file-to-app import, external modification detection, conflict resolution UI, `CSVFileState` fingerprints, and `FileFingerprint` have all been removed.
    - **Export (App → File)**: Save, edit, delete, and reorder operations trigger a **best-effort** rewrite of the affected month's CSV. If no folder is configured or writing fails, the commit remains successful — `SaveCoordinator.exportEntryBestEffort` (expenses + that month's budget) / `ReconciliationStore.exportBestEffort` (reconciliation + that month's budget) / `CategoryBudgetStore.exportBestEffort` (budget edits). CSV export is completely optional, so data remains secure in CloudKit even without a configured folder.
-   - **Entry Point**: **Settings → Storage Folder row** → `FileSyncView` ("Storage Folder"). Offers **Export All** (`SyncCoordinator.exportAll`, backfilling all app months for expenses, reconciliations, and budgets into the folder) and **Change Folder**. Selecting a new folder automatically runs a full backfill export.
+   - **Entry Point**: **Settings → Storage Folder row** → `FileSyncView` ("Storage Folder"). Offers **Export All** (`SyncCoordinator.exportAll(pruneStale: true)`, backfilling all app months for expenses, reconciliations, and budgets into the folder, then deleting `expenses|reconciliations|budgets-YYYY-MM.csv` files whose month no longer has data) and **Change Folder**. Selecting a new folder runs the backfill **without** pruning, and pruning is skipped when the store is empty, so picking an old backup folder from a fresh or not-yet-synced install never wipes it. Every fetch on the export path throws on failure (never `(try? fetch) ?? []`), because the writers delete a month's file when given no rows.
    - **Deleted / Moved Folder Handling**: Even if a security-scoped bookmark resolves, the physical directory may no longer exist → verified via `SyncCoordinator.isFolderReachable` (`BookmarkStore.isReachableDirectory`). `FileSyncView` presents a "Folder not found + Change Folder" banner. Export routines quietly skip missing/unreachable folders (best-effort).
 
 8. **Category Budgets Auto-Carry Forward via `effectiveFrom` (`CategoryBudget` / `CategoryBudgetStore`)**
