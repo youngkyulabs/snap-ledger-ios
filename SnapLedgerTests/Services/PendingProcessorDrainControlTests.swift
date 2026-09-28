@@ -3,37 +3,48 @@ import SwiftData
 import Testing
 @testable import SnapLedger
 
-/// Cancels the surrounding task on its first call, then behaves like a normal stub.
-struct CancellingOCRService: OCRService {
+/// Counts calls shared by every copy of a stub.
+actor CallCounter {
+    private var count = 0
+
+    func next() -> Int {
+        count += 1
+        return count
+    }
+}
+
+/// Cancels the surrounding task on its second call, so the first item finishes and the second is cut off after OCR.
+struct CancelOnSecondCallOCRService: OCRService {
+    let counter = CallCounter()
     let text: String
 
     func recognize(imageURL: URL) async throws -> String {
-        unsafe withUnsafeCurrentTask { task in unsafe task?.cancel() }
+        if await counter.next() == 2 {
+            unsafe withUnsafeCurrentTask { task in unsafe task?.cancel() }
+        }
         return text
     }
 }
 
-/// Lets a test hold the first OCR call open and resume it on demand.
+/// Holds the first OCR call open until the test releases it; later calls pass straight through.
 actor OCRGate {
-    private var didStart = false
+    private var entered = false
     private var released = false
     private var startWaiter: CheckedContinuation<Void, Never>?
     private var proceedWaiter: CheckedContinuation<Void, Never>?
 
-    func markStarted() {
-        didStart = true
+    func enter() async {
+        guard !entered else { return }
+        entered = true
         startWaiter?.resume()
         startWaiter = nil
+        if released { return }
+        await withCheckedContinuation { proceedWaiter = $0 }
     }
 
     func waitStarted() async {
-        if didStart { return }
+        if entered { return }
         await withCheckedContinuation { startWaiter = $0 }
-    }
-
-    func waitProceed() async {
-        if released { return }
-        await withCheckedContinuation { proceedWaiter = $0 }
     }
 
     func release() {
@@ -43,29 +54,32 @@ actor OCRGate {
     }
 }
 
-/// Simulates the on-device model honoring a cancellation mid-extraction.
-struct CancellingExtractionService: ExtractionService {
+/// Throws CancellationError from extraction, optionally cancelling the surrounding task first.
+struct CancellationErrorExtractionService: ExtractionService {
+    let cancelsTask: Bool
     let isAvailable = true
 
     func extract(from text: String) async throws -> PaymentExtraction {
+        if cancelsTask {
+            unsafe withUnsafeCurrentTask { task in unsafe task?.cancel() }
+        }
         throw CancellationError()
     }
 }
 
-/// First call blocks on the gate; later calls return immediately.
+/// Holds its first call on the gate.
 struct GatedOCRService: OCRService {
     let gate: OCRGate
     let text: String
 
     func recognize(imageURL: URL) async throws -> String {
-        await gate.markStarted()
-        await gate.waitProceed()
+        await gate.enter()
         return text
     }
 }
 
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .timeLimit(.minutes(1)))
 struct PendingProcessorDrainControlTests {
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
@@ -101,7 +115,7 @@ struct PendingProcessorDrainControlTests {
         try ctx.save()
         let processor = PendingProcessor(
             inboxURL: inbox,
-            ocrService: CancellingOCRService(text: "5,000원 일시불"),
+            ocrService: CancelOnSecondCallOCRService(text: "5,000원 일시불"),
             extractionService: StubExtractionService(result: oneTransaction),
             categoryLearner: CategoryLearner(),
             drainState: DrainState()
@@ -131,7 +145,7 @@ struct PendingProcessorDrainControlTests {
 
         let first = Task { await processor.drain(in: ctx) }
         await gate.waitStarted()
-        // Arrives mid-drain: previously dropped by the isDraining guard.
+        // Arrives while the first drain is still running.
         ctx.insert(PendingImage(filename: try writeFakeImage("second.jpg", in: inbox)))
         try ctx.save()
         await processor.drain(in: ctx)
@@ -152,16 +166,37 @@ struct PendingProcessorDrainControlTests {
         let processor = PendingProcessor(
             inboxURL: inbox,
             ocrService: StubOCRService(text: "5,000원 일시불"),
-            extractionService: CancellingExtractionService(),
+            extractionService: CancellationErrorExtractionService(cancelsTask: true),
+            categoryLearner: CategoryLearner(),
+            drainState: DrainState()
+        )
+
+        // The stub cancels this inner task, not the test's own.
+        await Task { await processor.process(pending, in: ctx) }.value
+
+        #expect(pending.state == .queued)
+        #expect(pending.failureMessage == nil)
+        #expect(try ctx.fetch(FetchDescriptor<ParsedEntry>()).isEmpty)
+    }
+
+    @Test func cancellationErrorWithoutCancelledTaskMarksFailed() async throws {
+        // Requeueing here would strand the item behind a drain that has already passed it.
+        let ctx = ModelContext(try makeContainer())
+        let inbox = try makeInbox()
+        let pending = PendingImage(filename: try writeFakeImage("stray.jpg", in: inbox))
+        ctx.insert(pending)
+        try ctx.save()
+        let processor = PendingProcessor(
+            inboxURL: inbox,
+            ocrService: StubOCRService(text: "5,000원 일시불"),
+            extractionService: CancellationErrorExtractionService(cancelsTask: false),
             categoryLearner: CategoryLearner(),
             drainState: DrainState()
         )
 
         await processor.process(pending, in: ctx)
 
-        #expect(pending.state == .queued)
-        #expect(pending.failureMessage == nil)
-        #expect(try ctx.fetch(FetchDescriptor<ParsedEntry>()).isEmpty)
+        #expect(pending.state == .failed)
     }
 
     @Test func requeueSkipsItemCurrentlyProcessing() async throws {
