@@ -32,17 +32,19 @@ nonisolated struct VisionKitOCRService: OCRService {
 
     func recognize(cgImage: CGImage) async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, any Error>) in
+            // Vision can report a failure through both the completion handler and `perform`.
+            let once = ResumeOnce(cont)
             DispatchQueue.global(qos: .userInitiated).async {
                 let request = VNRecognizeTextRequest { request, error in
                     if let error {
-                        cont.resume(throwing: error)
+                        once.resume(throwing: error)
                         return
                     }
                     let observations = request.results as? [VNRecognizedTextObservation] ?? []
                     let text = observations
                         .compactMap { $0.topCandidates(1).first?.string }
                         .joined(separator: "\n")
-                    cont.resume(returning: text)
+                    once.resume(returning: text)
                 }
                 request.recognitionLanguages = languages
                 request.recognitionLevel = level
@@ -52,7 +54,7 @@ nonisolated struct VisionKitOCRService: OCRService {
                 do {
                     try handler.perform([request])
                 } catch {
-                    cont.resume(throwing: error)
+                    once.resume(throwing: error)
                 }
             }
         }
