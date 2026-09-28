@@ -44,10 +44,15 @@ struct SyncCoordinator {
         )
         let reconciliationKeys = try reconciliationMonthKeys(in: context)
         let budgetKeys = try budgetMonthKeys(in: context)
+        // Fetches above throw on failure, so an empty key set really means "no data" and pruning is safe.
+        let keep = Set(savedKeys.map(CSVWriter.filename(forMonthKey:)))
+            .union(reconciliationKeys.map(ReconciliationCSVWriter.filename(forMonthKey:)))
+            .union(budgetKeys.map(BudgetCSVWriter.filename(forMonthKey:)))
         try withFolder(in: context) { folderURL, ctx in
             try exportMonths(Array(savedKeys), folderURL: folderURL, in: ctx)
             try exportReconciliationMonths(Array(reconciliationKeys), folderURL: folderURL, in: ctx)
             try exportBudgetMonths(Array(budgetKeys), folderURL: folderURL, in: ctx)
+            try pruneMonthlyExports(in: folderURL, keeping: keep)
             try ctx.save()
         }
     }

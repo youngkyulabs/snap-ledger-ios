@@ -69,6 +69,24 @@ struct SyncCoordinatorTests {
         #expect(content.contains("5500"))
     }
 
+    @Test func exportAllRemovesMonthFilesWithNoData() throws {
+        let dir = makeTempDir()
+        let context = try makeContext()
+        try configureFolder(dir, in: context)
+        insertEntry(context, day: 3, amount: 1000, merchant: "A")
+        try context.save()
+        let stale = dir.appendingPathComponent("expenses-2020-01.csv")
+        let foreign = dir.appendingPathComponent("notes.csv")
+        try Data("x".utf8).write(to: stale)
+        try Data("x".utf8).write(to: foreign)
+
+        try SyncCoordinator().exportAll(in: context)
+
+        #expect(!FileManager.default.fileExists(atPath: stale.path))
+        #expect(FileManager.default.fileExists(atPath: foreign.path))
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("expenses-2026-05.csv").path))
+    }
+
     @Test func exportWithoutFolderThrows() throws {
         let context = try makeContext()
         insertEntry(context, day: 1, amount: 100, merchant: "A")
