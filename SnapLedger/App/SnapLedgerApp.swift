@@ -128,7 +128,13 @@ private extension SnapLedgerApp {
         guard let container = try? ModelContainer(for: schema, configurations: config) else { return nil }
         let context = ModelContext(container)
 
-        let settings = try? context.fetch(FetchDescriptor<AppSettings>()).first
+        let settings: AppSettings?
+        do {
+            settings = try context.fetch(FetchDescriptor<AppSettings>()).first
+        } catch {
+            logger.error("설정 읽기 실패 — 이번 실행에서는 마이그레이션을 건너뜁니다: \(String(describing: error))")
+            return nil
+        }
         let needBudgets = settings?.hasMigratedToCloudStore != true
         let needEntries = settings?.hasMigratedEntriesToCloudStore != true
         let needReconciliation = settings?.hasMigratedReconciliationToCloudStore != true
@@ -167,32 +173,33 @@ private extension SnapLedgerApp {
     static func runMigration(_ legacy: LegacySnapshot, in container: ModelContainer) {
         let context = ModelContext(container)
         let settings: AppSettings
-        if let existing = try? context.fetch(FetchDescriptor<AppSettings>()).first {
-            settings = existing
-        } else {
-            settings = AppSettings()
-            context.insert(settings)
+        do {
+            if let existing = try context.fetch(FetchDescriptor<AppSettings>()).first {
+                settings = existing
+            } else {
+                settings = AppSettings()
+                context.insert(settings)
+            }
+        } catch {
+            logger.error("설정 읽기 실패 — 마이그레이션을 다음 실행으로 미룹니다: \(String(describing: error))")
+            return
         }
-        // Each group is marked migrated only when its copy succeeded, so a failed group retries next launch.
+        // Each group saves its own flag; a failure rolls the group back so the next launch retries it.
         if legacy.migrateBudgets {
-            do {
+            migrateGroup("예산", in: context) {
                 try CloudStoreMigration.copyBudgets(legacy.budgets, into: context)
                 try CloudStoreMigration.seedPresets(legacy.presets, into: context)
                 settings.hasMigratedToCloudStore = true
-            } catch {
-                logger.error("예산 마이그레이션 실패: \(String(describing: error))")
             }
         }
         if legacy.migrateEntries {
-            do {
+            migrateGroup("지출", in: context) {
                 try CloudStoreMigration.copyEntries(legacy.entries, into: context)
                 settings.hasMigratedEntriesToCloudStore = true
-            } catch {
-                logger.error("지출 마이그레이션 실패: \(String(describing: error))")
             }
         }
         if legacy.migrateReconciliation {
-            do {
+            migrateGroup("정산", in: context) {
                 try CloudStoreMigration.copyReconciliations(legacy.reconciliations, into: context)
                 try CloudStoreMigration.copyAccountBalances(legacy.accountBalances, into: context)
                 try CloudStoreMigration.copyCashAdjustments(legacy.cashAdjustments, into: context)
@@ -200,22 +207,24 @@ private extension SnapLedgerApp {
                 try CloudStoreMigration.copyCardUsage(legacy.cardUsage, into: context)
                 try CloudStoreMigration.copyIncome(legacy.income, into: context)
                 settings.hasMigratedReconciliationToCloudStore = true
-            } catch {
-                logger.error("정산 마이그레이션 실패: \(String(describing: error))")
             }
         }
         if legacy.migrateMerchants {
-            do {
+            migrateGroup("가맹점 학습", in: context) {
                 try CloudStoreMigration.copyMerchants(legacy.merchants, into: context)
                 settings.hasMigratedMerchantsToCloudStore = true
-            } catch {
-                logger.error("가맹점 학습 마이그레이션 실패: \(String(describing: error))")
             }
         }
+    }
+
+    @MainActor
+    private static func migrateGroup(_ name: String, in context: ModelContext, _ body: () throws -> Void) {
         do {
+            try body()
             try context.save()
         } catch {
-            logger.error("마이그레이션 완료 플래그 저장 실패: \(String(describing: error))")
+            context.rollback()
+            logger.error("\(name) 마이그레이션 실패: \(String(describing: error))")
         }
     }
 }
