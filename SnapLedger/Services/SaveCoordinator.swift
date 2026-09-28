@@ -35,7 +35,7 @@ struct SaveCoordinator {
             )
         )
         entry.status = .dismissed
-        try context.save()
+        try saveOrRollback(context)
 
         exportEntryBestEffort(monthKeys: [monthKey], in: context)
         learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
@@ -58,7 +58,7 @@ struct SaveCoordinator {
         entry.category = edit.category
         entry.note = edit.note
         entry.csvFile = CSVWriter.filename(forMonthKey: newKey)
-        try context.save()
+        try saveOrRollback(context)
 
         exportEntryBestEffort(monthKeys: affectedKeys, in: context)
         learnCategoryBestEffort(merchant: entry.merchant, category: entry.category, in: context)
@@ -74,7 +74,7 @@ struct SaveCoordinator {
         let affectedKeys = Array(Set([oldKey, currentKey]))
 
         context.delete(entry)
-        try context.save()
+        try saveOrRollback(context)
 
         exportEntryBestEffort(monthKeys: affectedKeys, in: context)
     }
@@ -93,6 +93,16 @@ struct SaveCoordinator {
         try context.save()
 
         exportEntryBestEffort(monthKeys: monthKeys, in: context)
+    }
+
+    /// Saves, discarding the pending changes when the save fails so they cannot leak into a later save.
+    private func saveOrRollback(_ context: ModelContext) throws {
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     /// Rewrites CSV files for affected months best-effort.

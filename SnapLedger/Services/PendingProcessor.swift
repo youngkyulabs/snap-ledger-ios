@@ -192,6 +192,8 @@ struct PendingProcessor {
             pending.state = .done
             try context.save()
         } catch {
+            // Drop any entries inserted before the failed save; `.processing` was already committed.
+            context.rollback()
             pending.state = .failed
             pending.failureMessage = String(describing: error)
             try? context.save()
