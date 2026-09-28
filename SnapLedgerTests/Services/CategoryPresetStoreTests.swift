@@ -27,7 +27,7 @@ struct CategoryPresetStoreTests {
         store.add("식비", in: cloud)
         store.add("카페", in: cloud)
         store.add("식비", in: cloud) // Duplicate ignored
-        #expect(store.currentNames(in: cloud) == ["식비", "카페"])
+        #expect(try store.currentNames(in: cloud) == ["식비", "카페"])
     }
 
     @Test func removeDeletesRecord() throws {
@@ -36,7 +36,7 @@ struct CategoryPresetStoreTests {
         store.add("식비", in: cloud)
         store.add("카페", in: cloud)
         store.remove("식비", in: cloud)
-        #expect(store.currentNames(in: cloud) == ["카페"])
+        #expect(try store.currentNames(in: cloud) == ["카페"])
     }
 
     @Test func reorderReassignsSortOrder() throws {
@@ -46,7 +46,7 @@ struct CategoryPresetStoreTests {
         store.add("카페", in: cloud)
         store.add("교통", in: cloud)
         store.reorder(["교통", "식비", "카페"], in: cloud)
-        #expect(store.currentNames(in: cloud) == ["교통", "식비", "카페"])
+        #expect(try store.currentNames(in: cloud) == ["교통", "식비", "카페"])
     }
 
     @Test func refreshCacheWritesNamesIntoSettings() throws {
