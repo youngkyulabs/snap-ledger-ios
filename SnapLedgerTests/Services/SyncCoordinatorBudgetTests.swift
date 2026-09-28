@@ -64,14 +64,14 @@ struct SyncCoordinatorBudgetTests {
         try context.save()
 
         // Effective from 2026-03 as of 2026-06 includes carried over months
-        let keys = sync.budgetMonthKeys(asOf: 202_606, in: context)
+        let keys = try sync.budgetMonthKeys(asOf: 202_606, in: context)
         #expect(keys == ["2026-03", "2026-04", "2026-05", "2026-06"])
     }
 
     @Test func budgetMonthKeysEmptyWhenNoBudgets() throws {
         let context = try makeContext()
         let sync = SyncCoordinator()
-        #expect(sync.budgetMonthKeys(asOf: 202_606, in: context).isEmpty)
+        #expect(try sync.budgetMonthKeys(asOf: 202_606, in: context).isEmpty)
     }
 
     @discardableResult

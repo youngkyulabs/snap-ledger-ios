@@ -43,8 +43,8 @@ struct SampleDataSeeder {
         where entry.csvFile == heroFile || entry.csvFile == currentFile {
             context.delete(entry)
         }
-        reconciliationStore.deleteMonth(SampleMonths.hero, in: context)
-        reconciliationStore.deleteMonth(SampleMonths.current, in: context)
+        try reconciliationStore.deleteMonth(SampleMonths.hero, in: context)
+        try reconciliationStore.deleteMonth(SampleMonths.current, in: context)
 
         let seedCategories = Set(SampleDataFixtures.budgetLimits.map(\.category))
         for budget in try context.fetch(FetchDescriptor<CategoryBudget>())

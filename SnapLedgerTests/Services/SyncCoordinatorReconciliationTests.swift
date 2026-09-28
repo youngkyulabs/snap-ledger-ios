@@ -86,7 +86,7 @@ struct SyncCoordinatorReconciliationTests {
         context.insert(SavingsItem(monthKey: 202_604, title: "적금", amount: 1))
         try context.save()
 
-        let keys = SyncCoordinator().reconciliationMonthKeys(in: context)
+        let keys = try SyncCoordinator().reconciliationMonthKeys(in: context)
         #expect(keys == ["2026-05", "2026-06", "2026-04"])
     }
 }

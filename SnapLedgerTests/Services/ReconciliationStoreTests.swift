@@ -247,4 +247,13 @@ struct ReconciliationStoreTests {
         let content = try String(contentsOf: budgetFile, encoding: .utf8)
         #expect(content.contains("식비,300000"))
     }
+
+    @Test func rowsAndDeleteMonthPropagateErrors() throws {
+        // Fetch failures must surface to callers instead of collapsing to "no rows".
+        let context = try makeContext()
+        let store = ReconciliationStore()
+        _ = try store.rows(for: 202_606, in: context)
+        try store.deleteMonth(202_606, in: context)
+        _ = try store.summaryInput(for: 202_606, in: context)
+    }
 }

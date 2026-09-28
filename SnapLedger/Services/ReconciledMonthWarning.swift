@@ -37,9 +37,10 @@ enum ReconciledMonthGuard {
         let status = ReconciliationSummary.periodStatus(month: month, today: today, calendar: calendar)
         guard status == .closed else { return nil }
         // `isReconciled` reads only reconciliation rows, so saved entries are not needed here.
+        guard let input = try? ReconciliationStore().summaryInput(for: month, in: context) else { return nil }
         let summary = ReconciliationSummary.compute(
             entries: [],
-            input: ReconciliationStore().summaryInput(for: month, in: context),
+            input: input,
             targetMonth: month,
             calendar: calendar
         )

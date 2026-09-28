@@ -39,11 +39,11 @@ struct SyncCoordinator {
     /// Backfills all months to CSV files in the storage folder.
     func exportAll(in context: ModelContext) throws {
         let savedKeys = Set(
-            ((try? context.fetch(FetchDescriptor<SavedEntry>())) ?? [])
+            try context.fetch(FetchDescriptor<SavedEntry>())
                 .map { CSVWriter.monthKey(for: $0.date) }
         )
-        let reconciliationKeys = reconciliationMonthKeys(in: context)
-        let budgetKeys = budgetMonthKeys(in: context)
+        let reconciliationKeys = try reconciliationMonthKeys(in: context)
+        let budgetKeys = try budgetMonthKeys(in: context)
         try withFolder(in: context) { folderURL, ctx in
             try exportMonths(Array(savedKeys), folderURL: folderURL, in: ctx)
             try exportReconciliationMonths(Array(reconciliationKeys), folderURL: folderURL, in: ctx)
@@ -55,7 +55,7 @@ struct SyncCoordinator {
     /// Rewrites expense CSV files for specified months.
     func exportMonths(_ keys: [String], folderURL: URL, in context: ModelContext) throws {
         let writer = CSVWriter(folder: folderURL)
-        let allSaved = (try? context.fetch(FetchDescriptor<SavedEntry>())) ?? []
+        let allSaved = try context.fetch(FetchDescriptor<SavedEntry>())
         for key in keys {
             let rows = allSaved
                 .filter { CSVWriter.monthKey(for: $0.date) == key }

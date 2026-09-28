@@ -6,8 +6,8 @@ extension SyncCoordinator {
     /// Rewrites budget CSV files for the given months, removing a file when that month has no effective limit.
     func exportBudgetMonths(_ keys: [String], folderURL: URL, in context: ModelContext) throws {
         let writer = BudgetCSVWriter(folder: folderURL)
-        let budgets = (try? context.fetch(FetchDescriptor<CategoryBudget>())) ?? []
-        let presets = (try? context.fetch(FetchDescriptor<AppSettings>()))?
+        let budgets = try context.fetch(FetchDescriptor<CategoryBudget>())
+        let presets = try context.fetch(FetchDescriptor<AppSettings>())
             .first?.categoryPresets ?? AppSettings.defaultPresets
         for key in keys {
             let rows = CategoryBudgetStore.resolveAll(
@@ -23,10 +23,10 @@ extension SyncCoordinator {
     func budgetMonthKeys(
         asOf current: Int = CategoryBudgetStore.monthKey(from: Date()),
         in context: ModelContext
-    ) -> Set<String> {
-        let budgets = (try? context.fetch(FetchDescriptor<CategoryBudget>())) ?? []
+    ) throws -> Set<String> {
+        let budgets = try context.fetch(FetchDescriptor<CategoryBudget>())
         guard let earliest = budgets.map({ $0.effectiveFrom }).min() else { return [] }
-        let presets = (try? context.fetch(FetchDescriptor<AppSettings>()))?
+        let presets = try context.fetch(FetchDescriptor<AppSettings>())
             .first?.categoryPresets ?? AppSettings.defaultPresets
         var keys: Set<String> = []
         var month = earliest

@@ -68,12 +68,12 @@ struct ReconciliationStore {
 
     /// Loads or carries forward draft state for the given month.
     func loadDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
-        let reconciliation = fetchReconciliation(month, in: context)
-        let balances = fetchBalances(month, in: context)
-        let adjustments = fetchAdjustments(month, in: context)
-        let savingsItems = fetchSavings(month, in: context)
-        let cardItems = fetchCards(month, in: context)
-        let incomeItems = fetchIncomes(month, in: context)
+        let reconciliation = (try? fetchReconciliation(month, in: context)).flatMap { $0 }
+        let balances = (try? fetchBalances(month, in: context)) ?? []
+        let adjustments = (try? fetchAdjustments(month, in: context)) ?? []
+        let savingsItems = (try? fetchSavings(month, in: context)) ?? []
+        let cardItems = (try? fetchCards(month, in: context)) ?? []
+        let incomeItems = (try? fetchIncomes(month, in: context)) ?? []
 
         if reconciliation == nil, balances.isEmpty, adjustments.isEmpty,
            savingsItems.isEmpty, cardItems.isEmpty, incomeItems.isEmpty {
@@ -114,16 +114,16 @@ struct ReconciliationStore {
     private func carryForwardDraft(for month: Int, in context: ModelContext) -> ReconciliationDraft {
         let previous = Self.previousMonthKey(month)
         var draft = ReconciliationDraft()
-        draft.incomes = incomeDrafts(items: fetchIncomes(previous, in: context))
+        draft.incomes = incomeDrafts(items: (try? fetchIncomes(previous, in: context)) ?? [])
         // Carry forward card item titles with 0 amounts
         // Last month's usage becomes this month's expected bill; the user corrects it if it differs.
-        draft.cards = fetchCards(previous, in: context).map {
+        draft.cards = ((try? fetchCards(previous, in: context)) ?? []).map {
             CardUsageItemDraft(
                 title: $0.title, amount: 0, previousAmount: $0.amount, sortOrder: $0.sortOrder
             )
         }
         // Carry forward adjustment titles with 0 amounts
-        draft.adjustments = fetchAdjustments(previous, in: context).map {
+        draft.adjustments = ((try? fetchAdjustments(previous, in: context)) ?? []).map {
             AdjustmentDraft(
                 title: $0.title,
                 direction: $0.direction,
@@ -132,10 +132,10 @@ struct ReconciliationStore {
                 sortOrder: $0.sortOrder
             )
         }
-        draft.savings = fetchSavings(previous, in: context).map {
+        draft.savings = ((try? fetchSavings(previous, in: context)) ?? []).map {
             SavingsItemDraft(title: $0.title, amount: $0.amount, sortOrder: $0.sortOrder)
         }
-        draft.balances = fetchBalances(previous, in: context).map {
+        draft.balances = ((try? fetchBalances(previous, in: context)) ?? []).map {
             BalanceDraft(
                 accountName: $0.accountName,
                 sortOrder: $0.sortOrder,
@@ -173,7 +173,7 @@ struct ReconciliationStore {
         month: Int,
         in context: ModelContext
     ) throws -> Bool {
-        replaceMonth(month, with: draft, in: context)
+        try replaceMonth(month, with: draft, in: context)
         try context.save()
         return exportBestEffort(month: month, in: context)
     }
@@ -197,14 +197,13 @@ struct ReconciliationStore {
         }
     }
 
-    func rows(for month: Int, in context: ModelContext) -> [ReconciliationCSVRow] {
-        let reconciliation = fetchReconciliation(month, in: context)
-        let balances = fetchBalances(month, in: context)
-        let adjustments = fetchAdjustments(month, in: context)
-        let savingsItems = fetchSavings(month, in: context)
-        let cardItems = fetchCards(month, in: context)
-
-        let incomeItems = fetchIncomes(month, in: context)
+    func rows(for month: Int, in context: ModelContext) throws -> [ReconciliationCSVRow] {
+        let reconciliation = try fetchReconciliation(month, in: context)
+        let balances = try fetchBalances(month, in: context)
+        let adjustments = try fetchAdjustments(month, in: context)
+        let savingsItems = try fetchSavings(month, in: context)
+        let cardItems = try fetchCards(month, in: context)
+        let incomeItems = try fetchIncomes(month, in: context)
 
         var rows: [ReconciliationCSVRow] = []
         for income in incomeDrafts(items: incomeItems) {
@@ -267,23 +266,23 @@ struct ReconciliationStore {
     }
 
     /// Deletes all reconciliation and item records for the month.
-    func deleteMonth(_ month: Int, in context: ModelContext) {
-        for item in fetchAllReconciliations(in: context) where item.monthKey == month {
+    func deleteMonth(_ month: Int, in context: ModelContext) throws {
+        for item in try fetchAllReconciliations(in: context) where item.monthKey == month {
             context.delete(item)
         }
-        for item in fetchAllBalances(in: context) where item.monthKey == month {
+        for item in try fetchAllBalances(in: context) where item.monthKey == month {
             context.delete(item)
         }
-        for item in fetchAllAdjustments(in: context) where item.monthKey == month {
+        for item in try fetchAllAdjustments(in: context) where item.monthKey == month {
             context.delete(item)
         }
-        for item in fetchAllSavings(in: context) where item.monthKey == month {
+        for item in try fetchAllSavings(in: context) where item.monthKey == month {
             context.delete(item)
         }
-        for item in fetchAllCards(in: context) where item.monthKey == month {
+        for item in try fetchAllCards(in: context) where item.monthKey == month {
             context.delete(item)
         }
-        for item in fetchAllIncomes(in: context) where item.monthKey == month {
+        for item in try fetchAllIncomes(in: context) where item.monthKey == month {
             context.delete(item)
         }
     }
@@ -301,8 +300,8 @@ struct ReconciliationStore {
 
     // MARK: - Private
 
-    private func replaceMonth(_ month: Int, with draft: ReconciliationDraft, in context: ModelContext) {
-        deleteMonth(month, in: context)
+    private func replaceMonth(_ month: Int, with draft: ReconciliationDraft, in context: ModelContext) throws {
+        try deleteMonth(month, in: context)
         guard !draft.isEmpty else { return }
 
         let trimmedNote = draft.note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -374,73 +373,73 @@ struct ReconciliationStore {
 
 extension ReconciliationStore {
     /// Collects the month's reconciliation rows for summary computation.
-    func summaryInput(for month: Int, in context: ModelContext) -> ReconciliationSummaryInput {
+    func summaryInput(for month: Int, in context: ModelContext) throws -> ReconciliationSummaryInput {
         ReconciliationSummaryInput(
-            reconciliation: fetchReconciliation(month, in: context),
-            balances: fetchBalances(month, in: context),
-            adjustments: fetchAdjustments(month, in: context),
-            savingsItems: fetchSavings(month, in: context),
-            cardItems: fetchCards(month, in: context),
-            incomeItems: fetchIncomes(month, in: context)
+            reconciliation: try fetchReconciliation(month, in: context),
+            balances: try fetchBalances(month, in: context),
+            adjustments: try fetchAdjustments(month, in: context),
+            savingsItems: try fetchSavings(month, in: context),
+            cardItems: try fetchCards(month, in: context),
+            incomeItems: try fetchIncomes(month, in: context)
         )
     }
 
-    private func fetchReconciliation(_ month: Int, in context: ModelContext) -> MonthlyReconciliation? {
-        fetchAllReconciliations(in: context).first { $0.monthKey == month }
+    private func fetchReconciliation(_ month: Int, in context: ModelContext) throws -> MonthlyReconciliation? {
+        try fetchAllReconciliations(in: context).first { $0.monthKey == month }
     }
 
-    private func fetchBalances(_ month: Int, in context: ModelContext) -> [AccountMonthlyBalance] {
-        fetchAllBalances(in: context)
+    private func fetchBalances(_ month: Int, in context: ModelContext) throws -> [AccountMonthlyBalance] {
+        try fetchAllBalances(in: context)
             .filter { $0.monthKey == month }
             .sorted { $0.sortOrder == $1.sortOrder ? $0.accountName < $1.accountName : $0.sortOrder < $1.sortOrder }
     }
 
-    private func fetchAdjustments(_ month: Int, in context: ModelContext) -> [CashAdjustment] {
-        fetchAllAdjustments(in: context)
+    private func fetchAdjustments(_ month: Int, in context: ModelContext) throws -> [CashAdjustment] {
+        try fetchAllAdjustments(in: context)
             .filter { $0.monthKey == month }
             .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
     }
 
-    private func fetchSavings(_ month: Int, in context: ModelContext) -> [SavingsItem] {
-        fetchAllSavings(in: context)
+    private func fetchSavings(_ month: Int, in context: ModelContext) throws -> [SavingsItem] {
+        try fetchAllSavings(in: context)
             .filter { $0.monthKey == month }
             .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
     }
 
-    private func fetchCards(_ month: Int, in context: ModelContext) -> [CardUsageItem] {
-        fetchAllCards(in: context)
+    private func fetchCards(_ month: Int, in context: ModelContext) throws -> [CardUsageItem] {
+        try fetchAllCards(in: context)
             .filter { $0.monthKey == month }
             .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
     }
 
-    private func fetchIncomes(_ month: Int, in context: ModelContext) -> [IncomeItem] {
-        fetchAllIncomes(in: context)
+    private func fetchIncomes(_ month: Int, in context: ModelContext) throws -> [IncomeItem] {
+        try fetchAllIncomes(in: context)
             .filter { $0.monthKey == month }
             .sorted { $0.sortOrder == $1.sortOrder ? $0.title < $1.title : $0.sortOrder < $1.sortOrder }
     }
 
-    private func fetchAllReconciliations(in context: ModelContext) -> [MonthlyReconciliation] {
-        (try? context.fetch(FetchDescriptor<MonthlyReconciliation>())) ?? []
+    private func fetchAllReconciliations(in context: ModelContext) throws -> [MonthlyReconciliation] {
+        try context.fetch(FetchDescriptor<MonthlyReconciliation>())
     }
 
-    private func fetchAllBalances(in context: ModelContext) -> [AccountMonthlyBalance] {
-        (try? context.fetch(FetchDescriptor<AccountMonthlyBalance>())) ?? []
+    private func fetchAllBalances(in context: ModelContext) throws -> [AccountMonthlyBalance] {
+        try context.fetch(FetchDescriptor<AccountMonthlyBalance>())
     }
 
-    private func fetchAllAdjustments(in context: ModelContext) -> [CashAdjustment] {
-        (try? context.fetch(FetchDescriptor<CashAdjustment>())) ?? []
+    private func fetchAllAdjustments(in context: ModelContext) throws -> [CashAdjustment] {
+        try context.fetch(FetchDescriptor<CashAdjustment>())
     }
 
-    private func fetchAllSavings(in context: ModelContext) -> [SavingsItem] {
-        (try? context.fetch(FetchDescriptor<SavingsItem>())) ?? []
+    private func fetchAllSavings(in context: ModelContext) throws -> [SavingsItem] {
+        try context.fetch(FetchDescriptor<SavingsItem>())
     }
 
-    private func fetchAllCards(in context: ModelContext) -> [CardUsageItem] {
-        (try? context.fetch(FetchDescriptor<CardUsageItem>())) ?? []
+    private func fetchAllCards(in context: ModelContext) throws -> [CardUsageItem] {
+        try context.fetch(FetchDescriptor<CardUsageItem>())
     }
 
-    private func fetchAllIncomes(in context: ModelContext) -> [IncomeItem] {
-        (try? context.fetch(FetchDescriptor<IncomeItem>())) ?? []
+    private func fetchAllIncomes(in context: ModelContext) throws -> [IncomeItem] {
+        try context.fetch(FetchDescriptor<IncomeItem>())
     }
 }
 
