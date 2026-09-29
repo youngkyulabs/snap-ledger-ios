@@ -1,9 +1,4 @@
-"""Move MARKETING_VERSION past a released tag.
-
-App Store Connect rejects any build whose version is not above the last
-approved one, so once a tag ships, every main-push TestFlight upload fails
-until main carries the next version.
-"""
+"""Move MARKETING_VERSION past a released tag, so main-push uploads stay above the approved version."""
 from __future__ import annotations
 
 import argparse
@@ -14,15 +9,16 @@ from scripts.asc_client import ASCError
 from scripts.asc_release import (
     DEFAULT_PBXPROJ,
     MARKETING_VERSION_PATTERN,
+    VERSION_GRAMMAR,
     parse_version_from_tag,
     read_marketing_version,
 )
 
-VERSION_PATTERN = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
+VERSION_PATTERN = re.compile(VERSION_GRAMMAR)
 
 
 def _version_key(version):
-    if not VERSION_PATTERN.match(version or ""):
+    if not VERSION_PATTERN.fullmatch(version or ""):
         raise ASCError("not a version like 1.5 or 1.5.1: %r" % (version,))
     return tuple(int(part) for part in version.split("."))
 
@@ -42,10 +38,7 @@ def planned_version(released, current):
 
 def set_marketing_version(pbxproj_text, version):
     _version_key(version)
-    updated, count = MARKETING_VERSION_PATTERN.subn("MARKETING_VERSION = %s;" % version, pbxproj_text)
-    if count == 0:
-        raise ASCError("MARKETING_VERSION not found in project.pbxproj")
-    return updated
+    return MARKETING_VERSION_PATTERN.sub("MARKETING_VERSION = %s;" % version, pbxproj_text)
 
 
 def main(argv=None):

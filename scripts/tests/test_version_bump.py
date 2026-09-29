@@ -8,6 +8,9 @@ from scripts.asc_client import ASCError
 from scripts.asc_release import DEFAULT_PBXPROJ, read_marketing_version
 from scripts.version_bump import main, next_version, planned_version, set_marketing_version
 
+PROJECT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir,
+                            DEFAULT_PBXPROJ)
+
 TWO_CONFIGS = (
     "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = \"찰칵가계부\";\n"
     "\t\t\t\tMARKETING_VERSION = 1.4;\n"
@@ -23,7 +26,7 @@ class NextVersionTests(unittest.TestCase):
         self.assertEqual(next_version("1.9"), "1.10")
 
     def test_rejects_non_numeric_versions(self):
-        for bad in ("1.4-beta", "1", "", None):
+        for bad in ("1.4-beta", "1", "", None, "1.4\n", "١.٤"):
             with self.assertRaises(ASCError):
                 next_version(bad)
 
@@ -47,23 +50,20 @@ class SetMarketingVersionTests(unittest.TestCase):
         updated = set_marketing_version(TWO_CONFIGS, "1.5")
         self.assertEqual(updated, TWO_CONFIGS.replace("1.4;", "1.5;"))
 
-    def test_rejects_text_without_marketing_version(self):
-        with self.assertRaises(ASCError):
-            set_marketing_version("PRODUCT_NAME = SnapLedger;\n", "1.5")
-
     def test_rejects_a_malformed_version(self):
-        with self.assertRaises(ASCError):
-            set_marketing_version(TWO_CONFIGS, "1.5;\n\t\t\t\tFOO = 1")
+        for bad in ("1.5;\n\t\t\t\tFOO = 1", "1.5\n", "١.٥"):
+            with self.assertRaises(ASCError):
+                set_marketing_version(TWO_CONFIGS, bad)
 
     def test_real_project_file_stays_uniform(self):
-        with open(DEFAULT_PBXPROJ, encoding="utf-8") as handle:
+        with open(PROJECT_FILE, encoding="utf-8") as handle:
             original = handle.read()
+        current = read_marketing_version(original)
         updated = set_marketing_version(original, "9.9")
 
         self.assertEqual(read_marketing_version(updated), "9.9")
-        changed = [line for line, before in zip(updated.splitlines(), original.splitlines())
-                   if line != before]
-        self.assertEqual(len(changed), original.count("MARKETING_VERSION = "))
+        restored = updated.replace("MARKETING_VERSION = 9.9;", "MARKETING_VERSION = %s;" % current)
+        self.assertEqual(restored, original)
 
 
 class MainTests(unittest.TestCase):
@@ -96,6 +96,13 @@ class MainTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(printed, "")
         self.assertEqual(written, TWO_CONFIGS)
+
+    def test_fails_on_a_malformed_marketing_version_without_touching_the_file(self):
+        malformed = TWO_CONFIGS.replace("1.4;", "\"$(VERSION)\";")
+        code, printed, written = self.run_main(malformed, "v1.4")
+        self.assertEqual(code, 1)
+        self.assertEqual(printed, "")
+        self.assertEqual(written, malformed)
 
 
 if __name__ == "__main__":

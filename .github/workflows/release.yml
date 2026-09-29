@@ -21,6 +21,8 @@ jobs:
     # plus setup, so a slow-but-healthy Xcode Cloud build ends in the script's
     # own error rather than a bare "job cancelled" with metadata already sent.
     timeout-minutes: 120
+    outputs:
+      delivered: ${{ steps.deliver.outputs.delivered }}
 
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -99,6 +101,7 @@ jobs:
           chmod 600 "$ASC_KEY_JSON"
 
       - name: Upload metadata and screenshots
+        id: deliver
         env:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
@@ -117,6 +120,7 @@ jobs:
             --submit_for_review false \
             --precheck_include_in_app_purchases false \
             --force
+          echo "delivered=true" >> "$GITHUB_OUTPUT"
 
       - name: Wait for the Xcode Cloud build and link it
         run: |
@@ -133,15 +137,16 @@ jobs:
 
   bump:
     name: Next version PR
-    # Only after a clean release: a tag that failed preflight is already spent,
-    # and the next version is then a manual patch decision.
+    # Once deliver has run the version is committed, even if link-build fails
+    # afterwards. A tag that failed before that is spent, and the next version
+    # is then a manual patch decision.
     needs: release
+    if: ${{ !cancelled() && needs.release.outputs.delivered == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
-      actions: write
 
     steps:
       - name: Checkout main
@@ -158,25 +163,37 @@ jobs:
           next=$(python3 -m scripts.version_bump --tag "${GITHUB_REF_NAME}")
           echo "version=${next}" >> "$GITHUB_OUTPUT"
 
-      - name: Open the bump PR and run CI on it
+      - name: Open the bump PR
         if: steps.bump.outputs.version != ''
         env:
           GH_TOKEN: ${{ github.token }}
           NEXT_VERSION: ${{ steps.bump.outputs.version }}
         run: |
           set -euo pipefail
-          branch="chore/bump-version-${NEXT_VERSION}"
-          # A re-run finds the branch, and the PR if the first run got that far.
-          if ! git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+          # Keyed on the tag, which is never reused: a re-run finds its own branch
+          # and PR, and a patch release (same next version) gets a new one.
+          branch="chore/bump-after-${GITHUB_REF_NAME}"
+          remote=0
+          git ls-remote --exit-code origin "refs/heads/${branch}" > /dev/null || remote=$?
+          if [ "$remote" -eq 2 ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git switch -c "$branch"
             git commit -am "chore: bump version to ${NEXT_VERSION}"
             git push origin "$branch"
+          elif [ "$remote" -ne 0 ]; then
+            exit "$remote"
           fi
-          if [ -z "$(gh pr list --head "$branch" --state all --json number --jq '.[].number')" ]; then
-            body="$RUNNER_TEMP/bump-pr.md"
-            cat > "$body" <<EOF
+          # --head also matches fork PRs that use the same branch name.
+          existing=$(gh pr list --head "$branch" --state all --json number,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository | not) | .number')
+          if [ -n "$existing" ]; then
+            echo "${branch} already has PR ${existing}"
+            exit 0
+          fi
+          gh pr create --base main --head "$branch" \
+            --title "chore: 버전 ${NEXT_VERSION} 상향" \
+            --body-file - <<EOF
           ## 작업 내용
 
           \`${GITHUB_REF_NAME}\` 릴리즈 후속으로 \`MARKETING_VERSION\`을 올립니다 (\`${GITHUB_REF_NAME#v}\` → \`${NEXT_VERSION}\`). Release 워크플로가 자동으로 연 PR입니다.
@@ -187,15 +204,10 @@ jobs:
 
           ## 알려진 한계/리스크
 
+          - \`${GITHUB_REF_NAME}\` 승인 직후에 머지하세요. 그 전에 머지하면 심사 중인 바이너리가 리젝됐을 때 main에서 같은 버전으로 다시 빌드할 수 없습니다.
           - 다음 릴리즈를 패치나 메이저로 낼 거라면 머지 전에 이 브랜치에서 버전을 고치세요.
-          - 머지하면 main 빌드 버전이 올라가서, 심사 중인 \`${GITHUB_REF_NAME}\` 바이너리를 main에서 같은 버전으로 다시 빌드할 수 없습니다.
 
           ## 검증
 
-          - CI는 Release 워크플로가 \`workflow_dispatch\`로 돌립니다. \`GITHUB_TOKEN\`으로 연 PR에서는 \`pull_request\` 실행이 생기지 않습니다.
+          - 워크플로 토큰으로 연 PR이라 CI가 승인 대기 상태로 만들어집니다. PR의 **Approve workflows to run**을 눌러 실행하세요.
           EOF
-            gh pr create --base main --head "$branch" \
-              --title "chore: 버전 ${NEXT_VERSION} 상향" \
-              --body-file "$body"
-          fi
-          gh workflow run ci.yml --ref "$branch"
