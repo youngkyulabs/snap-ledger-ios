@@ -13,7 +13,8 @@ import time
 
 from scripts.asc_client import ASCError, ASCTransportError, Client
 
-TAG_PATTERN = re.compile(r"^v(\d+\.\d+(?:\.\d+)?)$")
+VERSION_GRAMMAR = r"[0-9]+\.[0-9]+(?:\.[0-9]+)?"
+TAG_PATTERN = re.compile(r"^v(%s)$" % VERSION_GRAMMAR)
 MARKETING_VERSION_PATTERN = re.compile(r"MARKETING_VERSION\s*=\s*([^;]+);")
 
 # States in which App Store Connect still lets you edit a version's metadata.
