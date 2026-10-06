@@ -132,7 +132,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     Budget/                          # LedgerTabView (tab shell: NavigationStack + single ledger List whose first section is the month selector; owns BudgetRoute destinations and the drill-down sheets;
                                      #            a month with no saved entries and no reconciliation row shows only a "기록 없음" notice),
                                      # BudgetSections (ledger list sections: 정산하기 + 전체 진행률), CategoryProgressSheet (전체 진행률 tap → 카테고리별 진행률 + 한도 없는 지출),
-                                     # BudgetLimitEditView (per-category limit entry + total budget row), BudgetProgress (pure: usage vs. limit), BudgetProgressLabels (shared progress colors/labels + BudgetLineRow),
+                                     # BudgetLimitEditView (per-category limit entry; the month's total budget in the navigation subtitle), BudgetProgress (pure: usage vs. limit), BudgetProgressLabels (shared progress colors/labels + BudgetLineRow),
                                      # MonthlyReconciliationView (inputs for income/cards/savings/balances/cash flow),
                                      # ReconciliationEditors (account/item/card editor rows), ReconciliationVerdict+Color (status/discrepancy colors)
     Settings/                        # SettingsView (storage folder row = folder name → storage folder view / reminder / FM status),

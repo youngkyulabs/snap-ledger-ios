@@ -16,12 +16,10 @@ struct BudgetLimitEditView: View {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
     private var isForwardMonth: Bool { month >= currentMonthKey }
+    private var totalLimit: Int { CategoryBudgetStore.totalLimit(in: budgets, asOf: month) }
 
     var body: some View {
         List {
-            Section {
-                totalRow
-            }
             Section {
                 ForEach(presets, id: \.self) { category in
                     HStack {
@@ -36,7 +34,7 @@ struct BudgetLimitEditView: View {
                     }
                 }
             } header: {
-                Text("\(ledgerMonthLabel(month)) 한도").textCase(nil)
+                Text("카테고리별 한도").textCase(nil)
             } footer: {
                 if isForwardMonth {
                     Text("이 달부터 적용되고, 이후 달에도 자동으로 반복돼요. 비워두면 한도가 없어요.")
@@ -47,7 +45,8 @@ struct BudgetLimitEditView: View {
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
-        .overlay(alignment: .bottom) {
+        // An inset, not an overlay, so the focused bottom row is not hidden behind the button.
+        .safeAreaInset(edge: .bottom) {
             if focusedCategory != nil {
                 HStack {
                     Spacer()
@@ -65,6 +64,7 @@ struct BudgetLimitEditView: View {
             }
         }
         .navigationTitle("한도 편집")
+        .navigationSubtitle("\(ledgerMonthLabel(month)) 총 예산 \(totalLimit.formatted(.number))원")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { focusedCategory = focusCategory }
         .alert(
@@ -81,18 +81,7 @@ struct BudgetLimitEditView: View {
         }
     }
 
-    private var totalRow: some View {
-        HStack {
-            Text("총 예산")
-            Spacer()
-            Text("\(CategoryBudgetStore.totalLimit(in: budgets, asOf: month).formatted(.number))원")
-                .font(.body.weight(.semibold).monospacedDigit())
-                .contentTransition(.numericText())
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    // Value-based TextField commits on focus loss.
+    // Value-based TextField writes through on every keystroke.
     private func limitValue(for category: String) -> Binding<Int?> {
         Binding(
             get: { CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: month) },
