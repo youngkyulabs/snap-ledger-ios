@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 
-/// Decides whether adding an entry would disturb a month whose reconciliation is already concluded.
+/// Decides whether adding an entry would disturb a month whose reconciliation came out balanced.
 enum ReconciledMonthWarning {
-    /// True when the entry falls in a closed month that carries saved reconciliation data.
+    /// True when the entry falls in a closed month whose saved reconciliation shows no difference.
     static func shouldWarn(
         entryDate: Date,
         today: Date,
@@ -14,7 +14,8 @@ enum ReconciledMonthWarning {
         guard month == summary.month else { return false }
         let status = ReconciliationSummary.periodStatus(month: month, today: today, calendar: calendar)
         guard status == .closed else { return false }
-        return summary.isReconciled(status: status)
+        // A remaining difference means the reconciliation is unfinished, so entries are expected.
+        return summary.isReconciled(status: status) && summary.isBalanced
     }
 
     static func message(monthKey: Int) -> String {
@@ -22,10 +23,10 @@ enum ReconciledMonthWarning {
     }
 }
 
-/// Resolves the warning against stored reconciliation rows at save time.
+/// Resolves the warning against the month's stored reconciliation rows and entries at save time.
 @MainActor
 enum ReconciledMonthGuard {
-    /// Returns the warning text when the date's month is already reconciled, otherwise nil.
+    /// Returns the warning text when the date's month is reconciled without a difference, otherwise nil.
     static func warningMessage(
         for date: Date,
         in context: ModelContext,
@@ -36,10 +37,16 @@ enum ReconciledMonthGuard {
         // Only a closed month can already be reconciled; skip the fetches for every other month.
         let status = ReconciliationSummary.periodStatus(month: month, today: today, calendar: calendar)
         guard status == .closed else { return nil }
-        // `isReconciled` reads only reconciliation rows, so saved entries are not needed here.
-        guard let input = try? ReconciliationStore().summaryInput(for: month, in: context) else { return nil }
+        let monthStart = CategoryBudgetStore.date(from: month, calendar: calendar)
+        guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return nil }
+        let entryDescriptor = FetchDescriptor<SavedEntry>(
+            predicate: #Predicate { $0.date >= monthStart && $0.date < monthEnd }
+        )
+        // The difference needs the month's saved entries; a failed read skips the warning.
+        guard let input = try? ReconciliationStore().summaryInput(for: month, in: context),
+              let entries = try? context.fetch(entryDescriptor) else { return nil }
         let summary = ReconciliationSummary.compute(
-            entries: [],
+            entries: entries,
             input: input,
             targetMonth: month,
             calendar: calendar

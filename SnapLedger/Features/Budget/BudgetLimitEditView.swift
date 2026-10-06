@@ -7,15 +7,19 @@ struct BudgetLimitEditView: View {
     var focusCategory: String?
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var settingsList: [AppSettings]
     @Query private var budgets: [CategoryBudget]
     @FocusState private var focusedCategory: String?
+    /// Typed limits not saved yet, by category; 0 clears the limit.
+    @State private var drafts: [String: Int] = [:]
     @State private var saveError: String?
 
     private var presets: [String] {
         settingsList.first?.categoryPresets ?? AppSettings.defaultPresets
     }
     private var isForwardMonth: Bool { month >= currentMonthKey }
+    private var totalLimit: Int { CategoryBudgetStore.totalLimit(in: budgets, asOf: month, overrides: drafts) }
 
     var body: some View {
         List {
@@ -44,7 +48,8 @@ struct BudgetLimitEditView: View {
         }
         .contentMargins(.bottom, 24, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
-        .overlay(alignment: .bottom) {
+        // An inset, not an overlay, so the focused bottom row is not hidden behind the button.
+        .safeAreaInset(edge: .bottom) {
             if focusedCategory != nil {
                 HStack {
                     Spacer()
@@ -62,8 +67,17 @@ struct BudgetLimitEditView: View {
             }
         }
         .navigationTitle("한도 편집")
+        .navigationSubtitle("총 예산 \(totalLimit.formatted(.number))원")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { focusedCategory = focusCategory }
+        // Save a field once its editing ends rather than on every keystroke.
+        .onChange(of: focusedCategory) { previous, _ in
+            if let previous { commit(previous) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { commitAll() }
+        }
+        .onDisappear { commitAll() }
         .alert(
             "저장 실패",
             isPresented: Binding(
@@ -78,28 +92,35 @@ struct BudgetLimitEditView: View {
         }
     }
 
-    // Value-based TextField commits on focus loss.
+    // Value-based TextField writes through on every keystroke, so typing only updates the draft.
     private func limitValue(for category: String) -> Binding<Int?> {
         Binding(
-            get: { CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: month) },
-            set: { newValue in
-                let amount = max(newValue ?? 0, 0)
-                let current = CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: month) ?? 0
-                guard amount != current else { return }
-                let store = CategoryBudgetStore()
-                do {
-                    if month < currentMonthKey {
-                        // Past months apply single-month edit.
-                        try store.setLimitForSingleMonth(amount, for: category, month: month, in: modelContext)
-                    } else {
-                        // Current/future months carry forward.
-                        try store.setLimit(amount, for: category, effectiveFrom: month, in: modelContext)
-                    }
-                    store.exportBestEffort(month: month, in: modelContext)
-                } catch {
-                    saveError = "한도를 저장하지 못했어요. 다시 시도해 주세요."
-                }
-            }
+            get: {
+                if let draft = drafts[category] { return draft > 0 ? draft : nil }
+                return CategoryBudgetStore.resolveLimit(in: budgets, category: category, asOf: month)
+            },
+            set: { drafts[category] = max($0 ?? 0, 0) }
         )
+    }
+
+    private func commit(_ category: String) {
+        guard let amount = drafts[category] else { return }
+        defer { drafts[category] = nil }
+        let store = CategoryBudgetStore()
+        do {
+            if try store.applyLimitEdit(
+                amount, for: category, month: month, currentMonth: currentMonthKey, in: modelContext
+            ) {
+                store.exportBestEffort(month: month, in: modelContext)
+            }
+        } catch {
+            saveError = "한도를 저장하지 못했어요. 다시 시도해 주세요."
+        }
+    }
+
+    private func commitAll() {
+        for category in drafts.keys.sorted() {
+            commit(category)
+        }
     }
 }
