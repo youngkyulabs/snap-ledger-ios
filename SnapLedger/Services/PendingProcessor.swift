@@ -161,11 +161,9 @@ struct PendingProcessor {
         let isText = InboxPayload.isText(filename: pending.filename)
         var inserted: [ParsedEntry] = []
         do {
-            // Shared text is already text; only images need OCR. Clamp it to what the
-            // extraction prompt can carry — a long share would otherwise overflow the
-            // model's context window and fail after the round trip.
+            // Shared text is already text; only images need OCR.
             let sourceText = isText
-                ? InboxPayload.clampForExtraction(try InboxPayload.readText(at: sourceURL))
+                ? try InboxPayload.readText(at: sourceURL)
                 : try await ocrService.recognize(imageURL: sourceURL)
             // OCR does not observe cancellation; stop here before starting a model request.
             try Task.checkCancellation()

@@ -346,44 +346,69 @@ struct FoundationModelsExtractionService: ExtractionService {
 
     // MARK: - Source text budget
 
-    /// Context size the base character limit was measured against.
-    static let baselineContextSize = 4_096
+    /// Tokens kept free for the response, which the schema's array caps keep within this.
+    static let responseTokenReserve = 1_000
+    /// Source characters used when the prompt cannot be measured (before iOS 26.4).
+    static let fallbackSourceCharacterLimit = 1_000
+    static let minimumSourceCharacterLimit = 500
 
-    /// Source characters the prompt can carry, scaled up from the baseline for larger context windows.
-    static func sourceCharacterLimit(contextSize: Int) -> Int {
-        let base = InboxPayload.extractionCharacterLimit
-        guard contextSize > baselineContextSize else { return base }
-        return base * contextSize / baselineContextSize
+    /// Source characters left beside the prompt and response, at one token per character as Korean text measures.
+    static func sourceCharacterLimit(contextSize: Int, promptTokens: Int) -> Int {
+        max(contextSize - promptTokens - responseTokenReserve, minimumSourceCharacterLimit)
     }
 
-    /// Keeps the head and tail of over-long text, since receipts put the total and approval lines last.
+    /// Keeps whole lines from the head and tail of over-long text, since receipts put the total and approval lines last.
     static func clampSourceText(_ text: String, limit: Int) -> String {
         guard text.count > limit else { return text }
         // One character goes to the joining newline.
         let budget = max(limit - 1, 0)
-        let head = budget / 2
-        return "\(text.prefix(head))\n\(text.suffix(budget - head))"
+        let headBudget = budget / 2
+        var head = text.prefix(headBudget)
+        if let cut = head.lastIndex(where: \.isNewline) {
+            head = head[..<cut]
+        }
+        var tail = text.suffix(budget - headBudget)
+        if let cut = tail.firstIndex(where: \.isNewline) {
+            tail = tail[tail.index(after: cut)...]
+        }
+        return "\(head)\n\(tail)"
     }
 
-    private static var contextSize: Int {
-        if #available(iOS 26.4, *) {
-            return SystemLanguageModel.default.contextSize
+    /// Drops item breakdowns that may be incomplete, so each receipt saves as one entry at its total.
+    static func dropPartialItems(_ extraction: PaymentExtraction, sourceClamped: Bool) -> PaymentExtraction {
+        PaymentExtraction(transactions: extraction.transactions.map { trans in
+            guard sourceClamped || trans.items.count >= PaymentTransaction.maximumItems else {
+                return trans
+            }
+            var t = trans
+            t.items = []
+            return t
+        })
+    }
+
+    private static func sourceCharacterLimit(instructions: String) async -> Int {
+        guard #available(iOS 26.4, *) else { return fallbackSourceCharacterLimit }
+        let model = SystemLanguageModel.default
+        do {
+            let promptTokens = try await model.tokenCount(for: Instructions(instructions))
+                + model.tokenCount(for: PaymentExtraction.generationSchema)
+            return sourceCharacterLimit(contextSize: model.contextSize, promptTokens: promptTokens)
+        } catch {
+            return fallbackSourceCharacterLimit
         }
-        return baselineContextSize
     }
 
     func extract(from text: String) async throws -> PaymentExtraction {
         let today = Date.now
-        let source = Self.clampSourceText(
-            text, limit: Self.sourceCharacterLimit(contextSize: Self.contextSize)
+        let instructions = Self.instructions(
+            today: today, customGuide: customGuide, categories: categories
         )
-        let session = LanguageModelSession(
-            instructions: Self.instructions(
-                today: today, customGuide: customGuide, categories: categories
-            )
-        )
+        let limit = await Self.sourceCharacterLimit(instructions: instructions)
+        let source = Self.clampSourceText(text, limit: limit)
+        let session = LanguageModelSession(instructions: instructions)
         let response = try await session.respond(to: source, generating: PaymentExtraction.self)
-        return Self.normalize(response.content, today: today, ocrText: source)
+        let normalized = Self.normalize(response.content, today: today, ocrText: source)
+        return Self.dropPartialItems(normalized, sourceClamped: source.count < text.count)
     }
 }
 
