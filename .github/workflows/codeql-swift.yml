@@ -37,10 +37,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Select Xcode (latest stable)
+      # latest-stable은 이미지에 Xcode 27이 추가되면 Swift 6.4로 넘어가므로 26.x에 고정한다.
+      - name: Select Xcode 26
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '26'
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
