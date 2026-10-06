@@ -34,7 +34,7 @@ struct BudgetLimitEditView: View {
                     }
                 }
             } header: {
-                Text("카테고리별 한도").textCase(nil)
+                Text("\(ledgerMonthLabel(month)) 한도").textCase(nil)
             } footer: {
                 if isForwardMonth {
                     Text("이 달부터 적용되고, 이후 달에도 자동으로 반복돼요. 비워두면 한도가 없어요.")
@@ -64,7 +64,7 @@ struct BudgetLimitEditView: View {
             }
         }
         .navigationTitle("한도 편집")
-        .navigationSubtitle("\(ledgerMonthLabel(month)) 총 예산 \(totalLimit.formatted(.number))원")
+        .navigationSubtitle("총 예산 \(totalLimit.formatted(.number))원")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { focusedCategory = focusCategory }
         .alert(
