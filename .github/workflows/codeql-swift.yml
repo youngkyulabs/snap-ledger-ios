@@ -23,6 +23,8 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (swift)
+    # ci.yml은 xcode-27이지만 CodeQL Swift extractor는 Swift 6.3까지만
+    # 지원한다(Xcode 27은 Swift 6.4). 지원이 추가되면 xcode-27로 옮긴다.
     runs-on: macos-26
     timeout-minutes: 30
 
