@@ -344,15 +344,46 @@ struct FoundationModelsExtractionService: ExtractionService {
         return PaymentExtraction(transactions: cleaned)
     }
 
+    // MARK: - Source text budget
+
+    /// Context size the base character limit was measured against.
+    static let baselineContextSize = 4_096
+
+    /// Source characters the prompt can carry, scaled up from the baseline for larger context windows.
+    static func sourceCharacterLimit(contextSize: Int) -> Int {
+        let base = InboxPayload.extractionCharacterLimit
+        guard contextSize > baselineContextSize else { return base }
+        return base * contextSize / baselineContextSize
+    }
+
+    /// Keeps the head and tail of over-long text, since receipts put the total and approval lines last.
+    static func clampSourceText(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        // One character goes to the joining newline.
+        let budget = max(limit - 1, 0)
+        let head = budget / 2
+        return "\(text.prefix(head))\n\(text.suffix(budget - head))"
+    }
+
+    private static var contextSize: Int {
+        if #available(iOS 26.4, *) {
+            return SystemLanguageModel.default.contextSize
+        }
+        return baselineContextSize
+    }
+
     func extract(from text: String) async throws -> PaymentExtraction {
         let today = Date.now
+        let source = Self.clampSourceText(
+            text, limit: Self.sourceCharacterLimit(contextSize: Self.contextSize)
+        )
         let session = LanguageModelSession(
             instructions: Self.instructions(
                 today: today, customGuide: customGuide, categories: categories
             )
         )
-        let response = try await session.respond(to: text, generating: PaymentExtraction.self)
-        return Self.normalize(response.content, today: today, ocrText: text)
+        let response = try await session.respond(to: source, generating: PaymentExtraction.self)
+        return Self.normalize(response.content, today: today, ocrText: source)
     }
 }
 
