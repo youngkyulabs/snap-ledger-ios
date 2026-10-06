@@ -197,6 +197,19 @@ struct CategoryBudgetStoreTests {
         #expect(CategoryBudgetStore.resolveAll(in: budgets, asOf: 202_605, presets: ["식비"]).isEmpty)
     }
 
+    @Test func totalLimitSumsEveryCategoryEffectiveThatMonth() {
+        let budgets = [
+            CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_601),
+            CategoryBudget(category: "카페", monthlyLimit: 50_000, effectiveFrom: 202_603),
+            // Ended before the month by a tombstone -> excluded
+            CategoryBudget(category: "쇼핑", monthlyLimit: 100_000, effectiveFrom: 202_601),
+            CategoryBudget(category: "쇼핑", monthlyLimit: 0, effectiveFrom: 202_604),
+            // Starts after the month -> excluded
+            CategoryBudget(category: "교통", monthlyLimit: 80_000, effectiveFrom: 202_607),
+        ]
+        #expect(CategoryBudgetStore.totalLimit(in: budgets, asOf: 202_605) == 350_000)
+    }
+
     @Test func exportBestEffortWritesBudgetFileForMonth() throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let context = ModelContext(try ModelContainer(for: Schema(AppSchema.models), configurations: [config]))

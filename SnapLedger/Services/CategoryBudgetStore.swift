@@ -52,6 +52,13 @@ struct CategoryBudgetStore {
         }
     }
 
+    /// Sums the effective limits of every category in the specified month.
+    static func totalLimit(in budgets: [CategoryBudget], asOf month: Int) -> Int {
+        Set(budgets.map(\.category)).reduce(0) { total, category in
+            total + (resolveLimit(in: budgets, category: category, asOf: month) ?? 0)
+        }
+    }
+
     /// Sets category limit starting from the specified month.
     @MainActor
     func setLimit(_ limit: Int, for category: String, effectiveFrom month: Int, in context: ModelContext) throws {

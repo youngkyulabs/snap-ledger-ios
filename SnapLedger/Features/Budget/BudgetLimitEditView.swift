@@ -20,6 +20,9 @@ struct BudgetLimitEditView: View {
     var body: some View {
         List {
             Section {
+                totalRow
+            }
+            Section {
                 ForEach(presets, id: \.self) { category in
                     HStack {
                         Text(category)
@@ -76,6 +79,17 @@ struct BudgetLimitEditView: View {
         } message: { message in
             Text(message)
         }
+    }
+
+    private var totalRow: some View {
+        HStack {
+            Text("총 예산")
+            Spacer()
+            Text("\(CategoryBudgetStore.totalLimit(in: budgets, asOf: month).formatted(.number))원")
+                .font(.body.weight(.semibold).monospacedDigit())
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // Value-based TextField commits on focus loss.
