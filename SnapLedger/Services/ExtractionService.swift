@@ -165,13 +165,7 @@ struct FoundationModelsExtractionService: ExtractionService {
     static let exampleItemPrefix = "예시품목"
 
     static func looksLikeExampleLeak(_ trans: PaymentTransaction) -> Bool {
-        let merchant = trans.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
-        if merchant.hasPrefix(exampleMerchantPrefix) { return true }
-        for item in trans.items {
-            let name = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if name.hasPrefix(exampleItemPrefix) { return true }
-        }
-        return false
+        trans.merchant.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(exampleMerchantPrefix)
     }
 
     /// Payment provider aliases normalized to standard names. Keys must be upper-cased — lookup uses `uppercased()`.
@@ -325,7 +319,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         let yearUnstated = ocrText.map { !hasExplicitYear($0) } ?? false
         let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
             if looksLikeExampleLeak(trans) { return nil }
-            var t = trans
+            var t = foldingRestatedItem(droppingExampleItems(trans))
             if dropDates {
                 t.date = ""
             } else if yearUnstated {
@@ -341,7 +335,7 @@ struct FoundationModelsExtractionService: ExtractionService {
             }
             return t
         }
-        return PaymentExtraction(transactions: cleaned)
+        return PaymentExtraction(transactions: droppingRedundantTransactions(cleaned))
     }
 
     func extract(from text: String) async throws -> PaymentExtraction {

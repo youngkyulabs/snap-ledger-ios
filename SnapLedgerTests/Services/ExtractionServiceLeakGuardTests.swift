@@ -62,7 +62,7 @@ struct ExtractionServiceLeakGuardTests {
         }
     }
 
-    @Test func normalizeDropsTransactionWithExampleItemToken() {
+    @Test func normalizeKeepsTransactionButClearsExampleItems() {
         let input = PaymentExtraction(transactions: [
             PaymentTransaction(
                 date: "2026-05-17", amount: 7777, merchant: "어떤가게",
@@ -74,7 +74,43 @@ struct ExtractionServiceLeakGuardTests {
             ),
         ])
         let out = FoundationModelsExtractionService.normalize(input)
-        #expect(out.transactions.isEmpty)
+        #expect(out.transactions.count == 1)
+        #expect(out.transactions.first?.merchant == "어떤가게")
+        #expect(out.transactions.first?.amount == 7777)
+        #expect(out.transactions.first?.items.isEmpty == true)
+    }
+
+    /// A card notification answered with the placeholder item still saves as one payment.
+    @Test func normalizeKeepsNotificationWithBarePlaceholderItem() {
+        let input = PaymentExtraction(transactions: [
+            PaymentTransaction(
+                date: "2026-05-14", amount: 5800, merchant: "스타벅스 강남점",
+                category: "카페", items: [PaymentLineItem(name: "예시품목", amount: 5800)]
+            ),
+        ])
+        let out = FoundationModelsExtractionService.normalize(input)
+        #expect(out.transactions.count == 1)
+        #expect(out.transactions.first?.merchant == "스타벅스 강남점")
+        #expect(out.transactions.first?.amount == 5800)
+        #expect(out.transactions.first?.items.isEmpty == true)
+    }
+
+    /// One leaked item makes the rest of the breakdown untrustworthy, so none of it is kept.
+    @Test func normalizeClearsWholeBreakdownWhenOneItemIsPlaceholder() {
+        let input = PaymentExtraction(transactions: [
+            PaymentTransaction(
+                date: "2026-06-14", amount: 49200, merchant: "홈플러스 강남점",
+                category: "생활",
+                items: [
+                    PaymentLineItem(name: "삼겹살 600g", amount: 14900),
+                    PaymentLineItem(name: "예시품목2", amount: 4444),
+                ]
+            ),
+        ])
+        let out = FoundationModelsExtractionService.normalize(input)
+        #expect(out.transactions.count == 1)
+        #expect(out.transactions.first?.amount == 49200)
+        #expect(out.transactions.first?.items.isEmpty == true)
     }
 
     @Test func normalizeKeepsValidTransactionsAlongsideLeakedOnes() {
