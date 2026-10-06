@@ -121,9 +121,13 @@ struct ExtractionServiceRedundancyTests {
     }
 
     /// The approval line names the card issuer, which normalization clears before the duplicate check.
+    /// Mirrors a measured answer: the dated receipt, then an undated twin named after the card issuer.
     @Test func normalizeDropsCardIssuerTwinOfReceiptTotal() {
-        let input = PaymentExtraction(transactions: [txn(612_300, "홈플러스 강남점"), txn(612_300, "신한카드")])
-        let out = FoundationModelsExtractionService.normalize(input, ocrText: "합계 612,300원\n신한카드 일시불 612,300원")
+        let receipt = txn(612_300, "홈플러스 강남점", items: [item("삼겹살", 1000), item("계란 한판", 4740)], date: "2026-06-14")
+        let input = PaymentExtraction(transactions: [receipt, txn(612_300, "신한카드", date: "")])
+        let out = FoundationModelsExtractionService.normalize(
+            input, ocrText: "홈플러스 강남점\n2026-06-14 18:32\n합계 612,300원\n신한카드 일시불 612,300원"
+        )
         #expect(out.transactions.map(\.merchant) == ["홈플러스 강남점"])
     }
 
@@ -133,9 +137,11 @@ struct ExtractionServiceRedundancyTests {
         #expect(FoundationModelsExtractionService.droppingRedundantTransactions(input) == input)
     }
 
-    @Test func keepsMerchantlessTwinWhoseDateIsMissing() {
-        let input = [txn(612_300, "홈플러스 강남점", date: "2026-06-14"), txn(612_300, "", date: "")]
-        #expect(FoundationModelsExtractionService.droppingRedundantTransactions(input) == input)
+    /// A row with no merchant, items, or date carries nothing beyond the amount it repeats.
+    @Test func dropsUndatedTwinOfDatedTransaction() {
+        let receipt = txn(612_300, "홈플러스 강남점", date: "2026-06-14")
+        let out = FoundationModelsExtractionService.droppingRedundantTransactions([receipt, txn(612_300, "", date: "")])
+        #expect(out == [receipt])
     }
 
     /// Items become their own entries, so a row that carries them is never dropped.

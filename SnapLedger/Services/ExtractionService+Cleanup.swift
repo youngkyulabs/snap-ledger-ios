@@ -40,8 +40,9 @@ extension FoundationModelsExtractionService {
         return a.count < b.count ? b.starts(with: a) : a.starts(with: b)
     }
 
-    /// Drops bare rows (no merchant, no items) that repeat a named transaction's amount and date, such as a
-    /// receipt's card approval line read as a second payment, and empty rows beside transactions that carry data.
+    /// Drops bare rows (no merchant, no items) that repeat a named transaction's amount on its date or with no
+    /// date of their own, such as a receipt's card approval line read as a second payment, and empty rows beside
+    /// transactions that carry data.
     static func droppingRedundantTransactions(_ transactions: [PaymentTransaction]) -> [PaymentTransaction] {
         func isNamed(_ t: PaymentTransaction) -> Bool {
             !t.merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -50,7 +51,8 @@ extension FoundationModelsExtractionService {
         return transactions.filter { t in
             guard !isNamed(t), t.items.isEmpty else { return true }
             if t.amount == 0 { return !hasData }
-            return !transactions.contains { isNamed($0) && $0.amount == t.amount && $0.date == t.date }
+            let undated = t.date.trimmingCharacters(in: .whitespaces).isEmpty
+            return !transactions.contains { isNamed($0) && $0.amount == t.amount && (undated || $0.date == t.date) }
         }
     }
 }
