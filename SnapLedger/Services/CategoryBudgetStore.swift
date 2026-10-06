@@ -52,10 +52,10 @@ struct CategoryBudgetStore {
         }
     }
 
-    /// Sums the effective limits of every category in the specified month.
-    static func totalLimit(in budgets: [CategoryBudget], asOf month: Int) -> Int {
-        Set(budgets.map(\.category)).reduce(0) { total, category in
-            total + (resolveLimit(in: budgets, category: category, asOf: month) ?? 0)
+    /// Sums the effective limits of every category in the specified month; `overrides` replace stored limits (0 clears one).
+    static func totalLimit(in budgets: [CategoryBudget], asOf month: Int, overrides: [String: Int] = [:]) -> Int {
+        Set(budgets.map(\.category)).union(overrides.keys).reduce(0) { total, category in
+            total + (overrides[category] ?? resolveLimit(in: budgets, category: category, asOf: month) ?? 0)
         }
     }
 
@@ -91,6 +91,29 @@ struct CategoryBudgetStore {
         if !hasExplicitNext && limit != carry {
             try setLimit(carry, for: category, effectiveFrom: nextMonth, in: context)
         }
+    }
+
+    /// Saves an edited limit: a past month changes only that month, later months carry it forward.
+    /// Returns false without writing when the stored limit already matches.
+    @MainActor
+    @discardableResult
+    func applyLimitEdit(
+        _ limit: Int,
+        for category: String,
+        month: Int,
+        currentMonth: Int,
+        in context: ModelContext
+    ) throws -> Bool {
+        let records = try context.fetch(FetchDescriptor<CategoryBudget>(
+            predicate: #Predicate { $0.category == category }
+        ))
+        guard limit != (Self.resolveLimit(in: records, category: category, asOf: month) ?? 0) else { return false }
+        if month < currentMonth {
+            try setLimitForSingleMonth(limit, for: category, month: month, in: context)
+        } else {
+            try setLimit(limit, for: category, effectiveFrom: month, in: context)
+        }
+        return true
     }
 
     /// Clears category limit starting from the specified month via tombstone.

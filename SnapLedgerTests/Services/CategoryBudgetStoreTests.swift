@@ -210,6 +210,46 @@ struct CategoryBudgetStoreTests {
         #expect(CategoryBudgetStore.totalLimit(in: budgets, asOf: 202_605) == 350_000)
     }
 
+    @Test func totalLimitPrefersUnsavedEditsOverStoredLimits() {
+        let budgets = [
+            CategoryBudget(category: "식비", monthlyLimit: 300_000, effectiveFrom: 202_601),
+            CategoryBudget(category: "카페", monthlyLimit: 50_000, effectiveFrom: 202_601),
+        ]
+        // 식비 raised, 카페 cleared, 교통 set for the first time
+        let edits = ["식비": 400_000, "카페": 0, "교통": 80_000]
+        #expect(CategoryBudgetStore.totalLimit(in: budgets, asOf: 202_605, overrides: edits) == 480_000)
+    }
+
+    @Test func applyLimitEditInPastMonthChangesOnlyThatMonth() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        try store.setLimit(300_000, for: "식비", effectiveFrom: 202_601, in: ctx)
+        let saved = try store.applyLimitEdit(100_000, for: "식비", month: 202_603, currentMonth: 202_606, in: ctx)
+        let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
+        #expect(saved)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_603) == 100_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_604) == 300_000)
+    }
+
+    @Test func applyLimitEditInCurrentMonthCarriesForward() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        try store.setLimit(300_000, for: "식비", effectiveFrom: 202_601, in: ctx)
+        try store.applyLimitEdit(100_000, for: "식비", month: 202_606, currentMonth: 202_606, in: ctx)
+        let all = try ctx.fetch(FetchDescriptor<CategoryBudget>())
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_605) == 300_000)
+        #expect(CategoryBudgetStore.resolveLimit(in: all, category: "식비", asOf: 202_609) == 100_000)
+    }
+
+    @Test func applyLimitEditSkipsUnchangedLimit() throws {
+        let ctx = try makeContext()
+        let store = CategoryBudgetStore()
+        try store.setLimit(300_000, for: "식비", effectiveFrom: 202_601, in: ctx)
+        let saved = try store.applyLimitEdit(300_000, for: "식비", month: 202_606, currentMonth: 202_606, in: ctx)
+        #expect(!saved)
+        #expect(try ctx.fetch(FetchDescriptor<CategoryBudget>()).count == 1)
+    }
+
     @Test func exportBestEffortWritesBudgetFileForMonth() throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let context = ModelContext(try ModelContainer(for: Schema(AppSchema.models), configurations: [config]))
