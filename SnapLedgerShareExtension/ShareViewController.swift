@@ -5,10 +5,7 @@ final class ShareViewController: UIViewController {
     private static let appGroupIdentifier = "group.com.youngkyu.snapledger"
     private static let inboxFolderName = "inbox"
     private static let preferredHeight: CGFloat = 220
-    /// Guards against sharing an entire article into the extraction prompt: the on-device model's
-    /// context window also has to hold the instruction prompt, so a longer share would overflow it.
-    /// Kept in sync with `InboxPayload.extractionCharacterLimit` in the app target, which cannot be
-    /// imported from here.
+    /// Keeps an entire shared article out of the inbox; extraction trims further to fit the model.
     private static let maxTextLength = 2_000
     /// Upper bound on bytes read from a shared text file or blob before clipping to `maxTextLength`;
     /// reading a whole file first would blow the extension's memory limit on large shares.
