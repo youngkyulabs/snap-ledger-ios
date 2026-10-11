@@ -85,28 +85,101 @@ enum CandidateHeuristics {
     )
 
     private static let dateOrTimeInLine: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b\d{1,2}/\d{1,2}\b|\d{2}:\d{2}"#
+        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b\d{1,2}/\d{1,2}\b|\d{1,2}:\d{2}|\d{1,2}\s*월\s*\d{1,2}\s*일"#
     )
 
-    static func merchants(from ocrText: String, limit: Int = 5) -> [String] {
-        let lines = splitLines(ocrText)
+    private static let weekdayOnly: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"^\(?[월화수목금토일](요일)?\)?$"#
+    )
 
+    /// Easy-pay banner layouts: "<amount>원 · <name>" and "<name>에서 <amount>원".
+    private static let easyPayLayouts: [NSRegularExpression] = [
+        #"[\d,]+\s*원\s*[·•ㆍ]\s*(.+)$"#,
+        #"^(.+?)에서\s*[\d,]+\s*원"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0) }
+
+    /// Labels that follow the merchant on a notification line and end its name.
+    private static let nameStopKeywords = ["누적", "잔액", "한도", "사용가능"]
+
+    /// Names written after a date or time come first (OCR order), then plain lines (OCR order).
+    static func merchants(from ocrText: String, limit: Int = 5) -> [String] {
         var seen = Set<String>()
-        var result: [String] = []
-        for line in lines where !line.isEmpty {
-            if line.count < 3 || line.count > 30 { continue }
-            // Exclude payment method labels wrapped in brackets.
-            if line.hasPrefix("[") { continue }
-            if FoundationModelsExtractionService.isCardIssuerName(line) { continue }
-            if containsMatch(amountInLine, in: line) { continue }
-            if containsMatch(dateOrTimeInLine, in: line) { continue }
-            if merchantExcludeKeywords.contains(where: { line.contains($0) }) { continue }
-            if seen.insert(line).inserted {
-                result.append(line)
-                if result.count == limit { break }
+        var named: [String] = []
+        var plain: [String] = []
+        for line in splitLines(ocrText) where !line.isEmpty {
+            if containsMatch(dateOrTimeInLine, in: line) {
+                if let name = trailingName(line), seen.insert(name).inserted { named.append(name) }
+                continue
+            }
+            if line.count >= 3, isMerchantLike(line), seen.insert(line).inserted { plain.append(line) }
+        }
+        return Array((named + plain).prefix(limit))
+    }
+
+    /// The name after the last date or time on a line, such as "찌개애감동" in "10/10 12:41 찌개애감동".
+    static func trailingName(_ line: String) -> String? {
+        guard let regex = dateOrTimeInLine else { return nil }
+        let ns = line as NSString
+        guard let last = regex.matches(in: line, range: NSRange(location: 0, length: ns.length)).last else {
+            return nil
+        }
+        return cleanedName(ns.substring(from: NSMaxRange(last.range)))
+    }
+
+    /// The merchant of an easy-pay banner line, such as "씨네Q 신도림" in "12,000원 · 씨네Q 신도림".
+    static func easyPayName(_ line: String) -> String? {
+        let ns = line as NSString
+        for layout in easyPayLayouts {
+            if let match = layout.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)),
+               match.numberOfRanges > 1,
+               let name = cleanedName(ns.substring(with: match.range(at: 1))) {
+                return name
             }
         }
-        return result
+        return nil
+    }
+
+    /// The merchant written next to a transaction's own amount: on the amount line, or after a date or time on
+    /// that line or the two lines below it.
+    static func anchoredMerchant(amount: Int, lines: [String]) -> String? {
+        guard amount > 0 else { return nil }
+        let digits = String(amount)
+        var grouped = ""
+        for (offset, digit) in digits.enumerated() {
+            if offset > 0, (digits.count - offset).isMultiple(of: 3) { grouped.append(",") }
+            grouped.append(digit)
+        }
+        let amountPattern = try? NSRegularExpression(pattern: "(?<![\\d,])(?:\(grouped)(?!,?\\d)|\(digits)(?=\\s*원))")
+        for (index, line) in lines.enumerated() where containsMatch(amountPattern, in: line) {
+            if let name = easyPayName(line) { return name }
+            for next in lines[index..<min(index + 3, lines.count)] where containsMatch(dateOrTimeInLine, in: next) {
+                if let name = trailingName(next) { return name }
+            }
+        }
+        return nil
+    }
+
+    /// Cuts a name before a running total or an amount and trims it; nil when nothing merchant-like is left.
+    private static func cleanedName(_ raw: String) -> String? {
+        var name = raw
+        for keyword in nameStopKeywords {
+            if let range = name.range(of: keyword) { name = String(name[..<range.lowerBound]) }
+        }
+        if let amount = amountInLine,
+           let match = amount.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
+            name = (name as NSString).substring(to: match.range.location)
+        }
+        name = name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+        return name.count >= 2 && isMerchantLike(name) ? name : nil
+    }
+
+    /// Whether text can be a merchant: not an issuer, an amount, a bookkeeping label or a bare weekday.
+    private static func isMerchantLike(_ text: String) -> Bool {
+        // Bracketed text is a payment method label.
+        if text.count > 30 || text.hasPrefix("[") { return false }
+        if FoundationModelsExtractionService.isCardIssuerName(text) { return false }
+        if containsMatch(amountInLine, in: text) || containsMatch(weekdayOnly, in: text) { return false }
+        return !merchantExcludeKeywords.contains { text.contains($0) }
     }
 
     private static func splitLines(_ ocrText: String) -> [String] {
@@ -127,10 +200,14 @@ enum CandidateHeuristics {
     static func enrich(_ extraction: PaymentExtraction, ocrText: String) -> [EnrichedTransaction] {
         let merchantPool = merchants(from: ocrText, limit: 8)
         let amountPool = amounts(from: ocrText, limit: 8)
+        let lines = ocrText.components(separatedBy: .newlines)
         return extraction.transactions.map { txn in
-            EnrichedTransaction(
+            // Each payment's own line names its merchant, so it leads that payment's candidates.
+            let anchored = anchoredMerchant(amount: txn.amount, lines: lines)
+            let pool = anchored.map { name in [name] + merchantPool.filter { $0 != name } } ?? merchantPool
+            return EnrichedTransaction(
                 base: txn,
-                merchantCandidates: mergeMerchant(best: txn.merchant, pool: merchantPool, limit: 5),
+                merchantCandidates: mergeMerchant(best: txn.merchant, pool: pool, limit: 5),
                 amountCandidates: mergeAmount(best: txn.amount, pool: amountPool, limit: 5)
             )
         }
