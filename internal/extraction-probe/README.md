@@ -13,12 +13,13 @@ scratch directory `$W` outside the repo.
 | Path | What it is |
 |---|---|
 | `build.sh <source-root> <out-dir> [ROUTED]` | Copies the extraction sources from `<source-root>/SnapLedger/Services/`, patches `isAvailable` to `true`, and builds `<out-dir>/probe` and `<out-dir>/replay` for macOS 27. `ROUTED` adds condition R. |
-| `probe/main.swift` | `probe <corpus> <out.jsonl> <runs> <conds|ocr> [ids]`. Conditions: `A` text only (the app before the image route), `B1` photo then OCR text, `B2` B1 plus one photo instruction line, `R` the app's own `extract(from:imageURL:)`. `ocr` only writes `<corpus>/ocr/<id>.txt`. |
+| `probe/main.swift` | `probe <corpus> <out.jsonl> <runs> <conds|ocr> [ids]`. Conditions: `A` text only (the app before the image route), `B1` photo then OCR text, `B2` B1 plus one photo instruction line, `R` the app's own `extract(from:imageURL:)` (built with `ROUTED`), `X` the app's own `extract(from:)` — clamp, retry and post-processing exactly as shipped, so gates compare apps with `X`. `ocr` only writes `<corpus>/ocr/<id>.txt`. |
 | `replay/main.swift` | `replay <corpus> <in.jsonl> <out.jsonl> P0\|P1\|P2` re-applies post-processing to recorded raw output without model calls. `P0` = the post-processing compiled in; `P1`/`P2` = the tuning experiments (P2 adds the tuning-time item filter). |
 | `score.py` | `python3 score.py <corpus> <records.jsonl> [--route] [--detail]` — entry-level scoring per condition and category. `--route` builds condition R from A and B1 records by the column-split rule. |
-| `gate.py` | `python3 gate.py <corpus> <current.jsonl> <new.jsonl> [<current-filtered.jsonl>]` — the adoption gate fixed in the design document, plus the filter-alone verdict. |
+| `gate.py` | `python3 gate.py [--gate pr1\|mixed] <corpus> <current.jsonl> <new.jsonl> [<alternative.jsonl>]` — the adoption gates fixed in the design documents: `pr1` (image route, strata S1–S4, alternative "filter alone") and `mixed` (mixed screens, strata B1–B3, alternative "post-processing only"). |
 | `tuning/gen.py` | The 24-image tuning corpus (multi / noise / receipt / control) the rules were derived from. |
-| `holdout/` | The held-out corpus brief and generator (strata S1–S4) used for the gate. |
+| `holdout/` | The second held-out set: brief and generator (strata S1–S4), used for the image-route gate. |
+| `holdout3/` | The third held-out set: brief and generator (strata B1–B3), used for the mixed-screen gate. |
 | `results/` | Raw records and OCR texts of past runs, so numbers can be re-scored without the model. |
 | `checks/` | One-off probes: model capabilities, `reasoningLevel` rejection, iOS 27 error types. |
 
@@ -43,6 +44,9 @@ Copying the committed OCR texts keeps the replay exact; re-running OCR on regene
 slightly because the photo noise is not seeded.
 
 ## Gate run (held-out set)
+
+"Current" is always the app on `main`, built from `git archive main`. For the mixed-screen gate both sides run
+condition `X` (`--gate mixed`, sets from `holdout3/`); the image-route gate below uses `A` against `R`.
 
 ```bash
 P=internal/extraction-probe

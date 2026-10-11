@@ -8,6 +8,7 @@ import FoundationModels
 //   B1 = photo, then the OCR text, same instructions
 //   B2 = B1 plus one instruction line about the photo
 //   R  = the app's own FoundationModelsExtractionService.extract(from:imageURL:) (route decided by the app)
+//   X  = the app's own FoundationModelsExtractionService.extract(from:) (clamp, retry and post-processing as shipped)
 
 struct Case: Decodable {
     let id: String
@@ -31,7 +32,7 @@ struct Rec: Encodable {
 }
 
 enum Cond: String {
-    case A, B1, B2, R
+    case A, B1, B2, R, X
 }
 
 let imageLine = "입력에 화면 이미지가 함께 오면, 이미지로 화면 배치를 보고 결제 알림·영수증에 해당하는 부분만 거래로 추출하세요. 금액·날짜 숫자는 OCR 텍스트를 기준으로 읽으세요."
@@ -83,6 +84,16 @@ func record(_ c: Case, _ cond: Cond, run: Int, text: String, url: URL, instructi
     }
     let start = ContinuousClock.now
     do {
+        #if !ROUTED
+        if cond == .X {
+            let service = FoundationModelsExtractionService(customGuide: "", categories: AppSettings.defaultPresets)
+            let normalized = try await service.extract(from: text)
+            let elapsed = ContinuousClock.now - start
+            return Rec(id: c.id, cat: c.cat, cond: cond.rawValue, run: run, gated: false, routed: nil,
+                       entries: entries(CandidateHeuristics.enrich(normalized, ocrText: text)), raw: [],
+                       inTok: 0, outTok: 0, ms: milliseconds(elapsed), error: nil)
+        }
+        #endif
         #if ROUTED
         if cond == .R {
             let service = FoundationModelsExtractionService(customGuide: "", categories: AppSettings.defaultPresets)
