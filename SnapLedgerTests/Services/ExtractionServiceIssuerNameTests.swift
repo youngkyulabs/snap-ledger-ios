@@ -29,6 +29,6 @@ struct ExtractionServiceIssuerNameTests {
             ]),
             ocrText: "롯데카드 승인 57,800원 일시불 10/08"
         )
-        #expect(out.transactions.first?.merchant == "")
+        #expect(out.transactions.first?.merchant.isEmpty == true)
     }
 }
