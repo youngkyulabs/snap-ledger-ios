@@ -387,9 +387,11 @@ struct FoundationModelsExtractionService: ExtractionService {
         )
         let limit = await Self.sourceCharacterLimit(instructions: instructions)
         let source = Self.clampSourceText(text, limit: limit)
-        let session = LanguageModelSession(instructions: instructions)
-        let response = try await session.respond(to: source, generating: PaymentExtraction.self)
-        let normalized = Self.normalize(response.content, today: today, ocrText: source)
+        let content = try await Self.retryingOnExampleLeak {
+            try await LanguageModelSession(instructions: instructions)
+                .respond(to: source, generating: PaymentExtraction.self).content
+        }
+        let normalized = Self.normalize(content, today: today, ocrText: source)
         return Self.dropPartialItems(normalized, sourceClamped: source.count < text.count)
     }
 }
