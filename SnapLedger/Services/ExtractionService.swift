@@ -148,18 +148,6 @@ struct FoundationModelsExtractionService: ExtractionService {
 
     // MARK: - Post-processing
 
-    /// Known card issuer prefixes for filtering merchant field.
-    static let cardIssuerPrefixes: [String] = [
-        "현대카드", "신한카드", "삼성카드", "BC카드", "비씨카드",
-        "롯데카드", "국민카드", "KB카드", "KB국민카드",
-        "하나카드", "농협카드", "NH농협카드", "우리카드",
-        "씨티카드", "광주카드", "전북카드", "수협카드",
-    ]
-
-    static func isCardIssuerName(_ name: String) -> Bool {
-        cardIssuerPrefixes.contains { name.hasPrefix($0) }
-    }
-
     /// Placeholder prefixes used in prompt examples to detect hallucination.
     static let exampleMerchantPrefix = "예시상호"
     static let exampleItemPrefix = "예시품목"
