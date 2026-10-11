@@ -188,15 +188,12 @@ struct PendingProcessorTextPayloadTests {
         #expect(parsed.count == 1)
     }
 
-    @Test func longSharedTextIsClampedBeforeExtraction() async throws {
-        // A long share must not be sent whole: it would overflow the model's context window.
+    @Test func longSharedTextReachesExtractionWhole() async throws {
+        // The extraction service fits the text to the model; the processor passes it unchanged.
         let ctx = ModelContext(try makeContainer())
         let inbox = try makeInbox()
-        let limit = InboxPayload.extractionCharacterLimit
-        let filename = try writeSharedText(
-            "신한카드 승인 5,000원 스타벅스\n" + String(repeating: "가", count: limit),
-            named: "long.txt", in: inbox
-        )
+        let text = "신한카드 승인 5,000원 스타벅스\n" + String(repeating: "가", count: 3_000)
+        let filename = try writeSharedText(text, named: "long.txt", in: inbox)
 
         let pending = PendingImage(filename: filename)
         ctx.insert(pending)
@@ -219,8 +216,7 @@ struct PendingProcessorTextPayloadTests {
         )
         await processor.process(pending, in: ctx)
 
-        #expect(captured.text?.count == limit)
-        #expect(captured.text?.hasPrefix("신한카드 승인 5,000원 스타벅스") == true)
+        #expect(captured.text == text)
         #expect(pending.state == .done)
     }
 

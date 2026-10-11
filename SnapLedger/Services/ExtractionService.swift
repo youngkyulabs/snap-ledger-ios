@@ -338,15 +338,71 @@ struct FoundationModelsExtractionService: ExtractionService {
         return PaymentExtraction(transactions: droppingRedundantTransactions(cleaned))
     }
 
+    // MARK: - Source text budget
+
+    /// Tokens kept free for the response, which the schema's array caps keep within this.
+    static let responseTokenReserve = 1_000
+    /// Source characters used when the prompt cannot be measured (before iOS 26.4).
+    static let fallbackSourceCharacterLimit = 1_000
+    static let minimumSourceCharacterLimit = 500
+
+    /// Source characters left beside the prompt and response, at one token per character as Korean text measures.
+    static func sourceCharacterLimit(contextSize: Int, promptTokens: Int) -> Int {
+        max(contextSize - promptTokens - responseTokenReserve, minimumSourceCharacterLimit)
+    }
+
+    /// Keeps whole lines from the head and tail of over-long text, since receipts put the total and approval lines last.
+    static func clampSourceText(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        // One character goes to the joining newline.
+        let budget = max(limit - 1, 0)
+        let headBudget = budget / 2
+        var head = text.prefix(headBudget)
+        if let cut = head.lastIndex(where: \.isNewline) {
+            head = head[..<cut]
+        }
+        var tail = text.suffix(budget - headBudget)
+        if let cut = tail.firstIndex(where: \.isNewline) {
+            tail = tail[tail.index(after: cut)...]
+        }
+        return "\(head)\n\(tail)"
+    }
+
+    /// Drops item breakdowns that may be incomplete, so each receipt saves as one entry at its total.
+    static func dropPartialItems(_ extraction: PaymentExtraction, sourceClamped: Bool) -> PaymentExtraction {
+        PaymentExtraction(transactions: extraction.transactions.map { trans in
+            guard sourceClamped || trans.items.count >= PaymentTransaction.maximumItems else {
+                return trans
+            }
+            var t = trans
+            t.items = []
+            return t
+        })
+    }
+
+    private static func sourceCharacterLimit(instructions: String) async -> Int {
+        guard #available(iOS 26.4, *) else { return fallbackSourceCharacterLimit }
+        let model = SystemLanguageModel.default
+        do {
+            let promptTokens = try await model.tokenCount(for: Instructions(instructions))
+                + model.tokenCount(for: PaymentExtraction.generationSchema)
+            return sourceCharacterLimit(contextSize: model.contextSize, promptTokens: promptTokens)
+        } catch {
+            return fallbackSourceCharacterLimit
+        }
+    }
+
     func extract(from text: String) async throws -> PaymentExtraction {
         let today = Date.now
-        let session = LanguageModelSession(
-            instructions: Self.instructions(
-                today: today, customGuide: customGuide, categories: categories
-            )
+        let instructions = Self.instructions(
+            today: today, customGuide: customGuide, categories: categories
         )
-        let response = try await session.respond(to: text, generating: PaymentExtraction.self)
-        return Self.normalize(response.content, today: today, ocrText: text)
+        let limit = await Self.sourceCharacterLimit(instructions: instructions)
+        let source = Self.clampSourceText(text, limit: limit)
+        let session = LanguageModelSession(instructions: instructions)
+        let response = try await session.respond(to: source, generating: PaymentExtraction.self)
+        let normalized = Self.normalize(response.content, today: today, ocrText: source)
+        return Self.dropPartialItems(normalized, sourceClamped: source.count < text.count)
     }
 }
 

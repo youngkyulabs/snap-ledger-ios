@@ -3,8 +3,14 @@ import FoundationModels
 
 @Generable
 struct PaymentExtraction: Equatable, Sendable {
-    @Guide(description: "이미지에서 추출된 거래 목록. 카드 알림 N행이면 N개, 영수증 한 장이면 1개.")
+    @Guide(
+        description: "이미지에서 추출된 거래 목록. 카드 알림 N행이면 N개, 영수증 한 장이면 1개.",
+        .maximumCount(PaymentExtraction.maximumTransactions)
+    )
     var transactions: [PaymentTransaction]
+
+    /// Caps the response so it fits the token reserve kept for it.
+    static let maximumTransactions = 20
 }
 
 @Generable
@@ -21,8 +27,14 @@ struct PaymentTransaction: Equatable, Sendable {
     @Guide(description: "추정 카테고리. instructions에 주어진 카테고리 목록 안에서만 정확히 한 단어로 선택. 어느 것도 맞지 않거나 모르면 빈 문자열.")
     var category: String
 
-    @Guide(description: "이 거래가 영수증이면 품목별 분해. 카드 알림이면 빈 배열.")
+    @Guide(
+        description: "이 거래가 영수증이면 품목별 분해. 카드 알림이면 빈 배열.",
+        .maximumCount(PaymentTransaction.maximumItems)
+    )
     var items: [PaymentLineItem]
+
+    /// Caps the response so it fits the token reserve kept for it.
+    static let maximumItems = 30
 }
 
 @Generable
