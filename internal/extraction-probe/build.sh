@@ -19,8 +19,10 @@ fi
 app="$out/app"
 rm -rf "$app"
 mkdir -p "$app"
-for name in ExtractionService ExtractionService+Cleanup ExtractionService+Vision OCRLayout PaymentExtraction \
-    Int+ZeroPadded CandidateHeuristics CandidateAutoFill CategoryValidation OCRService ResumeOnce; do
+# Every ExtractionService extension file, so new ones are picked up without editing this list.
+cp "$services"/ExtractionService*.swift "$app/"
+for name in OCRLayout PaymentExtraction Int+ZeroPadded CandidateHeuristics CandidateAutoFill CategoryValidation \
+    OCRService ResumeOnce; do
     if [ -f "$services/$name.swift" ]; then
         cp "$services/$name.swift" "$app/"
     fi
