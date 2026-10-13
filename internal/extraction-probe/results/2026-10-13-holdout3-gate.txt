@@ -1,0 +1,39 @@
+# Held-out set 3 (32 images x 3 runs) — mixed-screen extraction
+
+## 2026-10-11: full package with a non-spending prompt sentence (condition X on both sides)
+Raw records of this run were lost with the scratch directory; the gate output, as logged:
+  B1 3/36 -> 14/36 (+30.6%p PASS), B2 2/24 -> 7/24 (+20.8%p PASS), B3 12 -> 9 (FAIL, may drop by at most 1),
+  entry precision 24.3% -> 37.3% (PASS) -> GATE FAIL.
+  B3 loss: b3-12, a KakaoTalk card-channel approval — with the sentence the model answered the issuer
+  ("삼성카드") 3/3 instead of the merchant, and the cleared merchant was refilled with "알림톡 도착".
+  The same run's post-processing-only replay: B1 6 -> 7, B2 2 -> 7, B3 13 -> 13, precision 27.0% -> 33.3% (PASS).
+  b1-09 overflowed the context (8193 > 8192 tokens) in both apps — a token-budget issue outside this change.
+Decision (2026-10-13): drop the prompt sentence; ship the post-processing and the placeholder retry.
+
+## 2026-10-13: shipped post-processing, re-measured
+main's raw answers (condition A, 2026-10-13-holdout3-main-A.jsonl) re-scored with the branch post-processing
+(2026-10-13-holdout3-postprocessed.jsonl). The full-package criteria below are shown for reference; the rule that
+applies is the post-processing-only one at the end.
+
+== current (main) vs new (branch)
+stratum  records   current       new     diff  routed  prec cur  prec new  date cur  date new
+B1            36         4         5    +2.8p       0     19.4%     26.9%6/13          7/18
+B2            24         1         7   +25.0p       0      0.0%     17.1%0/0            1/6
+B3            36        12        12    +0.0p       0     37.7%     37.7%26/29         26/29
+ALL           96        17        24    +7.3p       0     23.5%     29.6%32/42         34/53
+
+== gate
+FAIL B1: 4/36 -> 5/36 (+2.8%p, need >= +20%p)
+PASS B2: 1/24 -> 7/24 (+25.0%p, need >= +10%p)
+PASS B3: 12 -> 12 (may drop by at most 1)
+PASS overall entry precision: 23.5% -> 29.6%
+GATE FAIL
+
+== current vs current + post-processing only
+stratum  records   current       new     diff  routed  prec cur  prec new  date cur  date new
+B1            36         4         5    +2.8p       0     19.4%     26.9%6/13          7/18
+B2            24         1         7   +25.0p       0      0.0%     17.1%0/0            1/6
+B3            36        12        12    +0.0p       0     37.7%     37.7%26/29         26/29
+ALL           96        17        24    +7.3p       0     23.5%     29.6%32/42         34/53
+
+POST-PROCESSING ONLY PASS
