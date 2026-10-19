@@ -205,6 +205,13 @@ struct CandidateHeuristicsTests {
         #expect(CandidateHeuristics.merchants(from: ocr) == ["스타벅스 강남점", "GS25 선릉역점"])
     }
 
+    @Test func bracketsInNamesStayWholeAndLabelsAreNotNames() {
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 (주)이마트") == "(주)이마트")
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 스타벅스(강남점)") == "스타벅스(강남점)")
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 \"GS25\"") == "GS25")
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 [Web발신]") == nil)
+    }
+
     @Test func enrichAnchorsEachTransaction() {
         let extraction = PaymentExtraction(transactions: [
             PaymentTransaction(date: "2026-10-11", amount: 4600, merchant: "", category: "", items: []),

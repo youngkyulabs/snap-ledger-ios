@@ -106,6 +106,11 @@ enum CandidateHeuristics {
     /// Labels that follow the merchant on a notification line and end its name.
     private static let nameStopKeywords = ["누적", "잔액", "한도", "사용가능"]
 
+    /// Whitespace and punctuation trimmed around a name, keeping brackets so "(주)이마트" stays whole.
+    private static let nameTrimSet = CharacterSet.whitespacesAndNewlines
+        .union(.punctuationCharacters)
+        .subtracting(CharacterSet(charactersIn: "()[]"))
+
     /// Names written after a date or time come first (OCR order), then plain lines (OCR order).
     static func merchants(from ocrText: String, limit: Int = 5) -> [String] {
         var seen = Set<String>()
@@ -178,7 +183,7 @@ enum CandidateHeuristics {
            let match = weekday.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
             name = (name as NSString).substring(from: NSMaxRange(match.range))
         }
-        name = name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+        name = name.trimmingCharacters(in: nameTrimSet)
         return name.count >= 2 && isMerchantLike(name) ? name : nil
     }
 
