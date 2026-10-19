@@ -139,4 +139,87 @@ struct CandidateHeuristicsTests {
         // Timestamp metadata is not considered payment signal
         #expect(!CandidateHeuristics.hasPaymentSignal("2026 05 18 12:34"))
     }
+
+    // MARK: - names on a payment's own line
+
+    @Test func trailingNameAfterTime() {
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 찌개애감동") == "찌개애감동")
+    }
+
+    @Test func trailingNameCutsRunningTotal() {
+        #expect(CandidateHeuristics.trailingName("21:05 쿠팡이츠 누적1,034,700원") == "쿠팡이츠")
+    }
+
+    @Test func trailingNameIsNilWhenNothingFollows() {
+        #expect(CandidateHeuristics.trailingName("롯데카드 승인 박*우님 57,800원 일시불 10/08") == nil)
+    }
+
+    @Test func easyPayNames() {
+        #expect(CandidateHeuristics.easyPayName("12,000원 · 씨네Q 신도림") == "씨네Q 신도림")
+        #expect(CandidateHeuristics.easyPayName("GS25 선릉역점에서 4,600원을 결제했어요.") == "GS25 선릉역점")
+    }
+
+    @Test func anchoredMerchantFollowsEachAmount() {
+        let lines = [
+            "토스", "토스페이 결제 완료", "GS25 선릉역점에서 4,600원을 결제했어요.", "우리카드",
+            "우리카드(9*0*)승인 정*아님 15,000원 일시불", "10/11 08:47 카카오T 택시 누적389,200원",
+        ]
+        #expect(CandidateHeuristics.anchoredMerchant(amount: 4600, lines: lines) == "GS25 선릉역점")
+        #expect(CandidateHeuristics.anchoredMerchant(amount: 15000, lines: lines) == "카카오T 택시")
+        #expect(CandidateHeuristics.anchoredMerchant(amount: 0, lines: lines) == nil)
+    }
+
+    @Test func anchoredMerchantMatchesAmountWithoutSeparator() {
+        let lines = ["15000원 일시불", "10/11 08:47 카카오T 택시"]
+        #expect(CandidateHeuristics.anchoredMerchant(amount: 15000, lines: lines) == "카카오T 택시")
+    }
+
+    @Test func merchantsPutNamesAfterTimesFirstAndSkipClocks() {
+        let ocr = "9:41\n10월 10일 금요일\n카카오톡\n엄마\n삼성카드 승인 김O규\n27,500원 일시불\n10/10 18:22 아웃백 강남점\n오전 11:52"
+        let candidates = CandidateHeuristics.merchants(from: ocr)
+        #expect(candidates.first == "아웃백 강남점")
+        #expect(!candidates.contains("9:41"))
+        #expect(!candidates.contains("금요일"))
+        #expect(!candidates.contains { $0.contains("11:52") })
+    }
+
+    @Test func secondsMeridiemAndDigitsAreNotNames() {
+        #expect(CandidateHeuristics.trailingName("2026-10-09 18:32:11") == nil)
+        #expect(CandidateHeuristics.trailingName("10/09 14:22:35 스타벅스") == "스타벅스")
+        #expect(CandidateHeuristics.trailingName("11:52 AM") == nil)
+        #expect(CandidateHeuristics.trailingName("2026-10-09 18:32 #0012") == nil)
+    }
+
+    @Test func receiptTimestampWithSecondsDoesNotLeadCandidates() {
+        let ocr = "이마트 성수점\n2026-10-09 18:32:11\n서울우유 1L\n합계 43,970"
+        #expect(CandidateHeuristics.merchants(from: ocr).first == "이마트 성수점")
+    }
+
+    @Test func linesWithoutLettersAreNotCandidates() {
+        #expect(!CandidateHeuristics.merchants(from: "16°\n스타벅스 강남점").contains("16°"))
+    }
+
+    @Test func weekdayAfterDateIsNotPartOfTheName() {
+        #expect(CandidateHeuristics.trailingName("10/09(금) 스타벅스 강남점 12,000원") == "스타벅스 강남점")
+        let ocr = "10/09(금) 스타벅스 강남점 12,000원\n10/08(목) GS25 선릉역점 4,600원"
+        #expect(CandidateHeuristics.merchants(from: ocr) == ["스타벅스 강남점", "GS25 선릉역점"])
+    }
+
+    @Test func bracketsInNamesStayWholeAndLabelsAreNotNames() {
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 (주)이마트") == "(주)이마트")
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 스타벅스(강남점)") == "스타벅스(강남점)")
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 \"GS25\"") == "GS25")
+        #expect(CandidateHeuristics.trailingName("10/10 12:41 [Web발신]") == nil)
+    }
+
+    @Test func enrichAnchorsEachTransaction() {
+        let extraction = PaymentExtraction(transactions: [
+            PaymentTransaction(date: "2026-10-11", amount: 4600, merchant: "", category: "", items: []),
+            PaymentTransaction(date: "2026-10-11", amount: 15000, merchant: "", category: "", items: []),
+        ])
+        let ocr = "GS25 선릉역점에서 4,600원을 결제했어요.\n우리카드(9*0*)승인 15,000원 일시불\n10/11 08:47 카카오T 택시 누적389,200원"
+        let enriched = CandidateHeuristics.enrich(extraction, ocrText: ocr)
+        #expect(enriched[0].merchantCandidates.first == "GS25 선릉역점")
+        #expect(enriched[1].merchantCandidates.first == "카카오T 택시")
+    }
 }
