@@ -183,6 +183,28 @@ struct CandidateHeuristicsTests {
         #expect(!candidates.contains { $0.contains("11:52") })
     }
 
+    @Test func secondsMeridiemAndDigitsAreNotNames() {
+        #expect(CandidateHeuristics.trailingName("2026-10-09 18:32:11") == nil)
+        #expect(CandidateHeuristics.trailingName("10/09 14:22:35 스타벅스") == "스타벅스")
+        #expect(CandidateHeuristics.trailingName("11:52 AM") == nil)
+        #expect(CandidateHeuristics.trailingName("2026-10-09 18:32 #0012") == nil)
+    }
+
+    @Test func receiptTimestampWithSecondsDoesNotLeadCandidates() {
+        let ocr = "이마트 성수점\n2026-10-09 18:32:11\n서울우유 1L\n합계 43,970"
+        #expect(CandidateHeuristics.merchants(from: ocr).first == "이마트 성수점")
+    }
+
+    @Test func linesWithoutLettersAreNotCandidates() {
+        #expect(!CandidateHeuristics.merchants(from: "16°\n스타벅스 강남점").contains("16°"))
+    }
+
+    @Test func weekdayAfterDateIsNotPartOfTheName() {
+        #expect(CandidateHeuristics.trailingName("10/09(금) 스타벅스 강남점 12,000원") == "스타벅스 강남점")
+        let ocr = "10/09(금) 스타벅스 강남점 12,000원\n10/08(목) GS25 선릉역점 4,600원"
+        #expect(CandidateHeuristics.merchants(from: ocr) == ["스타벅스 강남점", "GS25 선릉역점"])
+    }
+
     @Test func enrichAnchorsEachTransaction() {
         let extraction = PaymentExtraction(transactions: [
             PaymentTransaction(date: "2026-10-11", amount: 4600, merchant: "", category: "", items: []),

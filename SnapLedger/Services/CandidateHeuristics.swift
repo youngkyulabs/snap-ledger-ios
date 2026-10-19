@@ -85,11 +85,16 @@ enum CandidateHeuristics {
     )
 
     private static let dateOrTimeInLine: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b\d{1,2}/\d{1,2}\b|\d{1,2}:\d{2}|\d{1,2}\s*월\s*\d{1,2}\s*일"#
+        pattern: #"\d{4}[-./]\d{1,2}[-./]\d{1,2}|\b\d{1,2}/\d{1,2}\b|\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?|\d{1,2}\s*월\s*\d{1,2}\s*일"#
     )
 
     private static let weekdayOnly: NSRegularExpression? = try? NSRegularExpression(
         pattern: #"^\(?[월화수목금토일](요일)?\)?$"#
+    )
+
+    /// A weekday written right after a date, such as "(금)" in "10/09(금) 스타벅스".
+    private static let leadingWeekday: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"^\s*(?:\(?[월화수목금토일](?:요일)?\)|[월화수목금토일]요일)\s*"#
     )
 
     /// Easy-pay banner layouts: "<amount>원 · <name>" and "<name>에서 <amount>원".
@@ -169,14 +174,18 @@ enum CandidateHeuristics {
            let match = amount.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
             name = (name as NSString).substring(to: match.range.location)
         }
+        if let weekday = leadingWeekday,
+           let match = weekday.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
+            name = (name as NSString).substring(from: NSMaxRange(match.range))
+        }
         name = name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
         return name.count >= 2 && isMerchantLike(name) ? name : nil
     }
 
-    /// Whether text can be a merchant: not an issuer, an amount, a bookkeeping label or a bare weekday.
+    /// Whether text can be a merchant: has a letter and is not an issuer, an amount, a bookkeeping label or a bare weekday.
     private static func isMerchantLike(_ text: String) -> Bool {
         // Bracketed text is a payment method label.
-        if text.count > 30 || text.hasPrefix("[") { return false }
+        if text.count > 30 || text.hasPrefix("[") || !text.contains(where: \.isLetter) { return false }
         if FoundationModelsExtractionService.isCardIssuerName(text) { return false }
         if containsMatch(amountInLine, in: text) || containsMatch(weekdayOnly, in: text) { return false }
         return !merchantExcludeKeywords.contains { text.contains($0) }
