@@ -61,13 +61,18 @@ struct HistoryCalendarGrid: View {
             isSelected: day == selection,
             height: cellHeight
         )
+        let accessibilityText = HistoryCalendar.accessibilityLabel(for: day, total: total, isToday: day == today)
         if state == .recorded {
             Button { onSelect(day) } label: { label }
                 .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityText)
+                .accessibilityAddTraits(day == selection ? [.isButton, .isSelected] : .isButton)
         } else {
             // Not a button, so the empty and future colors are not dimmed further.
             label
-                .accessibilityLabel(state == .future ? "\(day.day)일" : "\(day.day)일, 기록 없음")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityText)
         }
     }
 }

@@ -68,6 +68,14 @@ enum HistoryCalendar {
             .sorted { $0.savedAt > $1.savedAt }
     }
 
+    /// VoiceOver label for a day cell; total is nil when the day has no entries.
+    static func accessibilityLabel(for day: Day, total: Int?, isToday: Bool) -> String {
+        var parts = ["\(day.monthKey % 100)월 \(day.day)일"]
+        if isToday { parts.append("오늘") }
+        parts.append(total.map { "\($0.formatted(.number))원" } ?? "기록 없음")
+        return parts.joined(separator: ", ")
+    }
+
     static func csvFilename(monthKey: Int) -> String {
         "expenses-\((monthKey / 100).zeroPadded(4))-\((monthKey % 100).zeroPadded(2)).csv"
     }

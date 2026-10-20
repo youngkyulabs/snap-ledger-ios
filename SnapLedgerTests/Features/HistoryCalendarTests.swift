@@ -176,6 +176,16 @@ struct HistoryCalendarTests {
         #expect(picked.map(\.merchant) == ["B", "A"])
     }
 
+    // MARK: - Accessibility
+
+    @Test func accessibilityLabelReadsDateAndAmount() {
+        let day = Day(monthKey: 202610, day: 19)
+        #expect(HistoryCalendar.accessibilityLabel(for: day, total: 12000, isToday: false) == "10월 19일, 12,000원")
+        #expect(HistoryCalendar.accessibilityLabel(for: day, total: 0, isToday: false) == "10월 19일, 0원")
+        #expect(HistoryCalendar.accessibilityLabel(for: day, total: nil, isToday: false) == "10월 19일, 기록 없음")
+        #expect(HistoryCalendar.accessibilityLabel(for: day, total: nil, isToday: true) == "10월 19일, 오늘, 기록 없음")
+    }
+
     // MARK: - CSV filename
 
     @Test func csvFilenameMatchesMonthlyExport() {
