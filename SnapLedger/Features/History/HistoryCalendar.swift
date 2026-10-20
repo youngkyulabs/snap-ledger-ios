@@ -36,4 +36,46 @@ enum HistoryCalendar {
         if hasEntries { return .recorded }
         return (day.monthKey, day.day) > (today.monthKey, today.day) ? .future : .empty
     }
+
+    static func today(_ now: Date = .now, calendar: Calendar = .current) -> Day {
+        day(of: now, calendar: calendar)
+    }
+
+    /// Today when it has entries, else the latest recorded day before today; nil when none.
+    static func initialSelection(_ entries: [SavedEntry], today: Day, calendar: Calendar = .current) -> Day? {
+        entries
+            .map { day(of: $0.date, calendar: calendar) }
+            .filter { ($0.monthKey, $0.day) <= (today.monthKey, today.day) }
+            .max { ($0.monthKey, $0.day) < ($1.monthKey, $1.day) }
+    }
+
+    /// Newest first: earliest entry month … max(today's month, latest entry month); [today's month] when empty.
+    static func monthRange(_ entries: [SavedEntry], today: Day, calendar: Calendar = .current) -> [Int] {
+        let keys = entries.map { CategoryBudgetStore.monthKey(from: $0.date, calendar: calendar) }
+        let first = min(keys.min() ?? today.monthKey, today.monthKey)
+        let last = max(keys.max() ?? today.monthKey, today.monthKey)
+        var range = [first]
+        while let current = range.last, current < last {
+            range.append(CategoryBudgetStore.nextMonthKey(current))
+        }
+        return range.reversed()
+    }
+
+    /// Entries on that day, savedAt descending.
+    static func entries(on day: Day, from entries: [SavedEntry], calendar: Calendar = .current) -> [SavedEntry] {
+        entries
+            .filter { self.day(of: $0.date, calendar: calendar) == day }
+            .sorted { $0.savedAt > $1.savedAt }
+    }
+
+    static func csvFilename(monthKey: Int) -> String {
+        "expenses-\((monthKey / 100).zeroPadded(4))-\((monthKey % 100).zeroPadded(2)).csv"
+    }
+
+    private static func day(of date: Date, calendar: Calendar) -> Day {
+        Day(
+            monthKey: CategoryBudgetStore.monthKey(from: date, calendar: calendar),
+            day: calendar.component(.day, from: date)
+        )
+    }
 }

@@ -108,4 +108,78 @@ struct HistoryCalendarTests {
         #expect(state(202609, 30, false) == .empty)
         #expect(state(202610, 25, true) == .recorded)
     }
+
+    // MARK: - Today
+
+    @Test func todayUsesCalendar() {
+        #expect(HistoryCalendar.today(date(2026, 10, 20), calendar: kst) == Day(monthKey: 202610, day: 20))
+    }
+
+    // MARK: - Initial selection
+
+    private let october20 = Day(monthKey: 202610, day: 20)
+
+    @Test func initialSelectionPrefersToday() {
+        let entries = [entry(2026, 10, 20), entry(2026, 10, 19)]
+        let pick = HistoryCalendar.initialSelection(entries, today: october20, calendar: kst)
+        #expect(pick == october20)
+    }
+
+    @Test func initialSelectionFallsBackToLatestPastDay() {
+        let entries = [entry(2026, 10, 19), entry(2026, 9, 3)]
+        let pick = HistoryCalendar.initialSelection(entries, today: october20, calendar: kst)
+        #expect(pick == Day(monthKey: 202610, day: 19))
+    }
+
+    @Test func initialSelectionIgnoresFutureEntries() {
+        let mixed = [entry(2026, 10, 25), entry(2026, 10, 19)]
+        #expect(HistoryCalendar.initialSelection(mixed, today: october20, calendar: kst) == Day(monthKey: 202610, day: 19))
+        let futureOnly = [entry(2026, 10, 25)]
+        #expect(HistoryCalendar.initialSelection(futureOnly, today: october20, calendar: kst) == nil)
+    }
+
+    @Test func initialSelectionNilWhenEmpty() {
+        #expect(HistoryCalendar.initialSelection([], today: october20, calendar: kst) == nil)
+    }
+
+    // MARK: - Month range
+
+    @Test func monthRangeFromEarliestToToday() {
+        let entries = [entry(2026, 8, 1), entry(2026, 10, 19)]
+        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [202610, 202609, 202608])
+    }
+
+    @Test func monthRangeExtendsToFutureEntryMonth() {
+        let entries = [entry(2026, 10, 19), entry(2026, 12, 1)]
+        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [202612, 202611, 202610])
+    }
+
+    @Test func monthRangeCrossesYearBoundary() {
+        let entries = [entry(2025, 12, 31)]
+        let today = Day(monthKey: 202602, day: 1)
+        #expect(HistoryCalendar.monthRange(entries, today: today, calendar: kst) == [202602, 202601, 202512])
+    }
+
+    @Test func monthRangeEmptyIsTodayMonth() {
+        #expect(HistoryCalendar.monthRange([], today: october20, calendar: kst) == [202610])
+    }
+
+    // MARK: - Entries on a day
+
+    @Test func entriesOnDaySortedBySavedAtDescending() {
+        let entries = [
+            entry(2026, 10, 19, merchant: "A", savedAt: date(2026, 10, 19, 9)),
+            entry(2026, 10, 19, merchant: "B", savedAt: date(2026, 10, 19, 11)),
+            entry(2026, 10, 18, merchant: "C"),
+        ]
+        let picked = HistoryCalendar.entries(on: Day(monthKey: 202610, day: 19), from: entries, calendar: kst)
+        #expect(picked.map(\.merchant) == ["B", "A"])
+    }
+
+    // MARK: - CSV filename
+
+    @Test func csvFilenameMatchesMonthlyExport() {
+        #expect(HistoryCalendar.csvFilename(monthKey: 202610) == "expenses-2026-10.csv")
+        #expect(HistoryCalendar.csvFilename(monthKey: 202601) == "expenses-2026-01.csv")
+    }
 }
