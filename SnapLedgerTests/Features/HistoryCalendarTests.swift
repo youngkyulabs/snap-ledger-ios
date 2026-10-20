@@ -54,6 +54,20 @@ struct HistoryCalendarTests {
         #expect(cells[36] == 31)
     }
 
+    @Test func cellsForMonthStartingOnSunday() {
+        let cells = HistoryCalendar.cells(monthKey: 202611, calendar: kst)
+        #expect(cells[0] == 1)
+        #expect(cells[29] == 30)
+        #expect(cells[30...].allSatisfy { $0 == nil })
+    }
+
+    @Test func cellsForFourWeekFebruary() {
+        let cells = HistoryCalendar.cells(monthKey: 202602, calendar: kst)
+        #expect(cells[0] == 1)
+        #expect(cells[27] == 28)
+        #expect(cells[28...].allSatisfy { $0 == nil })
+    }
+
     @Test func cellsStayOnSundayStart() {
         var mondayFirst = kst
         mondayFirst.firstWeekday = 2
@@ -160,6 +174,12 @@ struct HistoryCalendarTests {
         #expect(HistoryCalendar.monthRange(entries, today: today, calendar: kst) == [202602, 202601, 202512])
     }
 
+    @Test func monthRangeKeepsDisplayedMonthOutsideData() {
+        let entries = [entry(2026, 10, 19)]
+        let range = HistoryCalendar.monthRange(entries, today: october20, keeping: 202608, calendar: kst)
+        #expect(range == [202610, 202609, 202608])
+    }
+
     @Test func monthRangeEmptyIsTodayMonth() {
         #expect(HistoryCalendar.monthRange([], today: october20, calendar: kst) == [202610])
     }
@@ -174,6 +194,12 @@ struct HistoryCalendarTests {
         ]
         let picked = HistoryCalendar.entries(on: Day(monthKey: 202610, day: 19), from: entries, calendar: kst)
         #expect(picked.map(\.merchant) == ["B", "A"])
+    }
+
+    @Test func entriesOnDayIgnoresSameDayInOtherMonth() {
+        let entries = [entry(2026, 10, 19, merchant: "Oct"), entry(2026, 9, 19, merchant: "Sep")]
+        let picked = HistoryCalendar.entries(on: Day(monthKey: 202610, day: 19), from: entries, calendar: kst)
+        #expect(picked.map(\.merchant) == ["Oct"])
     }
 
     // MARK: - Accessibility

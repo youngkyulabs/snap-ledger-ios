@@ -4,6 +4,7 @@ import SwiftData
 /// Month calendar of daily spending; the selected day's entries sit below it.
 struct HistoryCalendarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @ScaledMetric(relativeTo: .callout) private var cellHeight: CGFloat = 48
 
@@ -12,6 +13,7 @@ struct HistoryCalendarView: View {
     @State private var movingForward = true
     @State private var editingEntry: SavedEntry?
     @State private var didSetInitialSelection = false
+    @State private var today = HistoryCalendar.today()
 
     private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -24,8 +26,7 @@ struct HistoryCalendarView: View {
         reduceMotion ? nil : .smooth(duration: 0.35)
     }
 
-    private var today: HistoryCalendar.Day { HistoryCalendar.today() }
-    private var monthKeys: [Int] { HistoryCalendar.monthRange(entries, today: today) }
+    private var monthKeys: [Int] { HistoryCalendar.monthRange(entries, today: today, keeping: displayedMonth) }
     private var totals: [Int: Int] { HistoryCalendar.dailyTotals(entries, monthKey: displayedMonth) }
     private var monthTotal: Int { totals.values.reduce(0, +) }
 
@@ -65,6 +66,14 @@ struct HistoryCalendarView: View {
             SavedEntryEditorView(entry: entry)
         }
         .onAppear(perform: setInitialSelection)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { today = HistoryCalendar.today() }
+        }
+        .task {
+            for await _ in NotificationCenter.default.notifications(named: .NSCalendarDayChanged) {
+                today = HistoryCalendar.today()
+            }
+        }
     }
 
     private var calendarSection: some View {
@@ -150,7 +159,12 @@ struct HistoryCalendarView: View {
         guard !didSetInitialSelection else { return }
         didSetInitialSelection = true
         guard let pick = HistoryCalendar.initialSelection(entries, today: today) else { return }
-        selection = pick
-        displayedMonth = pick.monthKey
+        // Opening on an earlier month must not slide in from the current one.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selection = pick
+            displayedMonth = pick.monthKey
+        }
     }
 }

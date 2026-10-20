@@ -50,8 +50,14 @@ enum HistoryCalendar {
     }
 
     /// Newest first: earliest entry month … max(today's month, latest entry month); [today's month] when empty.
-    static func monthRange(_ entries: [SavedEntry], today: Day, calendar: Calendar = .current) -> [Int] {
-        let keys = entries.map { CategoryBudgetStore.monthKey(from: $0.date, calendar: calendar) }
+    /// `keeping` stretches the range so a month on screen stays listed after its entries are deleted.
+    static func monthRange(
+        _ entries: [SavedEntry],
+        today: Day,
+        keeping kept: Int? = nil,
+        calendar: Calendar = .current
+    ) -> [Int] {
+        let keys = entries.map { CategoryBudgetStore.monthKey(from: $0.date, calendar: calendar) } + [kept].compactMap { $0 }
         let first = min(keys.min() ?? today.monthKey, today.monthKey)
         let last = max(keys.max() ?? today.monthKey, today.monthKey)
         var range = [first]
@@ -77,7 +83,7 @@ enum HistoryCalendar {
     }
 
     static func csvFilename(monthKey: Int) -> String {
-        "expenses-\((monthKey / 100).zeroPadded(4))-\((monthKey % 100).zeroPadded(2)).csv"
+        CSVWriter.filename(forMonthKey: SyncCoordinator.monthKeyString(from: monthKey))
     }
 
     private static func day(of date: Date, calendar: Calendar) -> Day {

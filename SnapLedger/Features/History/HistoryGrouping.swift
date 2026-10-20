@@ -13,10 +13,6 @@ enum HistoryGrouping {
         let title: String
         let total: Int
         let days: [DayGroup]
-
-        var csvFilename: String {
-            "expenses-\((id.year ?? 0).zeroPadded(4))-\((id.month ?? 0).zeroPadded(2)).csv"
-        }
     }
 
     static func group(

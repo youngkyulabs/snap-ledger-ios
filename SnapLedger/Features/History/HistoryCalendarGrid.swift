@@ -84,6 +84,7 @@ private struct DayCellLabel: View {
     let isToday: Bool
     let isSelected: Bool
     let height: CGFloat
+    @ScaledMetric(relativeTo: .caption2) private var amountSize: CGFloat = 10
 
     private var numberStyle: AnyShapeStyle {
         switch state {
@@ -98,11 +99,15 @@ private struct DayCellLabel: View {
             Text("\(day)")
                 .font(.callout.weight(isToday ? .bold : .regular))
                 .foregroundStyle(numberStyle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(total > 0 ? total.formatted(.number) : " ")
-                .font(.system(size: 10).monospacedDigit())
+                // Capped so six-digit amounts in neighboring cells never touch.
+                .font(.system(size: min(amountSize, 12)).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .padding(.horizontal, 2)
         }
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
         .background {
