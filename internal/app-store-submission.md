@@ -160,6 +160,11 @@ There is no account sign-up, no purchase, no advertising.
 
 이미지만 바꿀 때는 Asset Library에서 단독 제출해 승인받은 뒤 자리를 바꾸면 버전 업데이트가 필요 없다.
 
+**자동화는 fastlane을 기다린다.** fastlane 2.241.1의 `deliver`는 이 자리를 지원하지 않는다.
+지원 PR [fastlane/fastlane#30442](https://github.com/fastlane/fastlane/pull/30442)(`creative_assets`,
+`overwrite_creative_assets`)이 머지되면 `release.yml`의 fastlane 버전을 올리고 deliver 옵션으로 옮긴다.
+그 전까지는 위 순서대로 손으로 붙인다(리포 스크립트로 직접 만들지 않기로 함, 2026-10-25).
+
 ---
 
 ## 변경 이력
