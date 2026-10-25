@@ -135,6 +135,33 @@ There is no account sign-up, no purchase, no advertising.
 
 ---
 
+## 5. 제품 페이지 헤더 · 검색 결과 이미지 (iOS 27+)
+
+스크린샷과 별개인 홍보 이미지(creative asset)다. 선택 항목이며 iOS 27 / iPadOS 27 이상에서만
+보이고, 지정하지 않으면 검색 결과에는 스크린샷이 대신 나온다.
+
+| 항목 | 값 |
+|---|---|
+| 파일 | `internal/creative/universal-16x9.png` (원본 `header.html` + `header.css`, `./scripts/render_header.sh`로 생성) |
+| 규격 | universal 16:9, 5244×2950 PNG, 알파 없음 — 한 장으로 헤더(21:9로 잘림)와 검색 결과(3:2로 잘림) 두 자리를 채운다 |
+| 내용 | 「스크린샷이 한 줄 가계부로」 + 일반 카드 알림 → 실제 검토 화면(`internal/screenshot/iPhone1.png`) |
+| 안전 영역 | 21:9와 3:2 가운데 영역의 교집합 안, 3:2 좌우 안쪽 여백 약 120pt(CSS). Apple 템플릿의 기기별 안전 영역은 아니므로 ASC Preview가 최종 판단 |
+| 문구 규칙 | 가격·할인·URL·©·수상 표기·다른 플랫폼 로고 금지 (App Store asset best practices, 심사 지침 2.3). 알림 예시는 카드사 이름을 넣지 않는다 |
+
+**올리는 순서.** 승인된 버전에는 자리를 추가할 수 없다(1.4의 placement는 `ACTIVE`).
+`fastlane deliver`는 이 자리를 다루지 않으므로 릴리즈 잡이 끝난 **뒤에** 손으로 붙인다.
+
+1. `vX.Y` 태그 → release 잡의 `deliver`가 새 버전 초안과 스크린샷을 만든다.
+2. ASC → 해당 버전 → Product Page Information → **Header and Search Results** 탭에서
+   Header, Search Results 각각에 같은 파일을 올린다(두 번째는 Browse Assets로 재사용).
+3. **Preview**로 iPhone·iPad, 가로·세로, 다크 모드를 확인한다. 잘리거나 어색하면 `header.html`을
+   고쳐 다시 렌더한다.
+4. 버전과 함께 심사 제출.
+
+이미지만 바꿀 때는 Asset Library에서 단독 제출해 승인받은 뒤 자리를 바꾸면 버전 업데이트가 필요 없다.
+
+---
+
 ## 변경 이력
 
 | 버전 | 날짜 | 비고 |

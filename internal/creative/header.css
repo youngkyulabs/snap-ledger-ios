@@ -1,0 +1,49 @@
+/* Canvas 2622x1475 CSS px, rendered at 2x = 5244x2950 (universal 16:9). */
+:root {
+  --coral: #E8644F;
+  --ink: #111114;
+  --sub: #6E6E76;
+  --bg: #F2F2F7;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 2622px; height: 1475px; overflow: hidden; }
+body {
+  background: var(--bg);
+  font-family: -apple-system, "SF Pro Display", "Apple SD Gothic Neo", sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.canvas { position: relative; width: 2622px; height: 1475px; }
+/* Header keeps the middle 21:9 band, search results the middle 3:2 (x 205–2417); stay ~120px inside both. */
+.safe {
+  position: absolute; left: 325px; top: 206px; width: 1972px; height: 1063px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.text { width: 740px; }
+.tagline { font-size: 112px; font-weight: 800; letter-spacing: -3px; line-height: 1.12; }
+.subline { margin-top: 32px; font-size: 44px; font-weight: 500; color: var(--sub); letter-spacing: -1px; }
+.accent { color: var(--coral); }
+.flow { display: flex; align-items: center; gap: 36px; }
+.notif {
+  width: 540px; border-radius: 46px; padding: 30px 34px;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 24px 60px rgba(0,0,0,.14);
+  display: flex; gap: 24px; align-items: flex-start;
+}
+.notif .icon {
+  flex: none; width: 80px; height: 80px; border-radius: 19px;
+  background: linear-gradient(135deg, #5B6CFF, #3A47C9);
+  color: #fff; font-size: 34px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.notif .content { flex: 1; }
+.notif .head { display: flex; justify-content: space-between; font-size: 27px; color: var(--sub); }
+.notif .title { font-size: 32px; font-weight: 700; margin-top: 6px; }
+.notif .body { font-size: 30px; line-height: 1.35; margin-top: 4px; }
+.arrow { font-size: 92px; color: var(--coral); font-weight: 700; line-height: 1; }
+.phone {
+  flex: none; width: 440px; height: 956px;
+  border-radius: 77px; background: #1C1C1E; padding: 13px;
+  box-shadow: 0 40px 90px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.10);
+}
+.phone img { width: 100%; height: 100%; border-radius: 64px; display: block; object-fit: cover; object-position: top; }
