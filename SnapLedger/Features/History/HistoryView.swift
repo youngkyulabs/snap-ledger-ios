@@ -55,16 +55,15 @@ struct HistoryView: View {
                 prompt: "설명·카테고리·메모·금액 검색"
             )
             .toolbar {
-                // Allow navigation to monthly CSV viewer.
-                if !entries.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink {
-                            PastMonthsView()
-                        } label: {
-                            Image(systemName: "calendar")
-                                .accessibilityLabel("월별 보기")
-                        }
+                // Disabled rather than removed, so deleting the last entry does not pop the calendar.
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        HistoryCalendarView()
+                    } label: {
+                        Image(systemName: "calendar")
+                            .accessibilityLabel("달력")
                     }
+                    .disabled(entries.isEmpty)
                 }
             }
             .navigationTitle("최근 기록")
@@ -185,7 +184,7 @@ struct MonthSections: View {
     }
 }
 
-private struct HistoryRow: View {
+struct HistoryRow: View {
     let entry: SavedEntry
 
     private var note: String? {
@@ -221,107 +220,9 @@ private struct HistoryRow: View {
     }
 }
 
-struct PastMonthsView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
-
-    private var months: [HistoryGrouping.MonthGroup] {
-        HistoryGrouping.group(entries: entries)
-    }
-
-    var body: some View {
-        Group {
-            if months.isEmpty {
-                ContentUnavailableView(
-                    "기록 없음",
-                    systemImage: "calendar",
-                    description: Text("기록이 쌓이면 월별로 여기 정리돼요.")
-                )
-            } else {
-                List {
-                    ForEach(months) { month in
-                        NavigationLink {
-                            PastMonthDetailView(monthId: month.id)
-                        } label: {
-                            LabeledContent {
-                                Text("\(month.total.formatted(.number))원")
-                                    .monospacedDigit()
-                                    .foregroundStyle(.secondary)
-                            } label: {
-                                Text(month.title)
-                            }
-                        }
-                    }
-                }
-                .contentMargins(.bottom, 24, for: .scrollContent)
-            }
-        }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: months.isEmpty)
-        .navigationTitle("월별 기록")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct PastMonthDetailView: View {
-    let monthId: DateComponents
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
-    @State private var editingEntry: SavedEntry?
-    @State private var reorderError: String?
-
-    private var month: HistoryGrouping.MonthGroup? {
-        HistoryGrouping.group(entries: entries).first { $0.id == monthId }
-    }
-
-    var body: some View {
-        Group {
-            if let month {
-                List {
-                    MonthSections(month: month, editingEntry: $editingEntry, onMove: moveEntries)
-                }
-                .contentMargins(.bottom, 24, for: .scrollContent)
-                .navigationTitle(month.title)
-                .navigationSubtitle("합계 \(month.total.formatted(.number))원")
-                .sheet(item: $editingEntry) { entry in
-                    SavedEntryEditorView(entry: entry)
-                }
-                .reorderFailureAlert($reorderError)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink {
-                            CSVFileView(
-                                csvFilename: month.csvFilename,
-                                monthTitle: month.title
-                            )
-                        } label: {
-                            Image(systemName: "doc.text")
-                                .accessibilityLabel("CSV 파일 보기")
-                        }
-                    }
-                }
-            } else {
-                ContentUnavailableView(
-                    "기록 없음",
-                    systemImage: "list.bullet.rectangle",
-                    description: Text("이 달의 모든 기록이 삭제됐어요.")
-                )
-            }
-        }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: month == nil)
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func moveEntries(in day: HistoryGrouping.DayGroup, from source: IndexSet, to destination: Int) {
-        var reordered = day.entries
-        reordered.move(fromOffsets: source, toOffset: destination)
-        EntryReorderAction.perform(reordered, context: modelContext) { reorderError = $0 }
-    }
-}
-
 /// Coordinates saving updated entry ordering.
 @MainActor
-private enum EntryReorderAction {
+enum EntryReorderAction {
     static func perform(
         _ reordered: [SavedEntry],
         context: ModelContext,
@@ -336,7 +237,7 @@ private enum EntryReorderAction {
     }
 }
 
-private extension View {
+extension View {
     func reorderFailureAlert(_ message: Binding<String?>) -> some View {
         alert(
             "순서 변경 실패",
