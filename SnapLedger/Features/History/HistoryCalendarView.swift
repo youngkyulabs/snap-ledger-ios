@@ -85,7 +85,7 @@ struct HistoryCalendarView: View {
             .padding(.vertical, 4)
         } header: {
             HStack {
-                Text("이번 달 합계")
+                Text("\(ledgerMonthLabel(displayedMonth)) 합계")
                 Spacer()
                 Text("\(totals.values.reduce(0, +).formatted(.number))원")
                     .monospacedDigit()

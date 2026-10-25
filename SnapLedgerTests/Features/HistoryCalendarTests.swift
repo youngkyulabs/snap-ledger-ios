@@ -158,26 +158,36 @@ struct HistoryCalendarTests {
 
     // MARK: - Month range
 
-    @Test func monthRangeFromEarliestToToday() {
-        let entries = [entry(2026, 8, 1), entry(2026, 10, 19)]
-        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [202610, 202609, 202608])
+    @Test func monthRangeListsRecordedMonthsAndToday() {
+        let entries = [entry(2026, 8, 1), entry(2026, 8, 20), entry(2026, 10, 19)]
+        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [202610, 202608])
     }
 
-    @Test func monthRangeExtendsToFutureEntryMonth() {
+    @Test func monthRangeIncludesTodayWithoutEntries() {
+        let entries = [entry(2026, 8, 1)]
+        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [202610, 202608])
+    }
+
+    @Test func monthRangeIncludesFutureEntryMonth() {
         let entries = [entry(2026, 10, 19), entry(2026, 12, 1)]
-        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [202612, 202611, 202610])
+        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [202612, 202610])
+    }
+
+    @Test func monthRangeAddsOnlyOneMonthForOutlierYear() {
+        let entries = [entry(2026, 10, 19), entry(2062, 3, 1)]
+        #expect(HistoryCalendar.monthRange(entries, today: october20, calendar: kst) == [206203, 202610])
     }
 
     @Test func monthRangeCrossesYearBoundary() {
         let entries = [entry(2025, 12, 31)]
         let today = Day(monthKey: 202602, day: 1)
-        #expect(HistoryCalendar.monthRange(entries, today: today, calendar: kst) == [202602, 202601, 202512])
+        #expect(HistoryCalendar.monthRange(entries, today: today, calendar: kst) == [202602, 202512])
     }
 
     @Test func monthRangeKeepsDisplayedMonthOutsideData() {
         let entries = [entry(2026, 10, 19)]
         let range = HistoryCalendar.monthRange(entries, today: october20, keeping: 202608, calendar: kst)
-        #expect(range == [202610, 202609, 202608])
+        #expect(range == [202610, 202608])
     }
 
     @Test func monthRangeEmptyIsTodayMonth() {

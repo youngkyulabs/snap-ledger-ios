@@ -49,22 +49,20 @@ enum HistoryCalendar {
             .max { ($0.monthKey, $0.day) < ($1.monthKey, $1.day) }
     }
 
-    /// Newest first: earliest entry month … max(today's month, latest entry month); [today's month] when empty.
-    /// `keeping` stretches the range so a month on screen stays listed after its entries are deleted.
+    /// Months with entries plus today's month, newest first.
+    /// `keeping` keeps a month on screen listed after its entries are deleted.
     static func monthRange(
         _ entries: [SavedEntry],
         today: Day,
         keeping kept: Int? = nil,
         calendar: Calendar = .current
     ) -> [Int] {
-        let keys = entries.map { CategoryBudgetStore.monthKey(from: $0.date, calendar: calendar) } + [kept].compactMap { $0 }
-        let first = min(keys.min() ?? today.monthKey, today.monthKey)
-        let last = max(keys.max() ?? today.monthKey, today.monthKey)
-        var range = [first]
-        while let current = range.last, current < last {
-            range.append(CategoryBudgetStore.nextMonthKey(current))
+        var keys: Set<Int> = [today.monthKey]
+        for entry in entries {
+            keys.insert(CategoryBudgetStore.monthKey(from: entry.date, calendar: calendar))
         }
-        return range.reversed()
+        if let kept { keys.insert(kept) }
+        return keys.sorted(by: >)
     }
 
     /// Entries on that day, savedAt descending.
