@@ -82,6 +82,21 @@ enum HistoryCalendar {
         return parts.joined(separator: ", ")
     }
 
+    /// "10월 19일 (월)" in the given calendar's time zone.
+    static func title(of day: Day, calendar: Calendar = .current) -> String {
+        var comps = DateComponents()
+        comps.year = day.monthKey / 100
+        comps.month = day.monthKey % 100
+        comps.day = day.day
+        comps.hour = 12
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M월 d일 (E)"
+        return calendar.date(from: comps).map(formatter.string(from:)) ?? ""
+    }
+
     static func csvFilename(monthKey: Int) -> String {
         CSVWriter.filename(forMonthKey: SyncCoordinator.monthKeyString(from: monthKey))
     }

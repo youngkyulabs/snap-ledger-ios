@@ -212,6 +212,18 @@ struct HistoryCalendarTests {
         #expect(HistoryCalendar.accessibilityLabel(for: day, total: nil, isToday: true) == "10월 19일, 오늘, 기록 없음")
     }
 
+    // MARK: - Day title
+
+    @Test func titleReadsMonthDayAndWeekday() {
+        #expect(HistoryCalendar.title(of: Day(monthKey: 202610, day: 19), calendar: kst) == "10월 19일 (월)")
+    }
+
+    @Test func titleUsesCalendarTimeZone() {
+        var la = kst
+        la.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        #expect(HistoryCalendar.title(of: Day(monthKey: 202610, day: 19), calendar: la) == "10월 19일 (월)")
+    }
+
     // MARK: - CSV filename
 
     @Test func csvFilenameMatchesMonthlyExport() {

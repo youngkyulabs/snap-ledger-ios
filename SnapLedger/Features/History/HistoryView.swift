@@ -55,16 +55,15 @@ struct HistoryView: View {
                 prompt: "설명·카테고리·메모·금액 검색"
             )
             .toolbar {
-                // Opens the month calendar.
-                if !entries.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink {
-                            HistoryCalendarView()
-                        } label: {
-                            Image(systemName: "calendar")
-                                .accessibilityLabel("달력")
-                        }
+                // Disabled rather than removed, so deleting the last entry does not pop the calendar.
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        HistoryCalendarView()
+                    } label: {
+                        Image(systemName: "calendar")
+                            .accessibilityLabel("달력")
                     }
+                    .disabled(entries.isEmpty)
                 }
             }
             .navigationTitle("최근 기록")

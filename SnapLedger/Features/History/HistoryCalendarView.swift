@@ -15,22 +15,13 @@ struct HistoryCalendarView: View {
     @State private var didSetInitialSelection = false
     @State private var today = HistoryCalendar.today()
 
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "M월 d일 (E)"
-        return formatter
-    }()
-
     private var motion: Animation? {
         reduceMotion ? nil : .smooth(duration: 0.35)
     }
 
-    private var monthKeys: [Int] { HistoryCalendar.monthRange(entries, today: today, keeping: displayedMonth) }
-    private var totals: [Int: Int] { HistoryCalendar.dailyTotals(entries, monthKey: displayedMonth) }
-    private var monthTotal: Int { totals.values.reduce(0, +) }
-
     var body: some View {
+        let monthKeys = HistoryCalendar.monthRange(entries, today: today, keeping: displayedMonth)
+        let totals = HistoryCalendar.dailyTotals(entries, monthKey: displayedMonth)
         List {
             Section {
                 MonthNavigationRow(
@@ -43,7 +34,7 @@ struct HistoryCalendarView: View {
                     select: showMonth
                 )
             }
-            calendarSection
+            calendarSection(totals: totals)
             daySection
         }
         .navigationTitle("달력")
@@ -76,7 +67,7 @@ struct HistoryCalendarView: View {
         }
     }
 
-    private var calendarSection: some View {
+    private func calendarSection(totals: [Int: Int]) -> some View {
         Section {
             HistoryCalendarGrid(
                 monthKey: displayedMonth,
@@ -93,7 +84,7 @@ struct HistoryCalendarView: View {
             HStack {
                 Text("이번 달 합계")
                 Spacer()
-                Text("\(monthTotal.formatted(.number))원")
+                Text("\(totals.values.reduce(0, +).formatted(.number))원")
                     .monospacedDigit()
                     .contentTransition(.numericText())
             }
@@ -126,7 +117,7 @@ struct HistoryCalendarView: View {
             // Overlapping old and new headers fade without sharing geometry.
             ZStack {
                 HStack {
-                    Text(selection.map(title(of:)) ?? " ")
+                    Text(selection.map { HistoryCalendar.title(of: $0) } ?? " ")
                     Spacer()
                     if selection != nil {
                         Text("\(dayEntries.reduce(0) { $0 + $1.amount }.formatted(.number))원")
@@ -138,12 +129,6 @@ struct HistoryCalendarView: View {
             }
             .textCase(nil)
         }
-    }
-
-    private func title(of day: HistoryCalendar.Day) -> String {
-        let first = CategoryBudgetStore.date(from: day.monthKey)
-        let date = Calendar.current.date(byAdding: .day, value: day.day - 1, to: first) ?? first
-        return Self.dayFormatter.string(from: date)
     }
 
     /// Applies the direction first, then animates the month on the next tick; List drops the animation when both land together.
