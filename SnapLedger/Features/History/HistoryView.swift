@@ -222,7 +222,7 @@ struct HistoryRow: View {
 
 /// Coordinates saving updated entry ordering.
 @MainActor
-private enum EntryReorderAction {
+enum EntryReorderAction {
     static func perform(
         _ reordered: [SavedEntry],
         context: ModelContext,
@@ -237,7 +237,7 @@ private enum EntryReorderAction {
     }
 }
 
-private extension View {
+extension View {
     func reorderFailureAlert(_ message: Binding<String?>) -> some View {
         alert(
             "순서 변경 실패",

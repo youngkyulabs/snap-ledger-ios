@@ -5,6 +5,7 @@ import SwiftData
 struct HistoryCalendarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \SavedEntry.savedAt, order: .reverse) private var entries: [SavedEntry]
     @ScaledMetric(relativeTo: .callout) private var cellHeight: CGFloat = 48
 
@@ -12,6 +13,7 @@ struct HistoryCalendarView: View {
     @State private var selection: HistoryCalendar.Day?
     @State private var movingForward = true
     @State private var editingEntry: SavedEntry?
+    @State private var reorderError: String?
     @State private var didSetInitialSelection = false
     @State private var today = HistoryCalendar.today()
 
@@ -56,6 +58,7 @@ struct HistoryCalendarView: View {
         .sheet(item: $editingEntry) { entry in
             SavedEntryEditorView(entry: entry)
         }
+        .reorderFailureAlert($reorderError)
         .onAppear(perform: setInitialSelection)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { today = HistoryCalendar.today() }
@@ -111,6 +114,11 @@ struct HistoryCalendarView: View {
                         HistoryRow(entry: entry)
                     }
                     .buttonStyle(.plain)
+                }
+                .onMove { source, destination in
+                    var reordered = dayEntries
+                    reordered.move(fromOffsets: source, toOffset: destination)
+                    EntryReorderAction.perform(reordered, context: modelContext) { reorderError = $0 }
                 }
             }
         } header: {

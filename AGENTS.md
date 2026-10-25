@@ -132,7 +132,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     Review/                          # ReviewListView (+ menu, drop zone, badge, processing indicator), EntryEditorView (chip row + ReviewDateStatus date warning icon),
                                      #            BudgetToastView (bottom floating toast on budget threshold during review save), FailedImagesSection, InboxImage
     History/                         # HistoryView (@Query SavedEntry, daily sections + .searchable; toolbar calendar icon → HistoryCalendarView), SavedEntryEditorView,
-                                     # HistoryCalendarView (month calendar of daily totals, selected day's entries below; selection survives month changes) + HistoryCalendarGrid (fixed 6×7 grid, Sunday first),
+                                     # HistoryCalendarView (month calendar of daily totals, selected day's entries below, reorderable within the day; selection survives month changes) + HistoryCalendarGrid (fixed 6×7 grid, Sunday first),
                                      # HistoryCalendar (pure: cells, daily totals, day state, initial selection, month range),
                                      # CSVFileView (monthly table viewer + multi-select copy/share), HistoryGrouping, EntrySearch (pure — partial match for merchant/category/note + exact match for amount)
     Statistics/                      # StatisticsSections (ledger list sections: 카테고리 비중 donut + 월별 추세),
