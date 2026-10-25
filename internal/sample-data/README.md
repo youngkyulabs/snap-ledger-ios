@@ -73,33 +73,74 @@ hero 실지출과 맞물려 **초과 1건(교통)·주의 1건(식비)·여유 �
 > 디버그 빌드에 **자동 시딩**이 들어 있다. 아래 CSV·표가 그 시드의 기준값이며, 사람이 보는 참조
 > 문서로 유지된다(앱은 이 폴더의 파일을 런타임에 읽지 않는다 — 데이터는 코드에 임베드돼 있다).
 
+### 자동 캡처 (기본)
+
+```bash
+scripts/capture_screenshots.sh            # 4개 세트 전부
+scripts/capture_screenshots.sh iphoneduo  # 한 세트만
+```
+
+한 번 `build-for-testing` 한 뒤 세트마다 시뮬레이터를 부팅·한국어 설정·라이트 모드·상태바 고정·앱 삭제(깨끗한
+상태)하고 `AppStoreScreenshotTests`(UI 테스트)를 돌린다. 앱은 `-SeedSampleData` 실행 인자로 떠서
+온보딩 없이 샘플 데이터를 채운 채 시작한다(디버그 빌드 전용, iCloud 게이트 유지 — 로그인된 시뮬레이터면
+"샘플 데이터를 채우지 못했어요" 화면에서 테스트가 실패한다). 결과는 세트별 폴더에 컷 이름으로 떨어진다:
+
+| 세트 | 시뮬레이터 | 픽셀 | App Store 규격 |
+|---|---|---|---|
+| `iphone69` | iPhone 18 Pro Max | 1320×2868 | 6.9" |
+| `iphone63` | iPhone 18 Pro | 1206×2622 | 6.3" |
+| `iphoneduo` | iPhone Duo | 기본 포즈 그대로 (2007×2853 · 2853×2007 · 1398×2034 · 2034×1398 중 하나) | iPhone Duo |
+| `ipad13` | iPad Pro 13-inch (M5) | 2064×2752 | 13" |
+
+| 컷 | iPhone · Duo | iPad |
+|---|---|---|
+| `01-review` | 검토 목록 | 〃 |
+| `02-review-editor` | 첫 항목 편집 시트 | 〃 |
+| `03-history` | 최근 기록, hero 말일 헤더가 맨 위 | 〃 |
+| `04-summary` | 월간 요약 맨 위 (hero) | 〃 (도넛까지 보임) |
+| `05-categories` / `05-category-progress` | 도넛·월별 추세까지 스크롤 | 카테고리별 진행률 시트 |
+| `06-category-progress` / `06-category-totals` | 카테고리별 진행률 시트(큰 높이) | 카테고리별 합계 시트(도넛 탭) |
+| `07-reconciliation` | 월 정산 (hero) | 〃 |
+
+맞춤형 제품 페이지처럼 컷을 재배열할 때는 이 파일명을 기준으로 고른다. 스크립트는 장수(세트당 7장)와 픽셀 크기를
+검사하고, 하나라도 어긋나면 기존 폴더를 건드리지 않고 실패한다.
+
+### 수동
+
 1. 디버그 빌드를 시뮬레이터 또는 throwaway 기기에 설치한다. **iCloud 로그아웃 권장** — 로그인
    상태면 오염 방지를 위해 시딩이 막힌다.
 2. 설정 탭 맨 아래 **"개발자 · 스크린샷 → 샘플 데이터 채우기"** 를 누르면 지난달·이번 달 지출·정산·예산과
    검토 탭 추출 대기 항목이 한 번에 채워진다(지출 최대 56건·정산 2개월·예산 9개·검토 7건).
 3. 월간 요약 탭은 이번 달이 기본이므로 월 선택 행에서 **지난달(hero)로 이동**해 캡처한다.
    모든 월 단위 컷은 같은 달로 통일한다.
-4. 검토 탭도 자동으로 채워진다(추출 대기 7건). 별도 이미지 공유 없이 바로 캡처 가능. 더 풍성한
-   컷이 필요하면 `review-input-samples.md`의 블록을 알림/메모 앱에 붙여 추가 공유한다.
-5. 다시 찍으려면 **"샘플 데이터 지우기"** 후 재시딩(멱등이라 "채우기"만 다시 눌러도 동일 결과).
+4. 다시 찍으려면 **"샘플 데이터 지우기"** 후 재시딩(멱등이라 "채우기"만 다시 눌러도 동일 결과).
+5. 더 풍성한 검토 컷이 필요하면 `review-input-samples.md`의 블록을 알림/메모 앱에 붙여 추가 공유한다.
 6. CSV export 자체를 검증하려면, 데이터를 채운 뒤 설정 → 저장 폴더에서 폴더를 지정하면 위 포맷대로
    파일이 떨어지는지 확인할 수 있다.
 
-## 캡처 환경 (1.4 기준)
+## 캡처 환경 (1.5 기준)
 
-- **기기**: iPhone 18 Pro Max(1320×2868) · iPad Pro 13-inch M5(2064×2752), 둘 다 iOS 27 시뮬레이터.
-  App Store의 6.9"·13" 규격과 일치하므로 이 조합을 유지한다.
+`scripts/capture_screenshots.sh`가 아래를 전부 적용한다. 손으로 찍을 때도 같은 규칙을 따른다.
+
+- **기기**: 위 세트 표. 같은 이름의 시뮬레이터가 여러 런타임에 있으면 가장 새 iOS 런타임을 쓴다.
+  iPhone Duo는 포즈를 `simctl`로 바꿀 수 없어 기본 포즈에서 나오는 크기 그대로 캡처한다. 다른 포즈가
+  필요하면 Device Hub 창 하단 포즈 버튼을 눌러 둔 뒤 `iphoneduo`만 다시 돌린다(허용 크기 4종 중 하나면 통과).
 - **상태바 고정**:
-  `xcrun simctl status_bar <udid> override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3`
+  `xcrun simctl status_bar <udid> clear` 후
+  `xcrun simctl status_bar <udid> override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --dataNetwork wifi --cellularMode active --cellularBars 4 --operatorName ""`
   - `--time`에는 **시각 문자열만** 준다. ISO(`2026-09-20T00:41:00.000Z`)를 주면 iPad 상태바 요일이 실제 날짜와
     어긋난다(일요일인데 `Wed`로 표시됨). 시각만 주면 날짜·요일은 기기 시계에서 와서 앱 내용과 일치한다.
-- **iPad 로케일**: iPad는 상태바에 날짜·요일이 나오므로 한국어가 필요하다.
+  - `clear` 없이 덮어쓰거나 셀룰러 옵션을 빼면 iPhone 18 Pro 상태바에 신호 막대 대신 회색 점(서비스 없음)이 남는다.
+- **로케일**: 모든 세트를 ko-KR로 둔다(iPad·Duo 상태바에 날짜·요일이 나온다).
   `xcrun simctl spawn <udid> defaults write "Apple Global Domain" AppleLanguages -array ko-KR`
-  (+ `AppleLocale -string ko_KR`) 후 shutdown → boot.
-- **캡처**: `xcrun simctl io <udid> screenshot --type=png internal/screenshot/iPhoneN.png`
-  (Simulator 앱 창 캡처 대신 이 명령을 써야 정확한 픽셀 규격이 나온다.)
+  (+ `AppleLocale -string ko_KR`) 후 shutdown → boot. 스크립트는 값이 다를 때만 재부팅한다.
+- **캡처**: UI 테스트가 `XCUIScreen.main.screenshot()`의 PNG를 그대로 쓴다. 시뮬레이터 기기 픽셀 그대로라
+  `xcrun simctl io <udid> screenshot`과 같은 규격이다(Simulator 앱 창 캡처는 규격이 어긋나므로 쓰지 않는다).
 - **월 통일**: 월 단위 화면(월간 요약·카테고리별 진행률·카테고리별 합계·월 정산)은 모두 hero(지난달)로 맞춘다.
-  최근 기록도 hero 구간이 보이도록 스크롤해 캡처한다.
+  최근 기록도 hero 말일 헤더가 내비게이션 바 바로 아래 오도록 스크롤해 캡처한다.
+- **업로드**: `scripts/stage_screenshots.sh`가 4개 세트를 `fastlane/screenshots/ko/<세트>_<컷>.png`로 복사하고,
+  `v*` 태그 릴리즈에서 `fastlane deliver`가 픽셀 크기로 디스플레이 종류를 정해 올린다(1206×2622는 `APP_IPHONE_61`
+  = 6.3", Duo 크기는 `APP_IPHONE_DUO` — fastlane 2.241.1 이상 필요).
 
 ---
 
