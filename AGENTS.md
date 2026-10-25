@@ -62,6 +62,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     ContentView.swift                # TabView shell (Review/History/Ledger/Settings) + scenePhase observer + onboarding gate
                                      #            + Return to current month on Ledger tab reselection (resetNonce)
     AppGroup.swift                   # group.com.youngkyu.snapledger container / inbox URL
+    SeededLaunchView.swift           # DEBUG: with -SeedSampleData, seeds sample data and skips onboarding before showing ContentView (screenshot capture)
   Info.plist                         # Partial plist: BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes
                                      #            + ITSAppUsesNonExemptEncryption
   SnapLedger.entitlements            # App Group
@@ -165,6 +166,9 @@ SnapLedgerShareExtension/            # Share Extension target (synchronized root
 
 SnapLedgerTests/                     # Swift Testing — mirrors source structure
   Models/    Services/    Storage/    Features/    System/
+
+SnapLedgerUITests/                   # XCTest UI tests
+  AppStoreScreenshotTests.swift      # App Store screenshot cuts; skipped unless run by scripts/capture_screenshots.sh
 ```
 
 ## Key Architectural Decisions
