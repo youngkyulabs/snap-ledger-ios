@@ -68,6 +68,7 @@ What's New와 글자 그대로 같으면 업로드 전에 멈춘다.
 
 ### 이전 버전 노트 (내려간 What's New)
 ```
+1.4 — 문자·메신저의 결제 알림 문구를 공유 시트로 바로 보낼 수 있게 됐고, 예산과 통계를 합친 월간 요약 탭이 생겼습니다. 월 정산에 전월 카드대금 칸이 추가됐고, 정산을 마친 달에 지출을 추가하면 저장 전에 짚어줍니다. 연도 없는 알림이 작년 날짜로 잡히던 문제도 고쳤습니다.
 1.3 — 최근 기록을 가맹점·카테고리·메모·금액으로 검색할 수 있게 됐고, 검토 화면이 오래됐거나 미래로 잡힌 날짜를 경고 아이콘으로 짚어줍니다. 자동 추출 정확도(날짜 환각·과분할·지운 카테고리)도 개선됐습니다.
 1.2.1 — 지출을 저장하면 그 카테고리가 이번 달 예산의 80%에 닿거나 초과했을 때 검토 화면 아래에 토스트로 알려줍니다(별도 권한 없이 앱 안에서만).
 1.2 — iCloud 동기화가 추가됐습니다. 가계부·예산·정산 데이터가 본인 iCloud 계정에 저장되어 새 기기에서도 이어 쓸 수 있고, 월별 CSV는 백업·내보내기 전용이 됐습니다(예산도 budgets-YYYY-MM.csv로 함께 내보내짐).
@@ -131,6 +132,38 @@ There is no account sign-up, no purchase, no advertising.
 ```
 
 샘플 결제 알림 스크린샷 3장을 review attachments로 같이 업로드.
+
+---
+
+## 5. 제품 페이지 헤더 · 검색 결과 이미지 (iOS 27+)
+
+스크린샷과 별개인 홍보 이미지(creative asset)다. 선택 항목이며 iOS 27 / iPadOS 27 이상에서만
+보이고, 지정하지 않으면 검색 결과에는 스크린샷이 대신 나온다.
+
+| 항목 | 값 |
+|---|---|
+| 파일 | `internal/creative/universal-16x9.png` (원본 `header.html` + `header.css`, `./scripts/render_header.sh`로 생성) |
+| 규격 | universal 16:9, 5244×2950 PNG, 알파 없음 — 한 장으로 헤더(21:9로 잘림)와 검색 결과(3:2로 잘림) 두 자리를 채운다 |
+| 내용 | 「스크린샷이 한 줄 가계부로」 + 일반 카드 알림 → 실제 검토 화면(`internal/screenshot/iphone69/01-review.png`) |
+| 안전 영역 | 21:9와 3:2 가운데 영역의 교집합 안, 3:2 좌우 안쪽 여백 약 120pt(CSS). Apple 템플릿의 기기별 안전 영역은 아니므로 ASC Preview가 최종 판단 |
+| 문구 규칙 | 가격·할인·URL·©·수상 표기·다른 플랫폼 로고 금지 (App Store asset best practices, 심사 지침 2.3). 알림 예시는 카드사 이름을 넣지 않는다 |
+
+**올리는 순서.** 승인된 버전에는 자리를 추가할 수 없다(1.4의 placement는 `ACTIVE`).
+`fastlane deliver`는 이 자리를 다루지 않으므로 릴리즈 잡이 끝난 **뒤에** 손으로 붙인다.
+
+1. `vX.Y` 태그 → release 잡의 `deliver`가 새 버전 초안과 스크린샷을 만든다.
+2. ASC → 해당 버전 → Product Page Information → **Header and Search Results** 탭에서
+   Header, Search Results 각각에 같은 파일을 올린다(두 번째는 Browse Assets로 재사용).
+3. **Preview**로 iPhone·iPad, 가로·세로, 다크 모드를 확인한다. 잘리거나 어색하면 `header.html`을
+   고쳐 다시 렌더한다.
+4. 버전과 함께 심사 제출.
+
+이미지만 바꿀 때는 Asset Library에서 단독 제출해 승인받은 뒤 자리를 바꾸면 버전 업데이트가 필요 없다.
+
+**자동화는 fastlane을 기다린다.** fastlane 2.241.1의 `deliver`는 이 자리를 지원하지 않는다.
+지원 PR [fastlane/fastlane#30442](https://github.com/fastlane/fastlane/pull/30442)(`creative_assets`,
+`overwrite_creative_assets`)이 머지되면 `release.yml`의 fastlane 버전을 올리고 deliver 옵션으로 옮긴다.
+그 전까지는 위 순서대로 손으로 붙인다(리포 스크립트로 직접 만들지 않기로 함, 2026-10-25).
 
 ---
 
