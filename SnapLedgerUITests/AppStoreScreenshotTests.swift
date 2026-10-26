@@ -9,7 +9,11 @@ final class AppStoreScreenshotTests: XCTestCase {
             throw XCTSkip("Run scripts/capture_screenshots.sh to capture screenshots.")
         }
         continueAfterFailure = false
-        try ScreenshotRun(outputDirectory: directory, isPad: set.hasPrefix("ipad")).captureAll()
+        try ScreenshotRun(
+            outputDirectory: directory,
+            isPad: set.hasPrefix("ipad"),
+            appliesTouchesLate: set == "iphoneduo"
+        ).captureAll()
     }
 }
 
@@ -17,6 +21,8 @@ final class AppStoreScreenshotTests: XCTestCase {
 private struct ScreenshotRun {
     let outputDirectory: String
     let isPad: Bool
+    /// iPhone Duo applies touches a few seconds late.
+    let appliesTouchesLate: Bool
     let app = XCUIApplication()
 
     func captureAll() throws {
@@ -125,15 +131,17 @@ private struct ScreenshotRun {
     /// Drags the list slowly (no inertia) until the element's top edge sits at targetY.
     private func scroll(until element: XCUIElement, reaches targetY: CGFloat) {
         let window = app.windows.firstMatch.frame
-        for _ in 0..<30 where !element.exists || element.frame.minY > window.maxY * 0.8 {
+        for _ in 0..<30 {
+            if element.exists, element.frame.minY <= window.maxY * 0.8 { break }
             drag(by: window.height * 0.4)
         }
         for _ in 0..<4 {
             let offset = element.frame.minY - targetY
             if abs(offset) < 6 { break }
             drag(by: offset)
-            // iPhone Duo applies touches a few seconds late
-            Thread.sleep(forTimeInterval: 2)
+            if appliesTouchesLate {
+                Thread.sleep(forTimeInterval: 2)
+            }
         }
     }
 
