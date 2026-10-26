@@ -144,7 +144,7 @@ There is no account sign-up, no purchase, no advertising.
 |---|---|
 | 파일 | `internal/creative/universal-16x9.png` (원본 `header.html` + `header.css`, `./scripts/render_header.sh`로 생성) |
 | 규격 | universal 16:9, 5244×2950 PNG, 알파 없음 — 한 장으로 헤더(21:9로 잘림)와 검색 결과(3:2로 잘림) 두 자리를 채운다 |
-| 내용 | 「스크린샷이 한 줄 가계부로」 + 일반 카드 알림 → 실제 검토 화면(`internal/screenshot/iPhone1.png`) |
+| 내용 | 「스크린샷이 한 줄 가계부로」 + 일반 카드 알림 → 실제 검토 화면(`internal/screenshot/iphone69/01-review.png`) |
 | 안전 영역 | 21:9와 3:2 가운데 영역의 교집합 안, 3:2 좌우 안쪽 여백 약 120pt(CSS). Apple 템플릿의 기기별 안전 영역은 아니므로 ASC Preview가 최종 판단 |
 | 문구 규칙 | 가격·할인·URL·©·수상 표기·다른 플랫폼 로고 금지 (App Store asset best practices, 심사 지침 2.3). 알림 예시는 카드사 이름을 넣지 않는다 |
 

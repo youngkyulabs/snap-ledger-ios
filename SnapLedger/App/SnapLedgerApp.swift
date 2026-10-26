@@ -30,7 +30,15 @@ struct SnapLedgerApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if SampleDataLaunchSeeding.isRequested {
+                SeededLaunchView()
+            } else {
+                ContentView()
+            }
+            #else
             ContentView()
+            #endif
         }
         .modelContainer(modelContainer)
     }
