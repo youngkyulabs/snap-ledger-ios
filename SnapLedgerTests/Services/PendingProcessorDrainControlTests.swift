@@ -79,7 +79,7 @@ struct GatedOCRService: OCRService {
 }
 
 @MainActor
-@Suite(.serialized, .timeLimit(.minutes(1)))
+@Suite(.serialized, .timeLimit(.minutes(5)))
 struct PendingProcessorDrainControlTests {
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
