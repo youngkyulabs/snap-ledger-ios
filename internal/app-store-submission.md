@@ -142,10 +142,11 @@ There is no account sign-up, no purchase, no advertising.
 
 | 항목 | 값 |
 |---|---|
-| 파일 | `internal/creative/universal-16x9.png` (원본 `header.html` + `header.css`, `./scripts/render_header.sh`로 생성) |
-| 규격 | universal 16:9, 5244×2950 PNG, 알파 없음 — 한 장으로 헤더(21:9로 잘림)와 검색 결과(3:2로 잘림) 두 자리를 채운다 |
-| 내용 | 「스크린샷이 한 줄 가계부로」 + 일반 카드 알림 → 실제 검토 화면(`internal/screenshot/iphone69/01-review.png`) |
-| 안전 영역 | 21:9와 3:2 가운데 영역의 교집합 안, 3:2 좌우 안쪽 여백 약 120pt(CSS). Apple 템플릿의 기기별 안전 영역은 아니므로 ASC Preview가 최종 판단 |
+| 파일 | 헤더 `internal/creative/header-16x9.png`, 검색 결과 `internal/creative/search-16x9.png` (원본 `header.html`·`search.html` + `creative.css`, `./scripts/render_creative.sh`로 둘 다 생성) |
+| 규격 | 둘 다 universal 16:9, 5244×2950 PNG, 알파 없음. 자리마다 다른 파일을 올린다 |
+| 헤더 | 카드 알림 → 검토 화면 위쪽. 문구는 넣지 않는다(바로 아래 부제목과 같은 말) |
+| 검색 결과 | 「스크린샷이 한 줄 가계부로」 + 카드 알림 → 검토 화면(`internal/screenshot/iphone69/01-review.png`) |
+| 보이는 영역 | 1.5 Preview에서 잰 값(캔버스 2622×1475 CSS 기준). 헤더는 iPhone 세로가 가로 x 600–2020만, 세 기기 모두 y 930 아래는 앱 정보에 가려지고 iPhone Duo는 x 1890 오른쪽을 버튼이 덮는다 → 내용은 x 700–1830, y 420–930. 검색 결과는 iPhone에서 전체, iPad에서 위아래 약 65씩 잘린다 |
 | 문구 규칙 | 가격·할인·URL·©·수상 표기·다른 플랫폼 로고 금지 (App Store asset best practices, 심사 지침 2.3). 알림 예시는 카드사 이름을 넣지 않는다 |
 
 **올리는 순서.** 승인된 버전에는 자리를 추가할 수 없다(1.4의 placement는 `ACTIVE`).
@@ -153,9 +154,9 @@ There is no account sign-up, no purchase, no advertising.
 
 1. `vX.Y` 태그 → release 잡의 `deliver`가 새 버전 초안과 스크린샷을 만든다.
 2. ASC → 해당 버전 → Product Page Information → **Header and Search Results** 탭에서
-   Header, Search Results 각각에 같은 파일을 올린다(두 번째는 Browse Assets로 재사용).
-3. **Preview**로 iPhone·iPad, 가로·세로, 다크 모드를 확인한다. 잘리거나 어색하면 `header.html`을
-   고쳐 다시 렌더한다.
+   Header에 `header-16x9.png`, Search Results에 `search-16x9.png`를 올린다.
+3. **Preview**로 iPhone·iPad·iPhone Duo, 가로·세로, 다크 모드를 확인한다. 잘리거나 어색하면
+   html을 고쳐 다시 렌더한다.
 4. 버전과 함께 심사 제출.
 
 이미지만 바꿀 때는 Asset Library에서 단독 제출해 승인받은 뒤 자리를 바꾸면 버전 업데이트가 필요 없다.

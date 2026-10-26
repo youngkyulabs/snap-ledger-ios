@@ -14,11 +14,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 .canvas { position: relative; width: 2622px; height: 1475px; }
-/* Header keeps the middle 21:9 band, search results the middle 3:2 (x 205–2417); stay ~120px inside both. */
-.safe {
-  position: absolute; left: 325px; top: 206px; width: 1972px; height: 1063px;
+
+/* Search results show nearly the whole frame (iPad trims ~65px top and bottom). */
+.search .safe {
+  position: absolute; left: 170px; top: 150px; width: 2282px; height: 1175px;
   display: flex; align-items: center; justify-content: space-between;
 }
+.search .text, .search .flow { zoom: 1.16; }
+
+/* Header shows only x 600–2020, y 0–930 on iPhone portrait, and buttons cover x > 1890 on iPhone Duo. */
+.header .flow { position: absolute; left: 705px; top: 420px; align-items: flex-start; gap: 40px; }
+.header .lead { height: 500px; display: flex; align-items: center; gap: 40px; }
+.header .phone { width: 420px; height: 913px; border-radius: 74px; }
+.header .phone img { border-radius: 61px; }
+
 .text { width: 740px; }
 .tagline { font-size: 112px; font-weight: 800; letter-spacing: -3px; line-height: 1.12; }
 .subline { margin-top: 32px; font-size: 44px; font-weight: 500; color: var(--sub); letter-spacing: -1px; }
