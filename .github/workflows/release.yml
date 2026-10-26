@@ -81,7 +81,7 @@ jobs:
           ruby-version: '3.3'
 
       - name: Install fastlane
-        run: gem install fastlane -N -v 2.240.1
+        run: gem install fastlane -N -v 2.241.1
 
       - name: Build ASC API key JSON for fastlane
         run: |
