@@ -24,6 +24,8 @@ xcodebuild test -project SnapLedger.xcodeproj -scheme SnapLedger \
 
 SwiftLint should be pre-installed via `brew install swiftlint`. If not installed, the build phase prints a warning and gracefully passes (lint violations fail the build, but tool absence passes).
 
+`SnapLedgerTests` runs serially (`parallelizable = "NO"` in the shared scheme). Every test is MainActor-isolated, so parallel runs only queue on the main thread: reported durations and `.timeLimit` then count that wait, which on CI pushed a 4 ms test past its 1-minute limit. Serial is also faster (whole suite about 3 s of test time, no simulator clone).
+
 Simulator device names can be confirmed with `xcrun simctl list devices available | grep iPhone`. Defaults to `iPhone 18 Pro`. (Note: if multiple iOS runtimes are installed, you can specify `OS=26.5` or use the device ID from `xcrun simctl list devices`).
 
 ## CI / CD
