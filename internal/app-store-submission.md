@@ -146,7 +146,7 @@ There is no account sign-up, no purchase, no advertising.
 | 규격 | 둘 다 universal 16:9, 5244×2950 PNG, 알파 없음. 자리마다 다른 파일을 올린다 |
 | 헤더 | 카드 알림 → 검토 화면 위쪽. 문구는 넣지 않는다(바로 아래 부제목과 같은 말) |
 | 검색 결과 | 「스크린샷이 한 줄 가계부로」와 그 아래 카드 알림 → 검토 화면(`internal/screenshot/iphone69/01-review.png`) |
-| 보이는 영역 | 두 이미지 모두 Apple universal 템플릿(`creative_assets-universal_asset_template-static.psd`, [asset best practices](https://developer.apple.com/app-store/asset-best-practices/))의 ART SAFE AREA x 1921–3322, y 660–1621 px(CSS x 960–1661, y 330–811) 안에 핵심 내용을 둔다. 헤더의 폰은 아래로 넘쳐도 된다(1.5 Preview에서 iPhone은 y 930 아래가 앱 정보에 가려짐). 1.5 Preview에서 검색 결과는 iPhone에서 x 약 770–1860, y 약 205–820만 보였고, iPad에서는 거의 전체가 보였다 |
+| 보이는 영역 | 캔버스 2622×1475 CSS 기준. 헤더는 1.5 Preview에서 잰 값으로 맞춘다: iPhone 세로가 가로 x 600–2020만, 세 기기 모두 y 930 아래는 앱 정보에 가려지고 iPhone Duo는 x 1890 오른쪽을 버튼이 덮는다 → 내용은 x 700–1830, y 420–930. 검색 결과는 Apple universal 템플릿(`creative_assets-universal_asset_template-static.psd`, [asset best practices](https://developer.apple.com/app-store/asset-best-practices/))의 ART SAFE AREA x 1921–3322, y 660–1621 px(CSS x 960–1661, y 330–811) 안에 둔다. 1.5 Preview에서 iPhone은 x 약 770–1860, y 약 205–820만 보였고 iPad는 거의 전체가 보였다 |
 | 문구 규칙 | 가격·할인·URL·©·수상 표기·다른 플랫폼 로고 금지 (App Store asset best practices, 심사 지침 2.3). 알림 예시는 카드사 이름을 넣지 않는다 |
 
 **올리는 순서.** 승인된 버전에는 자리를 추가할 수 없다(1.4의 placement는 `ACTIVE`).
