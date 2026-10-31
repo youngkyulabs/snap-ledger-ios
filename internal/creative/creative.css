@@ -15,12 +15,17 @@ body {
 }
 .canvas { position: relative; width: 2622px; height: 1475px; }
 
-/* Search results show nearly the whole frame (iPad trims ~65px top and bottom). */
-.search .safe {
-  position: absolute; left: 170px; top: 150px; width: 2282px; height: 1175px;
-  display: flex; align-items: center; justify-content: space-between;
+/* Apple's template safe area is y 330–811; iPhone shows only y 205–835, so content sits a little higher. */
+.search .flow {
+  position: absolute; left: 919px; top: 270px; width: 785px; height: 520px;
+  justify-content: center; gap: 25px;
 }
-.search .text, .search .flow { zoom: 1.16; }
+.search .lead { display: flex; flex-direction: column; gap: 34px; }
+.search .tagline { font-size: 67px; letter-spacing: -1.5px; }
+.search .notif { zoom: .76; }
+.search .arrow { font-size: 58px; }
+.search .phone { width: 240px; height: 520px; border-radius: 42px; padding: 8px; }
+.search .phone img { border-radius: 34px; }
 
 /* Header shows only x 600–2020, y 0–930 on iPhone portrait, and buttons cover x > 1890 on iPhone Duo. */
 .header .flow { position: absolute; left: 705px; top: 420px; align-items: flex-start; gap: 40px; }
@@ -28,9 +33,7 @@ body {
 .header .phone { width: 420px; height: 913px; border-radius: 74px; }
 .header .phone img { border-radius: 61px; }
 
-.text { width: 740px; }
 .tagline { font-size: 112px; font-weight: 800; letter-spacing: -3px; line-height: 1.12; }
-.subline { margin-top: 32px; font-size: 44px; font-weight: 500; color: var(--sub); letter-spacing: -1px; }
 .accent { color: var(--coral); }
 .flow { display: flex; align-items: center; gap: 36px; }
 .notif {
