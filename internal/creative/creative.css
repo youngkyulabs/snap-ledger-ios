@@ -15,17 +15,17 @@ body {
 }
 .canvas { position: relative; width: 2622px; height: 1475px; }
 
-/* Art safe area from Apple's universal 16:9 template (x 1921–3322, y 660–1621 px). */
+/* Apple's template safe area is y 330–811; iPhone shows only y 205–835, so content sits a little higher. */
 .search .flow {
-  position: absolute; left: 960px; top: 330px; width: 701px; height: 481px;
-  justify-content: center; gap: 22px;
+  position: absolute; left: 919px; top: 270px; width: 785px; height: 520px;
+  justify-content: center; gap: 25px;
 }
-.search .lead { display: flex; flex-direction: column; gap: 30px; }
-.search .tagline { font-size: 60px; letter-spacing: -1.5px; }
-.search .notif { zoom: .68; }
-.search .arrow { font-size: 52px; }
-.search .phone { width: 214px; height: 465px; border-radius: 38px; padding: 7px; }
-.search .phone img { border-radius: 31px; }
+.search .lead { display: flex; flex-direction: column; gap: 34px; }
+.search .tagline { font-size: 67px; letter-spacing: -1.5px; }
+.search .notif { zoom: .76; }
+.search .arrow { font-size: 58px; }
+.search .phone { width: 240px; height: 520px; border-radius: 42px; padding: 8px; }
+.search .phone img { border-radius: 34px; }
 
 /* Header shows only x 600–2020, y 0–930 on iPhone portrait, and buttons cover x > 1890 on iPhone Duo. */
 .header .flow { position: absolute; left: 705px; top: 420px; align-items: flex-start; gap: 40px; }
