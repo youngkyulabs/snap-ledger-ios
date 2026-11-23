@@ -307,7 +307,7 @@ struct FoundationModelsExtractionService: ExtractionService {
         let yearUnstated = ocrText.map { !hasExplicitYear($0) } ?? false
         let cleaned = extraction.transactions.compactMap { trans -> PaymentTransaction? in
             if looksLikeExampleLeak(trans) { return nil }
-            var t = foldingRestatedItem(droppingExampleItems(trans))
+            var t = foldingRestatedItem(droppingNonSpendingItems(droppingExampleItems(trans)))
             if dropDates {
                 t.date = ""
             } else if yearUnstated {

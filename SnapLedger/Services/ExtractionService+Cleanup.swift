@@ -12,6 +12,27 @@ extension FoundationModelsExtractionService {
         return t
     }
 
+    /// Labels of notification lines that report bookkeeping amounts rather than purchases.
+    private static let nonSpendingItemLabels = ["인센티브", "잔액", "누적", "적립", "포인트", "캐시백", "마일리지", "한도"]
+
+    /// Drops items named after a bookkeeping line (incentive, balance, points) when the payment stands without
+    /// them: nothing else is listed and none of them is the payment itself, or the other items add up to it.
+    static func droppingNonSpendingItems(_ trans: PaymentTransaction) -> PaymentTransaction {
+        guard trans.amount > 0 else { return trans }
+        func isLabelled(_ item: PaymentLineItem) -> Bool {
+            nonSpendingItemLabels.contains { item.name.contains($0) }
+        }
+        let rest = trans.items.filter { !isLabelled($0) }
+        guard rest.count < trans.items.count else { return trans }
+        let standsWithout = rest.isEmpty
+            ? !trans.items.contains { $0.amount == trans.amount }
+            : rest.reduce(0) { $0 + $1.amount } == trans.amount
+        guard standsWithout else { return trans }
+        var t = trans
+        t.items = rest
+        return t
+    }
+
     /// Folds a lone item that only restates the payment: it names a merchant-less transaction and is
     /// dropped when it repeats the merchant. A distinct item name is kept, since it may be the real merchant.
     static func foldingRestatedItem(_ trans: PaymentTransaction) -> PaymentTransaction {
