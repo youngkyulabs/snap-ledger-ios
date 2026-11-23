@@ -123,7 +123,7 @@ struct EntryEditorView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("저장", action: save)
-                        .disabled(!EntrySaveValidation.canSaveReview(merchant: entry.merchant, amount: entry.amount))
+                        .disabled(!EntrySaveValidation.canSaveReview(entry))
                 }
             }
             .navigationTitle(insertOnSave ? "수동 입력" : "검토")
@@ -198,8 +198,11 @@ struct EntryEditorView: View {
 
     private var amountBinding: Binding<Int?> {
         Binding(
-            get: { entry.amount == 0 ? nil : entry.amount },
-            set: { entry.amount = $0 ?? 0 }
+            get: { entry.amount == 0 && !entry.amountEntered ? nil : entry.amount },
+            set: {
+                entry.amount = $0 ?? 0
+                entry.amountEntered = $0 != nil
+            }
         )
     }
 

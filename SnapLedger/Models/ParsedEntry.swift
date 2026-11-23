@@ -20,6 +20,8 @@ final class ParsedEntry {
     var status: ParsedEntryStatus
     var merchantCandidates: [String] = []
     var amountCandidates: [Int] = []
+    /// True while the amount field holds a value the user typed, so a typed 0 differs from an empty field.
+    var amountEntered: Bool = false
 
     init(
         id: UUID = UUID(),
