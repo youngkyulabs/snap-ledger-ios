@@ -33,18 +33,38 @@ extension FoundationModelsExtractionService {
         return t
     }
 
-    /// Folds a lone item that only restates the payment: it names a merchant-less transaction and is
-    /// dropped when it repeats the merchant. A distinct item name is kept, since it may be the real merchant.
-    static func foldingRestatedItem(_ trans: PaymentTransaction) -> PaymentTransaction {
+    /// Words a notification uses for the payment's status; an item named only with them is not a purchase.
+    private static let paymentStatusWords = ["일시불", "결제", "완료", "승인", "할부"]
+
+    private static func isStatusLabel(_ name: String) -> Bool {
+        let compact = name.filter { !$0.isWhitespace }
+        return !compact.isEmpty
+            && paymentStatusWords.reduce(compact) { $0.replacingOccurrences(of: $1, with: "") }.isEmpty
+    }
+
+    /// Whether a lone item's name is a status label or holds a word the source text does not, so the model made it up.
+    static func isMadeUpItemName(_ name: String, sourceText: String?) -> Bool {
+        if isStatusLabel(name) { return true }
+        guard let sourceText else { return false }
+        let source = sourceText.lowercased().filter { !$0.isWhitespace }
+        let lowered = name.lowercased()
+        if source.contains(lowered.filter { !$0.isWhitespace }) { return false }
+        return lowered.split(whereSeparator: \.isWhitespace).contains { !source.contains($0) }
+    }
+
+    /// Folds a lone item that only restates the payment: it names a merchant-less transaction, and is dropped
+    /// when it repeats the merchant or repeats the amount under a made-up name. Any other distinct name is kept,
+    /// since it may be the real merchant.
+    static func foldingRestatedItem(_ trans: PaymentTransaction, sourceText: String? = nil) -> PaymentTransaction {
         guard trans.items.count == 1, let item = trans.items.first else { return trans }
         let merchant = trans.merchant.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
         var t = trans
         if merchant.isEmpty || isCardIssuerName(merchant) {
             guard item.amount == trans.amount else { return trans }
-            t.merchant = name
+            if !isStatusLabel(name) { t.merchant = name }
         } else if !(name.isEmpty || namesOverlap(merchant, name)) {
-            return trans
+            guard item.amount == trans.amount, isMadeUpItemName(name, sourceText: sourceText) else { return trans }
         }
         // The item's amount is what the entry saved before folding.
         t.amount = item.amount
