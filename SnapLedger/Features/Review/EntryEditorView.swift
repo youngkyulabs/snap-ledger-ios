@@ -198,11 +198,8 @@ struct EntryEditorView: View {
 
     private var amountBinding: Binding<Int?> {
         Binding(
-            get: { entry.amount == 0 && !entry.amountEntered ? nil : entry.amount },
-            set: {
-                entry.amount = $0 ?? 0
-                entry.amountEntered = $0 != nil
-            }
+            get: { ReviewAmountInput.displayValue(for: entry) },
+            set: { ReviewAmountInput.apply($0, to: entry) }
         )
     }
 
