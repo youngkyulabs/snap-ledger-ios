@@ -9,7 +9,7 @@ struct EnrichedTransaction: Sendable, Equatable {
 enum CandidateHeuristics {
     private static let amountExcludeKeywords: [String] = [
         "누적", "한도", "잔액", "사용가능", "포인트", "적립",
-        "마일리지", "캐시백", "부가세", "과세물품가액", "월 사용액",
+        "마일리지", "캐시백", "부가세", "과세물품가액", "월 사용액", "인센티브",
     ]
 
     // MARK: - payment signal gate

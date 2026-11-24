@@ -180,3 +180,74 @@ struct ExtractionServiceRedundancyTests {
         #expect(FoundationModelsExtractionService.droppingRedundantTransactions(input) == input)
     }
 }
+
+/// Verifies folding of lone items the model made up: status labels and names the source text does not hold.
+@MainActor
+struct ExtractionServiceMadeUpItemTests {
+    private func txn(_ amount: Int, _ merchant: String, items: [PaymentLineItem] = []) -> PaymentTransaction {
+        PaymentTransaction(date: "2026-10-25", amount: amount, merchant: merchant, category: "", items: items)
+    }
+
+    private func item(_ name: String, _ amount: Int) -> PaymentLineItem {
+        PaymentLineItem(name: name, amount: amount)
+    }
+
+    private func fold(_ trans: PaymentTransaction, source: String? = nil) -> PaymentTransaction {
+        FoundationModelsExtractionService.foldingRestatedItem(trans, sourceText: source)
+    }
+
+    @Test func foldsStatusLabelItem() {
+        let source = "결제 완료 6,600원\n행복마트 역앞점"
+        let out = fold(txn(6600, "행복마트 역앞점", items: [item("결제 완료", 6600)]), source: source)
+        #expect(out == txn(6600, "행복마트 역앞점"))
+    }
+
+    @Test func foldsStatusLabelItemWithoutSourceText() {
+        #expect(fold(txn(3200, "편의점", items: [item("일시불", 3200)])) == txn(3200, "편의점"))
+    }
+
+    @Test func foldsItemNamedWithWordsTheSourceDoesNotHold() {
+        let source = "[체크카드] 승인 8,700원 일시불 10/09 14:22 별다방 역삼점"
+        let out = fold(txn(8700, "별다방 역삼점", items: [item("카페 음료", 8700)]), source: source)
+        #expect(out == txn(8700, "별다방 역삼점"))
+    }
+
+    /// The model sometimes takes a card product name as the merchant and puts the real merchant in the item.
+    @Test func keepsItemPrintedInTheSource() {
+        let source = "법인 체크 승인 9,000원 일시불 10/10 12:41 찌개마을"
+        let trans = txn(9000, "법인 체크", items: [item("찌개마을", 9000)])
+        #expect(fold(trans, source: source) == trans)
+    }
+
+    /// OCR breaks and spaces a name differently, so each word is looked up on its own.
+    @Test func keepsItemWhoseWordsAreAllInTheSource() {
+        let source = "결제 완료\n기모맨투맨 그레이 L\n1개 34,000원"
+        let trans = txn(34000, "간편결제 머니", items: [item("기모 맨투맨 1개", 34000)])
+        #expect(fold(trans, source: source) == trans)
+    }
+
+    @Test func keepsMadeUpItemWhenItsAmountDiffers() {
+        let source = "별다방 역삼점 8,700원"
+        let trans = txn(8700, "별다방 역삼점", items: [item("카페 음료", 4500)])
+        #expect(fold(trans, source: source) == trans)
+    }
+
+    @Test func keepsDistinctItemWhenTheSourceIsUnknown() {
+        let trans = txn(8700, "별다방 역삼점", items: [item("카페 음료", 8700)])
+        #expect(fold(trans) == trans)
+    }
+
+    /// A status label is not a merchant, so it is dropped instead of being moved up.
+    @Test func doesNotPromoteStatusLabelToMerchant() {
+        #expect(fold(txn(3200, "", items: [item("결제 완료", 3200)])) == txn(3200, ""))
+    }
+
+    @Test func normalizeFoldsMadeUpItemUsingTheSourceText() {
+        let extraction = PaymentExtraction(transactions: [txn(8700, "별다방 역삼점", items: [item("카페 음료", 8700)])])
+        let out = FoundationModelsExtractionService.normalize(
+            extraction, ocrText: "승인 8,700원 일시불 2026-10-25 14:22 별다방 역삼점"
+        )
+        #expect(out.transactions.first?.items.isEmpty == true)
+        #expect(out.transactions.first?.amount == 8700)
+    }
+}
