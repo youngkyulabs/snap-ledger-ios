@@ -1,0 +1,120 @@
+{"id":"n1-01","outTok":0,"gated":false,"entries":[{"a":"0","i":"","m":"우리 동기 6","d":""}],"raw":[],"cond":"X","run":1,"inTok":0,"ms":2118,"cat":"N1"}
+{"cat":"N1","cond":"X","ms":1930,"outTok":0,"run":1,"inTok":0,"id":"n1-02","entries":[{"m":"중고나라","d":"","a":"0","i":""}],"raw":[],"gated":false}
+{"ms":2655,"cat":"N1","cond":"X","gated":false,"raw":[],"entries":[{"m":"등산 동호회","a":"30000","d":"2026-11-03","i":"회비"}],"id":"n1-03","run":1,"outTok":0,"inTok":0}
+{"outTok":0,"run":1,"gated":false,"cat":"N1","entries":[{"d":"","m":"엄마 생신 선물 패딩","a":"259000","i":""}],"ms":2406,"id":"n1-04","raw":[],"cond":"X","inTok":0}
+{"id":"n1-05","outTok":0,"gated":false,"entries":[{"a":"0","m":"나 어제 운동화 샀다","d":"","i":""}],"raw":[],"cond":"X","run":1,"inTok":0,"ms":1848,"cat":"N1"}
+{"id":"n1-06","outTok":0,"gated":false,"entries":[{"a":"100000","i":"","d":"","m":"용돈"}],"raw":[],"cond":"X","run":1,"inTok":0,"ms":2218,"cat":"N1"}
+{"outTok":0,"run":1,"gated":false,"cat":"N1","entries":[{"m":"방장","i":"런치 세트","d":"","a":"13900"},{"m":"방장","i":"음료","d":"","a":"2000"}],"ms":3108,"id":"n1-07","raw":[],"cond":"X","inTok":0}
+{"ms":3194,"cat":"N1","cond":"X","gated":false,"raw":[],"entries":[{"m":"제주 숙소","i":"1박 숙소 비용","a":"189000","d":"2026-11-20"},{"m":"제주 숙소","i":"2박 숙소 비용","a":"378000","d":"2026-11-20"}],"run":1,"id":"n1-08","outTok":0,"inTok":0}
+{"cat":"N2","cond":"X","ms":2427,"outTok":0,"run":1,"inTok":0,"id":"n2-01","entries":[{"a":"359000","d":"","m":"애플 공식 리셀러","i":"AirPods Pro 3"}],"raw":[],"gated":false}
+{"ms":8136,"cat":"N2","cond":"X","gated":false,"raw":[],"entries":[{"a":"55780","d":"","m":"","i":"로켓배송 상품"},{"a":"0","m":"","d":"","i":"유기농 바나나 1.2kg"},{"a":"0","d":"","m":"","i":"그릭요거트 플레인 4개입"},{"a":"0","m":"","d":"","i":"핸드드립 원두 500g"}],"run":1,"id":"n2-02","outTok":0,"inTok":0}
+{"ms":1822,"cat":"N2","cond":"X","gated":false,"raw":[],"entries":[{"i":"","a":"0","d":"","m":"까지"}],"id":"n2-03","run":1,"outTok":0,"inTok":0}
+{"outTok":0,"run":1,"gated":false,"cat":"N2","entries":[{"m":"까지","d":"","a":"0","i":""}],"ms":1899,"id":"n2-04","raw":[],"cond":"X","inTok":0}
+{"outTok":0,"run":1,"gated":false,"cat":"N2","entries":[{"a":"0","i":"","m":"무선 청소기","d":""}],"ms":1944,"id":"n2-05","raw":[],"cond":"X","inTok":0}
+{"cat":"N2","cond":"X","ms":4590,"outTok":0,"run":1,"inTok":0,"id":"n2-06","entries":[{"m":"BBQ 역삼점","i":"황금올리브 치킨","a":"23000","d":""},{"m":"BBQ 역삼점","i":"양념 치킨","a":"24500","d":""},{"m":"BBQ 역삼점","i":"치킨 반반","a":"24500","d":""},{"m":"BBQ 역삼점","i":"치즈볼 5개","d":"","a":"6000"},{"m":"BBQ 역삼점","i":"콜라 1.25L","d":"","a":"3000"}],"raw":[],"gated":false}
+{"id":"n2-07","outTok":0,"gated":false,"entries":[{"m":"대한항공","d":"2025-12-20","i":"","a":"412300"},{"d":"2025-12-20","m":"아시아나항공","i":"","a":"398700"},{"d":"2025-12-20","m":"제주항공","i":"","a":"289000"},{"m":"티웨이항공","d":"2025-12-20","i":"","a":"276400"}],"raw":[],"cond":"X","run":1,"inTok":0,"ms":5128,"cat":"N2"}
+{"id":"n2-08","outTok":0,"gated":false,"entries":[{"i":"","m":"찜한 상품","a":"0","d":""}],"raw":[],"cond":"X","run":1,"inTok":0,"ms":1890,"cat":"N2"}
+{"cat":"N3","cond":"X","ms":1843,"outTok":0,"run":1,"inTok":0,"id":"n3-01","entries":[{"a":"0","i":"","m":"총 자산","d":""}],"raw":[],"gated":false}
+{"ms":2818,"cat":"N3","cond":"X","gated":false,"raw":[],"entries":[{"i":"급여","m":"주)한빛소프트","d":"2026-11-25","a":"2850000"}],"id":"n3-02","run":1,"outTok":0,"inTok":0}
+{"ms":1923,"cat":"N3","cond":"X","gated":false,"raw":[],"entries":[{"i":"","d":"","m":"입출금 통장에서","a":"0"}],"id":"n3-03","run":1,"outTok":0,"inTok":0}
+{"ms":1864,"cat":"N3","cond":"X","gated":false,"raw":[],"entries":[{"m":"포인트","d":"","i":"","a":"0"}],"id":"n3-04","run":1,"outTok":0,"inTok":0}
+{"outTok":0,"run":1,"gated":false,"cat":"N3","entries":[],"ms":1488,"id":"n3-05","raw":[],"cond":"X","inTok":0}
+{"cat":"N3","cond":"X","ms":1980,"outTok":0,"run":1,"inTok":0,"id":"n3-06","entries":[{"d":"","i":"","m":"삼성전자","a":"0"}],"raw":[],"gated":false}
+{"outTok":0,"run":1,"gated":false,"cat":"N3","entries":[{"a":"0","i":"","d":"","m":"변경 기기: iPhone"}],"ms":1792,"id":"n3-07","raw":[],"cond":"X","inTok":0}
+{"cat":"N3","cond":"X","ms":1835,"outTok":0,"run":1,"inTok":0,"id":"n3-08","entries":[{"i":"","d":"","m":"연말정산 미리보기","a":"0"}],"raw":[],"gated":false}
+{"outTok":0,"run":1,"gated":false,"cat":"N4","entries":[{"m":"겨울 캠핑 장비 추천 TOP 10","i":"","d":"","a":"0"}],"ms":1869,"id":"n4-01","raw":[],"cond":"X","inTok":0}
+{"cat":"N4","cond":"X","ms":1778,"outTok":0,"run":1,"inTok":0,"id":"n4-02","entries":[{"i":"","m":"걷기 + 달리기 거리","d":"","a":"0"}],"raw":[],"gated":false}
+{"outTok":0,"run":1,"gated":false,"cat":"N4","entries":[{"i":"","a":"0","m":"daily_hana","d":""}],"ms":1869,"id":"n4-03","raw":[],"cond":"X","inTok":0}
+{"cat":"N4","cond":"X","ms":2204,"outTok":0,"run":1,"inTok":0,"id":"n4-04","entries":[{"d":"2026-11-24","i":"","m":"기자 김하늘","a":"0"}],"raw":[],"gated":false}
+{"outTok":0,"run":1,"gated":false,"cat":"N4","entries":[{"d":"","a":"0","i":"","m":"가계부 메이트"}],"ms":1930,"id":"n4-05","raw":[],"cond":"X","inTok":0}
+{"cat":"N4","cond":"X","ms":1896,"outTok":0,"run":1,"inTok":0,"id":"n4-06","entries":[{"m":"러닝 기록","i":"","d":"","a":"0"}],"raw":[],"gated":false}
+{"outTok":0,"run":1,"gated":false,"cat":"N4","entries":[{"i":"","m":"시즌 랭킹","d":"","a":"0"}],"ms":1833,"id":"n4-07","raw":[],"cond":"X","inTok":0}
+{"id":"n4-08","outTok":0,"gated":false,"entries":[],"raw":[],"cond":"X","run":1,"inTok":0,"ms":1466,"cat":"N4"}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":1,"inTok":0,"id":"n5-01","entries":[],"raw":[],"gated":true}
+{"id":"n5-02","outTok":0,"gated":true,"entries":[],"raw":[],"cond":"X","run":1,"inTok":0,"ms":0,"cat":"N5"}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":1,"inTok":0,"id":"n5-03","entries":[],"raw":[],"gated":true}
+{"id":"n5-04","outTok":0,"gated":true,"entries":[],"raw":[],"cond":"X","run":1,"inTok":0,"ms":0,"cat":"N5"}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":1,"inTok":0,"id":"n5-05","entries":[],"raw":[],"gated":true}
+{"id":"n5-06","outTok":0,"gated":true,"entries":[],"raw":[],"cond":"X","run":1,"inTok":0,"ms":0,"cat":"N5"}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":1,"inTok":0,"id":"n5-07","entries":[],"raw":[],"gated":true}
+{"id":"n5-08","outTok":0,"gated":true,"entries":[],"raw":[],"cond":"X","run":1,"inTok":0,"ms":0,"cat":"N5"}
+{"cat":"N1","outTok":0,"gated":false,"entries":[{"m":"","d":"","a":"32000","i":"식비"},{"m":"","a":"32000","d":"","i":"식비"}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":2819,"id":"n1-01"}
+{"outTok":0,"run":2,"gated":false,"cat":"N1","entries":[{"i":"","m":"중고나라","d":"","a":"0"}],"ms":1925,"id":"n1-02","raw":[],"cond":"X","inTok":0}
+{"ms":2659,"cat":"N1","cond":"X","gated":false,"raw":[],"entries":[{"m":"등산 동호회","d":"2026-11-03","a":"30000","i":"회비"}],"id":"n1-03","run":2,"outTok":0,"inTok":0}
+{"ms":1768,"cat":"N1","cond":"X","gated":false,"raw":[],"entries":[{"i":"","a":"0","m":"엄마 생신 선물 3","d":""}],"run":2,"id":"n1-04","outTok":0,"inTok":0}
+{"outTok":0,"run":2,"gated":false,"cat":"N1","entries":[{"i":"운동화","d":"","m":"지수","a":"103200"}],"ms":2332,"id":"n1-05","raw":[],"cond":"X","inTok":0}
+{"id":"n1-06","outTok":0,"gated":false,"entries":[{"i":"","a":"100000","d":"","m":"용돈"}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":2184,"cat":"N1"}
+{"cat":"N1","outTok":0,"gated":false,"entries":[{"i":"런치 세트","d":"","m":"방장","a":"13900"},{"i":"음료","m":"방장","d":"","a":"2000"}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":3024,"id":"n1-07"}
+{"outTok":0,"run":2,"gated":false,"cat":"N1","entries":[{"d":"2026-11-20","i":"","a":"94500","m":"제주 숙소"}],"ms":2553,"id":"n1-08","raw":[],"cond":"X","inTok":0}
+{"ms":2752,"cat":"N2","cond":"X","gated":false,"raw":[],"entries":[{"m":"애플 공식 리셀러","d":"","a":"359000","i":"AirPods Pro 3"}],"run":2,"id":"n2-01","outTok":0,"inTok":0}
+{"cat":"N2","cond":"X","ms":3509,"outTok":0,"run":2,"inTok":0,"id":"n2-02","entries":[{"d":"","i":"유기농 바나나","m":"","a":"3333"},{"d":"","i":"그릭요거트 플레인","a":"4444","m":""},{"d":"","i":"핸드드립 원두","a":"55780","m":""}],"raw":[],"gated":false}
+{"id":"n2-03","outTok":0,"gated":false,"entries":[{"a":"0","m":"까지","d":"","i":""}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1806,"cat":"N2"}
+{"cat":"N2","outTok":0,"gated":false,"entries":[{"d":"","i":"","m":"까지","a":"0"}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1894,"id":"n2-04"}
+{"cat":"N2","cond":"X","ms":4759,"outTok":0,"run":2,"inTok":0,"id":"n2-05","entries":[{"d":"","i":"무선 청소기","a":"1049000","m":"LG 코드제로 AgS"},{"i":"무선청소기 G11","d":"","a":"289000","m":"삼성 비스포크 제트"},{"i":"무선 청소기","d":"","m":"LG 코드제로 AgS","a":"689000"}],"raw":[],"gated":false}
+{"ms":4310,"cat":"N2","cond":"X","gated":false,"raw":[],"entries":[{"i":"황금올리브 치킨","m":"BBQ 역삼점","a":"23000","d":""},{"i":"양념 치킨","m":"BBQ 역삼점","a":"24500","d":""},{"i":"치킨 반반","m":"BBQ 역삼점","a":"24500","d":""},{"i":"치즈볼 5개","m":"BBQ 역삼점","a":"6000","d":""},{"i":"콜라 1.25L","m":"BBQ 역삼점","a":"3000","d":""}],"id":"n2-06","run":2,"outTok":0,"inTok":0}
+{"outTok":0,"run":2,"gated":false,"cat":"N2","entries":[{"m":"대한항공","a":"412300","d":"2025-12-20","i":""},{"m":"아시아나항공","a":"398700","d":"2025-12-21","i":""},{"m":"제주항공","a":"289000","d":"2025-12-22","i":""},{"m":"티웨이항공","a":"276400","d":"2025-12-23","i":""}],"ms":5200,"id":"n2-07","raw":[],"cond":"X","inTok":0}
+{"id":"n2-08","outTok":0,"gated":false,"entries":[{"a":"0","i":"","m":"찜한 상품","d":""}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1927,"cat":"N2"}
+{"cat":"N3","outTok":0,"gated":false,"entries":[{"d":"","m":"총 자산","a":"0","i":""}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1849,"id":"n3-01"}
+{"cat":"N3","cond":"X","ms":4000,"outTok":0,"run":2,"inTok":0,"id":"n3-02","entries":[{"d":"2026-11-25","a":"2850000","m":"국민은행","i":"주)"},{"i":"세이프박스 이자","a":"1234","m":"카카오뱅크","d":"2026-11-25"}],"raw":[],"gated":false}
+{"cat":"N3","cond":"X","ms":1921,"outTok":0,"run":2,"inTok":0,"id":"n3-03","entries":[{"d":"","i":"","a":"0","m":"입출금 통장에서"}],"raw":[],"gated":false}
+{"cat":"N3","outTok":0,"gated":false,"entries":[{"a":"0","m":"포인트","d":"","i":""}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1828,"id":"n3-04"}
+{"ms":1438,"cat":"N3","cond":"X","gated":false,"raw":[],"entries":[],"run":2,"id":"n3-05","outTok":0,"inTok":0}
+{"outTok":0,"run":2,"gated":false,"cat":"N3","entries":[{"i":"10주","a":"68200","m":"삼성전자","d":"2026-11-25"}],"ms":2575,"id":"n3-06","raw":[],"cond":"X","inTok":0}
+{"outTok":0,"run":2,"gated":false,"cat":"N3","entries":[{"i":"","a":"0","d":"","m":"변경 기기: iPhone"}],"ms":1785,"id":"n3-07","raw":[],"cond":"X","inTok":0}
+{"ms":1804,"cat":"N3","cond":"X","gated":false,"raw":[],"entries":[{"m":"연말정산 미리보기","d":"","a":"0","i":""}],"run":2,"id":"n3-08","outTok":0,"inTok":0}
+{"id":"n4-01","outTok":0,"gated":false,"entries":[],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1445,"cat":"N4"}
+{"outTok":0,"run":2,"gated":false,"cat":"N4","entries":[{"a":"0","m":"걷기 + 달리기 거리","d":"","i":""}],"ms":1792,"id":"n4-02","raw":[],"cond":"X","inTok":0}
+{"ms":2310,"cat":"N4","cond":"X","gated":false,"raw":[],"entries":[{"m":"daily_hana","a":"1234","d":"","i":"게시물"}],"run":2,"id":"n4-03","outTok":0,"inTok":0}
+{"cat":"N4","cond":"X","ms":2407,"outTok":0,"run":2,"inTok":0,"id":"n4-04","entries":[{"d":"2026-11-24","m":"한빛일보","a":"0","i":""}],"raw":[],"gated":false}
+{"cat":"N4","outTok":0,"gated":false,"entries":[{"m":"가계부 메이트","i":"","a":"0","d":""}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1822,"id":"n4-05"}
+{"id":"n4-06","outTok":0,"gated":false,"entries":[{"i":"","d":"","m":"러닝 기록","a":"0"}],"raw":[],"cond":"X","run":2,"inTok":0,"ms":1808,"cat":"N4"}
+{"cat":"N4","cond":"X","ms":1810,"outTok":0,"run":2,"inTok":0,"id":"n4-07","entries":[{"i":"","a":"0","d":"","m":"시즌 랭킹"}],"raw":[],"gated":false}
+{"ms":1439,"cat":"N4","cond":"X","gated":false,"raw":[],"entries":[],"run":2,"id":"n4-08","outTok":0,"inTok":0}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":2,"inTok":0,"id":"n5-01","entries":[],"raw":[],"gated":true}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"run":2,"id":"n5-02","outTok":0,"inTok":0}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":2,"inTok":0,"id":"n5-03","entries":[],"raw":[],"gated":true}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"run":2,"id":"n5-04","outTok":0,"inTok":0}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":2,"inTok":0,"id":"n5-05","entries":[],"raw":[],"gated":true}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"run":2,"id":"n5-06","outTok":0,"inTok":0}
+{"cat":"N5","cond":"X","ms":0,"outTok":0,"run":2,"inTok":0,"id":"n5-07","entries":[],"raw":[],"gated":true}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"run":2,"id":"n5-08","outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":false,"cat":"N1","entries":[{"i":"","m":"우리 동기 6","a":"192000","d":""}],"ms":2065,"id":"n1-01","raw":[],"cond":"X","inTok":0}
+{"cat":"N1","outTok":0,"gated":false,"entries":[{"i":"","m":"중고나라","d":"","a":"0"}],"raw":[],"cond":"X","run":3,"inTok":0,"ms":1904,"id":"n1-02"}
+{"ms":2655,"cat":"N1","cond":"X","gated":false,"raw":[],"entries":[{"m":"등산 동호회","d":"2026-11-03","i":"회비","a":"30000"}],"id":"n1-03","run":3,"outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":false,"cat":"N1","entries":[{"m":"엄마 생신 선물 3","a":"0","d":"","i":""}],"ms":1789,"id":"n1-04","raw":[],"cond":"X","inTok":0}
+{"outTok":0,"run":3,"gated":false,"cat":"N1","entries":[{"m":"나 어제 운동화 샀다","a":"0","d":"","i":""}],"ms":1850,"id":"n1-05","raw":[],"cond":"X","inTok":0}
+{"ms":2222,"cat":"N1","cond":"X","gated":false,"raw":[],"entries":[{"a":"100000","i":"","d":"","m":"용돈"}],"id":"n1-06","run":3,"outTok":0,"inTok":0}
+{"cat":"N1","outTok":0,"gated":false,"entries":[{"d":"","i":"런치 세트","a":"13900","m":"방장"}],"raw":[],"cond":"X","run":3,"inTok":0,"ms":2746,"id":"n1-07"}
+{"outTok":0,"run":3,"gated":false,"cat":"N1","entries":[{"i":"","d":"2026-11-20","a":"94500","m":"숙소"}],"ms":2493,"id":"n1-08","raw":[],"cond":"X","inTok":0}
+{"ms":1979,"cat":"N2","cond":"X","gated":false,"raw":[],"entries":[{"a":"0","d":"","m":"애플 공식 리셀러","i":""}],"id":"n2-01","run":3,"outTok":0,"inTok":0}
+{"cat":"N2","cond":"X","ms":3896,"outTok":0,"run":3,"inTok":0,"id":"n2-02","entries":[{"m":"","d":"","a":"55780","i":"로켓배송 상품"},{"m":"","i":"유기농 바나나 1.2kg","a":"0","d":""},{"m":"","i":"그릭요거트 플레인 4개입","d":"","a":"0"},{"m":"","d":"","i":"핸드드립 원두 500g","a":"0"}],"raw":[],"gated":false}
+{"cat":"N2","outTok":0,"gated":false,"entries":[{"a":"0","m":"까지","d":"","i":""}],"raw":[],"cond":"X","run":3,"inTok":0,"ms":1816,"id":"n2-03"}
+{"cat":"N2","outTok":0,"gated":false,"entries":[{"i":"","d":"","a":"0","m":"까지"}],"raw":[],"cond":"X","run":3,"inTok":0,"ms":1883,"id":"n2-04"}
+{"cat":"N2","cond":"X","ms":3717,"outTok":0,"run":3,"inTok":0,"id":"n2-05","entries":[{"d":"","i":"무선 청소기","m":"LG 코드제로 AgS","a":"689000"},{"d":"","i":"무선청소기 G11","m":"삼성 비스포크 제트","a":"289000"}],"raw":[],"gated":false}
+{"ms":4260,"cat":"N2","cond":"X","gated":false,"raw":[],"entries":[{"i":"황금올리브 치킨","a":"23000","d":"","m":"BBQ 역삼점"},{"i":"양념 치킨","a":"24500","d":"","m":"BBQ 역삼점"},{"i":"치킨 반반","a":"24500","d":"","m":"BBQ 역삼점"},{"i":"치즈볼 5개","a":"6000","d":"","m":"BBQ 역삼점"},{"i":"콜라 1.25L","d":"","a":"3000","m":"BBQ 역삼점"}],"run":3,"id":"n2-06","outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":false,"cat":"N2","entries":[{"a":"412300","m":"대한항공","d":"2025-12-20","i":""},{"a":"398700","m":"아시아나항공","d":"2025-12-20","i":""},{"a":"289000","m":"제주항공","d":"2025-12-20","i":""},{"a":"276400","m":"티웨이항공","d":"2025-12-20","i":""}],"ms":5818,"id":"n2-07","raw":[],"cond":"X","inTok":0}
+{"id":"n2-08","outTok":0,"gated":false,"entries":[{"i":"","d":"","m":"찜한 상품","a":"0"}],"raw":[],"cond":"X","run":3,"inTok":0,"ms":2005,"cat":"N2"}
+{"cat":"N3","outTok":0,"gated":false,"entries":[{"d":"","m":"총 자산","a":"0","i":""}],"raw":[],"cond":"X","run":3,"inTok":0,"ms":2449,"id":"n3-01"}
+{"outTok":0,"run":3,"gated":false,"cat":"N3","entries":[{"a":"2850000","i":"급여","m":"국민은행","d":"2026-11-25"},{"a":"1234","i":"이자","m":"카카오뱅크","d":""}],"ms":4416,"id":"n3-02","raw":[],"cond":"X","inTok":0}
+{"outTok":0,"run":3,"gated":false,"cat":"N3","entries":[{"m":"입출금 통장에서","i":"","d":"","a":"0"}],"ms":2740,"id":"n3-03","raw":[],"cond":"X","inTok":0}
+{"cat":"N3","outTok":0,"gated":false,"entries":[{"m":"포인트","d":"","i":"","a":"0"}],"raw":[],"cond":"X","run":3,"inTok":0,"ms":2481,"id":"n3-04"}
+{"ms":1829,"cat":"N3","cond":"X","gated":false,"raw":[],"entries":[],"run":3,"id":"n3-05","outTok":0,"inTok":0}
+{"cat":"N3","cond":"X","ms":4514,"outTok":0,"run":3,"inTok":0,"id":"n3-06","entries":[{"m":"삼성전자","d":"","a":"68200","i":"10주"}],"raw":[],"gated":false}
+{"cat":"N3","cond":"X","ms":2358,"outTok":0,"run":3,"inTok":0,"id":"n3-07","entries":[{"i":"","d":"","m":"변경 기기: iPhone","a":"0"}],"raw":[],"gated":false}
+{"ms":2178,"cat":"N3","cond":"X","gated":false,"raw":[],"entries":[{"m":"연말정산 미리보기","i":"","d":"","a":"0"}],"run":3,"id":"n3-08","outTok":0,"inTok":0}
+{"cat":"N4","outTok":0,"gated":false,"entries":[],"raw":[],"cond":"X","run":3,"inTok":0,"ms":1759,"id":"n4-01"}
+{"cat":"N4","cond":"X","ms":1908,"outTok":0,"run":3,"inTok":0,"id":"n4-02","entries":[{"m":"걷기 + 달리기 거리","i":"","d":"","a":"0"}],"raw":[],"gated":false}
+{"ms":2229,"cat":"N4","cond":"X","gated":false,"raw":[],"entries":[{"d":"","i":"","m":"daily_hana","a":"0"}],"id":"n4-03","run":3,"outTok":0,"inTok":0}
+{"ms":2494,"cat":"N4","cond":"X","gated":false,"raw":[],"entries":[{"m":"기자 김하늘","a":"0","d":"2026-11-24","i":""}],"id":"n4-04","run":3,"outTok":0,"inTok":0}
+{"ms":2053,"cat":"N4","cond":"X","gated":false,"raw":[],"entries":[{"m":"가계부 메이트","d":"","i":"","a":"0"}],"id":"n4-05","run":3,"outTok":0,"inTok":0}
+{"ms":1941,"cat":"N4","cond":"X","gated":false,"raw":[],"entries":[{"i":"","m":"러닝 기록","d":"","a":"0"}],"run":3,"id":"n4-06","outTok":0,"inTok":0}
+{"ms":1931,"cat":"N4","cond":"X","gated":false,"raw":[],"entries":[{"d":"","a":"0","i":"","m":"시즌 랭킹"}],"id":"n4-07","run":3,"outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":false,"cat":"N4","entries":[],"ms":1612,"id":"n4-08","raw":[],"cond":"X","inTok":0}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"id":"n5-01","run":3,"outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":true,"cat":"N5","entries":[],"ms":0,"id":"n5-02","raw":[],"cond":"X","inTok":0}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"id":"n5-03","run":3,"outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":true,"cat":"N5","entries":[],"ms":0,"id":"n5-04","raw":[],"cond":"X","inTok":0}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"id":"n5-05","run":3,"outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":true,"cat":"N5","entries":[],"ms":0,"id":"n5-06","raw":[],"cond":"X","inTok":0}
+{"ms":0,"cat":"N5","cond":"X","gated":true,"raw":[],"entries":[],"id":"n5-07","run":3,"outTok":0,"inTok":0}
+{"outTok":0,"run":3,"gated":true,"cat":"N5","entries":[],"ms":0,"id":"n5-08","raw":[],"cond":"X","inTok":0}
