@@ -20,6 +20,7 @@ scratch directory `$W` outside the repo.
 | `tuning/gen.py` | The 24-image tuning corpus (multi / noise / receipt / control) the rules were derived from. |
 | `holdout/` | The second held-out set: brief and generator (strata S1–S4), used for the image-route gate. |
 | `holdout3/` | The third held-out set: brief and generator (strata B1–B3), used for the mixed-screen gate. |
+| `noise/` | Screenshot-automation noise set: `gen_noise.py` (40 everyday screens that are not payments, strata N1–N5) and `summarize.py` (each run as gated / empty / entry / error). |
 | `results/` | Raw records and OCR texts of past runs, so numbers can be re-scored without the model. |
 | `checks/` | One-off probes: model capabilities, `reasoningLevel` rejection, iOS 27 error types. |
 
@@ -63,6 +64,23 @@ python3 $P/gate.py $W/holdout $W/current.jsonl $W/new.jsonl $W/current-filtered.
 A full run takes about 25 minutes. When waiting on it from a script, use `caffeinate -w <pid>` or `pgrep -x probe`;
 `pgrep -f` matches the waiting shell's own command line. Rebuild the binaries from the committed sources before a
 run, or the numbers will not match the commit. Run each condition at least 3 times.
+
+## Screenshot noise run (2026-11-25)
+
+Every image is a non-payment screen, so any entry is a false one. The criterion and results are in
+`internal/app-intents-review.md` ("스크린샷 자동화 실측").
+
+```bash
+P=internal/extraction-probe
+$P/build.sh . $W/build
+python3 $P/noise/gen_noise.py $W/noise
+$W/build/probe $W/noise $W/run1.jsonl 3 X
+$W/build/probe $W/noise $W/run2.jsonl 3 X
+python3 $P/noise/summarize.py $W/noise $W/run1.jsonl $W/run2.jsonl --detail
+```
+
+To re-score the committed records without the model, copy `results/2026-11-25-noise-ocr/` to `$W/noise/ocr/` and pass
+`results/2026-11-25-noise-run1.jsonl` and `-run2.jsonl` to `summarize.py`.
 
 To see which route each item took, stream the app log while the probe runs:
 `log stream --level info --predicate 'subsystem == "com.youngkyu.snapledger" AND category == "extraction"'`.
