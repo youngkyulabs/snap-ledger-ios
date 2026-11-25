@@ -152,8 +152,10 @@ struct PendingProcessor {
     }
 
     func process(_ pending: PendingImage, in context: ModelContext) async {
-        drainState.inFlight.insert(pending.id)
-        defer { drainState.inFlight.remove(pending.id) }
+        // Captured once: the row may be deleted below.
+        let id = pending.id
+        drainState.inFlight.insert(id)
+        defer { drainState.inFlight.remove(id) }
         pending.state = .processing
         try? context.save()
 
@@ -177,6 +179,10 @@ struct PendingProcessor {
             }
             let enriched = CandidateHeuristics.enrich(extraction, ocrText: sourceText)
             if enriched.isEmpty {
+                if pending.discardsWhenNothingFound {
+                    discard(pending, at: sourceURL, in: context)
+                    return
+                }
                 // Mark as failed if no transactions were extracted
                 pending.state = .failed
                 pending.failureMessage = isText
@@ -208,6 +214,17 @@ struct PendingProcessor {
                 pending.failureMessage = String(describing: error)
             }
             try? context.save()
+        }
+    }
+
+    /// Removes the row before its file, so a failed save cannot leave a row without a file.
+    private func discard(_ pending: PendingImage, at url: URL, in context: ModelContext) {
+        context.delete(pending)
+        do {
+            try context.save()
+            try? FileManager.default.removeItem(at: url)
+        } catch {
+            log.error("discard save failed: \(String(describing: error))")
         }
     }
 

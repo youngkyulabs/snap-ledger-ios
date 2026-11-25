@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import SwiftData
 import OSLog
@@ -9,7 +10,9 @@ struct SnapLedgerApp: App {
     init() {
         // Use in-memory container when running unit tests.
         if Self.isRunningUnitTests {
-            modelContainer = Self.makeInMemoryContainer()
+            let container = Self.makeInMemoryContainer()
+            modelContainer = container
+            Self.provideToIntents(container)
             return
         }
 
@@ -25,6 +28,7 @@ struct SnapLedgerApp: App {
         }
 
         modelContainer = container
+        Self.provideToIntents(container)
         BackgroundRefresh.register(modelContainer: container)
     }
 
@@ -50,6 +54,12 @@ private extension SnapLedgerApp {
     /// Returns whether unit tests are currently running.
     static var isRunningUnitTests: Bool {
         NSClassFromString("XCTestCase") != nil
+    }
+
+    /// Intents run in this process and resolve this container through `@Dependency`, cloud store included.
+    static func provideToIntents(_ container: ModelContainer) {
+        // The SDK declares `shared` nonisolated(unsafe); this runs once from App.init, before any intent.
+        unsafe AppDependencyManager.shared.add(dependency: container)
     }
 
     /// Creates an in-memory ModelContainer for unit testing.
