@@ -13,5 +13,13 @@ struct SnapLedgerShortcuts: AppShortcutsProvider {
             shortTitle: "지출 추가",
             systemImageName: "doc.text.viewfinder"
         )
+        AppShortcut(
+            intent: AddExpenseFromTextIntent(),
+            phrases: [
+                "\(.applicationName)에 결제 문자 추가",
+            ],
+            shortTitle: "텍스트로 추가",
+            systemImageName: "text.viewfinder"
+        )
     }
 }

@@ -96,6 +96,7 @@ SnapLedger/                          # Main app target (synchronized root group)
     AppleIntelligenceStatus.swift    # FM availability → user-friendly copy (shared entry point for Settings/Onboarding/Review)
     PendingProcessor.swift           # @MainActor pipeline: reconcile inbox → OCR (images) / read text (.txt) → heuristic → extract → ParsedEntry
                                      #            + DrainState (shared per process): drain serialization, rerun-on-request, in-flight set that requeue skips
+                                     #            + deletes a row flagged discardsWhenNothingFound (intent text) with its file when nothing is extracted
     SaveCoordinator.swift            # Confirm review → CSV append + SavedEntry creation + category learning
                                      #            + a failed save undoes only its own changes (the review editor edits entries in place)
     CategoryLearner.swift            # Merchant → category learning & lookup
@@ -156,7 +157,9 @@ SnapLedger/                          # Main app target (synchronized root group)
 
   System/                            # System integrations (not views)
     Background/BackgroundRefresh.swift          # BGAppRefreshTask
-    Intents/AddExpenseFromImageIntent.swift     # AppIntent (Spotlight/Siri)
+    Intents/AddExpenseFromImageIntent.swift     # AppIntent (Spotlight/Siri): image → InboxIntentRunner
+    Intents/AddExpenseFromTextIntent.swift      # AppIntent for payment text (Shortcuts automations) + IntentTextInput (pure: trim, 2,000 cap, payment-signal gate)
+    Intents/InboxIntentRunner.swift             # Writes the inbox file + row, starts a drain, waits up to 20 s for that file → InboxIntentOutcome (dialog copy)
     Intents/SnapLedgerShortcuts.swift           # AppShortcutsProvider
     Notifications/NotificationScheduler.swift   # UNUserNotification wrapper
     Notifications/ReminderContent.swift         # pure: time/count → body & single-fire trigger
@@ -181,10 +184,10 @@ SnapLedgerUITests/                   # XCTest UI tests
    - **Images and Text Share the Same Inbox**: The extension accepts images (`NSExtensionActivationSupportsImageWithMaxCount`) and plain text (`NSExtensionActivationSupportsText`; the dictionary keys are OR'd, so the extension appears in both share sheets). Shared text is written as `UUID.txt` (trimmed, capped at 2,000 characters by `ShareViewController.maxTextLength` to keep whole articles out of the inbox; fitting the model is the extraction service's job, see Decision 4). An item's text is used only when none of its images reached the inbox, so a post with a screenshot plus a caption stays one entry; `attributedContentText` is the last fallback for apps that attach no provider. `InboxPayload.isText` routes `.txt` files past OCR straight into the payment-signal gate; everything after that is the same pipeline, so the only text-specific pieces are the failure copy (`noPaymentSignalTextReason`) and the review preview (`InboxTextView` instead of the image).
 
 2. **Guard Foundation Models**
-   Always check `FoundationModelsExtractionService.isAvailable`. If unavailable, processing drains are skipped entirely (`ContentView.drainPending`, `BackgroundRefresh.handle`), and `AddExpenseFromImageIntent` gracefully degrades with an "Added to queue" message. Note that Apple Intelligence may be unavailable in simulators, requiring on-device testing.
+   Always check `FoundationModelsExtractionService.isAvailable`. If unavailable, processing drains are skipped entirely (`ContentView.drainPending`, `BackgroundRefresh.handle`), and the intents (`InboxIntentRunner`) report "Added to queue" instead. Note that Apple Intelligence may be unavailable in simulators, requiring on-device testing.
 
 3. **All SwiftData Containers Use Group Container**
-   `ModelConfiguration(schema: schema, groupContainer: .identifier(AppGroup.identifier))`. Both the main app and AppIntents share and inspect the exact same store.
+   `ModelConfiguration(schema: schema, groupContainer: .identifier(AppGroup.identifier))`. Intents run in the app process and receive the app's own container through `AppDependencyManager` (`SnapLedgerApp.provideToIntents` → `@Dependency var modelContainer`), cloud store included, so learned categories reach them. They work in a fresh `ModelContext`, so their saves carry only their own changes, never a review edit in progress on `mainContext`.
 
 4. **Extraction Accuracy via Prompt + User Guide**
    `FoundationModelsExtractionService.instructions(today:customGuide:categories:)` is the single source of truth. Explicitly defines payment notification patterns (`<amount>원 일시불`) and forbidden secondary amounts (`누적`, `잔액`, `한도`, `포인트`, etc.). `@Guide` delegates to instructions (no hardcoding). When users specify custom guides in Settings, they are appended to the end of the prompt under "User Guide (takes precedence over rules above)".
@@ -218,6 +221,9 @@ SnapLedgerUITests/                   # XCTest UI tests
 
 10. **History Calendar Animations Inside a List (`HistoryCalendarView`)**
    The month slide is a `.push` transition on the grid inside a `List` row, and `List` drops it in three cases measured on the simulator: a non-animated change landing in the same update as the animated one (so the direction is set first and the month changes on the next main-actor tick), rows in another section or a toolbar item being inserted or removed while it slides (so the selected day is kept across months and the CSV button is disabled rather than hidden), and a grid that re-measures (so it is a fixed 6×7 with fixed-height cells). To check motion, set the animation to `.linear(duration: 8)` and screenshot right after tapping; screenshots land 2–3 s late.
+
+11. **Intents Queue Through the Drain (`InboxIntentRunner`)**
+   Automations can fire several intents at once, so an intent writes its file and row, starts a drain in an unstructured `Task` (no intent's time limit can cut off a file another intent queued), and polls its own row by filename in fresh contexts for up to 20 s, under the system's 30 s intent limit. `DrainState` keeps extraction to one model session at a time; a file still waiting at the deadline reports "queued" and the app finishes it. The text intent queues only text with a payment signal (`IntentTextInput`) and flags its rows `discardsWhenNothingFound`: text that passes the loose gate (a comma number, "결제") yet yields no payment is deleted with its file, and the dialog reports the skip. A thrown extraction stays a retryable failed row, and image rows keep their failed row for manual entry. Cross-channel duplicates (SMS, push, Wallet) and cancellation or billing notices reach review like any other entry. `internal/app-intents-review.md` holds the measurements and the device checks still open.
 
 ## Conventions
 
