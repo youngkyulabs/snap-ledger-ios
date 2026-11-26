@@ -67,8 +67,9 @@ run, or the numbers will not match the commit. Run each condition at least 3 tim
 
 ## Screenshot noise run (2026-11-25)
 
-Every image is a non-payment screen, so any entry is a false one. The criterion and results are in
-`internal/app-intents-review.md` ("스크린샷 자동화 실측").
+Every image is a non-payment screen, so any entry is a false one. The criterion, fixed before measuring: entries
+plus errors at most 10% of the 240 runs and at most 25% in any layer. The result was 73.8%
+(`results/2026-11-25-noise-summary.txt`), so screenshot automation was put on hold.
 
 ```bash
 P=internal/extraction-probe
